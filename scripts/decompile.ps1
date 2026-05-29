@@ -39,9 +39,11 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# JPEXS creates a double-nested path: _decompiled/scripts/scripts/
-# Verify the expected structure exists.
-$ScriptsRoot = Join-Path $OutputDir "scripts\scripts"
+# JPEXS exports AS3 sources under _decompiled/scripts/
+# (Older JPEXS versions double-nested as scripts/scripts/ — fall back if seen.)
+$ScriptsRoot = Join-Path $OutputDir "scripts"
+$LegacyRoot  = Join-Path $ScriptsRoot "scripts"
+if (Test-Path $LegacyRoot) { $ScriptsRoot = $LegacyRoot }
 if (-not (Test-Path $ScriptsRoot)) {
     Write-Warning "Expected path '$ScriptsRoot' not found. JPEXS may have changed its output structure."
 } else {

@@ -1,14 +1,17 @@
 # Copies patch files from src/ onto the JPEXS decompile output in _decompiled/.
 # Run this after decompile.ps1 and before build.ps1.
 #
-# Note: JPEXS exports to _decompiled/scripts/scripts/ (double-nested).
+# JPEXS exports to _decompiled/scripts/. (Older versions double-nested as
+# scripts/scripts/ — we fall back to that if present.)
 # Files in src/ must mirror the AS3 package path, e.g.:
 #   src/game/session/states/PreAuthState.as
-#   -> _decompiled/scripts/scripts/game/session/states/PreAuthState.as
+#   -> _decompiled/scripts/game/session/states/PreAuthState.as
 
 $RepoRoot    = Split-Path $PSScriptRoot
 $SrcDir      = Join-Path $RepoRoot "src"
-$TargetRoot  = Join-Path $RepoRoot "_decompiled\scripts\scripts"
+$TargetRoot  = Join-Path $RepoRoot "_decompiled\scripts"
+$LegacyRoot  = Join-Path $TargetRoot "scripts"
+if (Test-Path $LegacyRoot) { $TargetRoot = $LegacyRoot }
 
 if (-not (Test-Path $TargetRoot)) {
     Write-Error "'$TargetRoot' not found. Run scripts\decompile.ps1 first."

@@ -22,7 +22,7 @@ All three scripts are PowerShell — the project is Windows-first. Mac users wit
 | **JPEXS Free Flash Decompiler** | Extracts AS3 from the SWF.                      | Install to `C:\Program Files (x86)\FFDec\` (the default). Releases: https://github.com/jindrapetrik/jpexs-decompiler/releases                                                                        |
 | **HARMAN AIR SDK 33.1+**        | `amxmlc` (compiler) + `adt` (packager).         | https://airsdk.harman.com/ — set `AIR_HOME` env var to the SDK root.                                                                                                                                 |
 | **Original SWF v1.10.51**       | Input to `decompile.ps1`. Not committed.        | Default: `C:\Program Files (x86)\Steam\steamapps\common\The Banner Saga Factions\win32\app.game.air.swf`. Fallback: unzip `BannerSagaFactions-client.zip` from the BSF-Custom-Server GitHub release. |
-| **Signing certificate**         | `adt` packaging requires a code-signing `.p12`. | Generate a self-signed cert with `adt -certificate -cn yourname 2048-RSA cert.p12 yourpass`. Path is configured in `build.ps1`. Never commit the `.p12`.                                             |
+| **Signing certificate**         | `adt` packaging requires a code-signing `.p12`. | See [Signing certificate](#signing-certificate) below for what it is, why AIR requires it, and how to generate one.                                                                                  |
 
 Verify each prerequisite is on the path before running `decompile.ps1`:
 
@@ -32,6 +32,23 @@ ls "C:\Program Files (x86)\FFDec\ffdec.bat"
 $env:AIR_HOME                              # must be set
 & "$env:AIR_HOME\bin\amxmlc.bat" -version
 ```
+
+## Signing certificate
+
+`adt` will not produce an unsigned package — there is no `--no-sign` flag. Every `.air`, `.apk`, and `.ipa` carries a digital signature that serves two purposes:
+
+- **Identity** — cryptographically ties the build to whoever holds the private key, so updates can be verified as coming from the same source as prior releases.
+- **Tamper-evidence** — if a packaged file is modified after signing, the signature breaks and the OS refuses to install it.
+
+A `.p12` (PKCS#12) file is a password-protected container holding the **private key** (the secret — never commit or share) and a **certificate** (the public half — embedded in your build so the OS can verify the signature).
+
+For local development, a **self-signed** cert is fine. Generate one in seconds:
+
+```powershell
+& "$env:AIR_HOME\bin\adt.bat" -certificate -cn BSF 2048-RSA SIGNING_KEY.p12 yourpassword
+```
+
+Drop the resulting `SIGNING_KEY.p12` in the repo root (or pass `-KeystorePath C:\path\to\your.p12` to `build.ps1`). `.p12` files are gitignored. Real Play Store / App Store distribution needs a CA-issued cert — that's covered in the per-target notes below.
 
 ## Step 1 — `decompile.ps1`
 

@@ -1,0 +1,21 @@
+--- a/assets-src/saga1/saga1.json
++++ b/assets-src/saga1/saga1.json
+@@ -529,9 +529,16 @@
+ 		}
+ 	],
+ 	"dlcsUrl": "saga1/dlcs1.json.z",
+-	"fevs": [
+-		"saga1/fmod/saga1.fev"
++	"campUrls": [
++		"saga1/scene/camp/cmp_snow/cmp_snow.json.z",
++		"saga1/scene/camp/cmp_forest/cmp_forest.json.z"
+ 	],
++	"fmodPreloadUrl": "saga1/fmod/preload_banks.json.z",
++	"talentDefsUrl": "common/character/talent/talents.json.z",
++	"title_id": "title_tbs1",
++	"warPoppeningContinueUrl": "saga1/convo/war/cnv_war_decide.json.z",
++	"warPoppeningImpl": "Action_War_Impl_1",
++	"warPoppeningUrl": "saga1/convo/war/cnv_war.json.z",
+ 	"happenings": [
+ 		{
+ 			"actions": [

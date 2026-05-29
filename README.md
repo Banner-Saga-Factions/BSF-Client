@@ -1,20 +1,36 @@
 # BSF-Client
 
+## Co-Authored-By: Claude <noreply@anthropic.com>
+
 Patched ActionScript 3 source for The Banner Saga Factions game client, built on top of the
 original AIR/Flash client decompiled with JPEXS. Goal: enable mobile/Windows crossplay by
 replacing Steam auth with Discord OAuth and adding a `bsf://` deep-link URL scheme.
 
-See `../BSF/misc/Findings-Client-ActionScript-Crossplay.md` for the full code analysis that
-identified what to change and why.
+See [`docs/`](./docs/) for architecture, build workflow, wire-protocol reference,
+and the client-side bsf-refs guide. The original analysis at
+`../BSF/bsf-server/misc/Findings-Client-ActionScript-Crossplay.md` is the canonical
+historical artifact and is cited throughout the new docs.
+
+## Documentation
+
+| Doc                                                            | Purpose                                                                                         |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| [`docs/README.md`](./docs/README.md)                           | Doc index — start here.                                                                         |
+| [`docs/architecture.md`](./docs/architecture.md)               | Patch-only repo model, AIR + Starling runtime, `GameMainAir` boot sequence, config hierarchy.   |
+| [`docs/build-workflow.md`](./docs/build-workflow.md)           | Full decompile → patch → build flow, prerequisites, per-target packaging, JPEXS artifact fixes. |
+| [`docs/wire-protocol.md`](./docs/wire-protocol.md)             | Client side of every `/services/*` route, login flow walkthrough, long-poll mechanics.          |
+| [`docs/battle-engine.md`](./docs/battle-engine.md)             | Battle FSM, entity ID format, DJB hash mechanics, common desync patterns.                       |
+| [`docs/subsystem-index.md`](./docs/subsystem-index.md)         | "Where do I look for X?" package-by-package map with decompile and 2013-source paths.           |
+| [`docs/reference-codebases.md`](./docs/reference-codebases.md) | Guide to the three client mirrors under `bsf-refs/` and the 12-stale-file exception list.       |
 
 ## Prerequisites
 
-| Tool | Notes |
-|------|-------|
-| Java 11+ | Required by JPEXS. Install Temurin 21 from https://adoptium.net/ |
-| JPEXS Free Flash Decompiler | Install to `C:\Program Files (x86)\FFDec\` — https://github.com/jindrapetrik/jpexs-decompiler/releases |
-| HARMAN AIR SDK 33.1+ | Set `AIR_HOME` env var to SDK root — https://airsdk.harman.com/ |
-| Original SWF (v1.10.51) | Not included. Default path: `C:\Program Files (x86)\Steam\steamapps\common\The Banner Saga Factions\win32\app.game.air.swf`. Fallback: unzip `BannerSagaFactions-client.zip` from the BSF-Custom-Server GitHub release. |
+| Tool                        | Notes                                                                                                                                                                                                                   |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Java 11+                    | Required by JPEXS. Install Temurin 21 from https://adoptium.net/                                                                                                                                                        |
+| JPEXS Free Flash Decompiler | Install to `C:\Program Files (x86)\FFDec\` — https://github.com/jindrapetrik/jpexs-decompiler/releases                                                                                                                  |
+| HARMAN AIR SDK 33.1+        | Set `AIR_HOME` env var to SDK root — https://airsdk.harman.com/                                                                                                                                                         |
+| Original SWF (v1.10.51)     | Not included. Default path: `C:\Program Files (x86)\Steam\steamapps\common\The Banner Saga Factions\win32\app.game.air.swf`. Fallback: unzip `BannerSagaFactions-client.zip` from the BSF-Custom-Server GitHub release. |
 
 ## Build workflow
 
@@ -31,23 +47,23 @@ identified what to change and why.
 
 ## What lives in this repo
 
-| Path | Purpose |
-|------|---------|
-| `src/` | Only the files being patched or added — applied over the decompile by `apply-patches.ps1` |
-| `META-INF/AIR/application.xml` | AIR app descriptor — modified to add `bsf://` URL scheme for Discord OAuth callback |
-| `scripts/decompile.ps1` | Runs JPEXS to export the full AS3 source into `_decompiled/` |
-| `scripts/apply-patches.ps1` | Copies `src/` onto the decompile output before compilation |
-| `scripts/build.ps1` | Compiles with `amxmlc`, packages with `adt` |
+| Path                           | Purpose                                                                                   |
+| ------------------------------ | ----------------------------------------------------------------------------------------- |
+| `src/`                         | Only the files being patched or added — applied over the decompile by `apply-patches.ps1` |
+| `META-INF/AIR/application.xml` | AIR app descriptor — modified to add `bsf://` URL scheme for Discord OAuth callback       |
+| `scripts/decompile.ps1`        | Runs JPEXS to export the full AS3 source into `_decompiled/`                              |
+| `scripts/apply-patches.ps1`    | Copies `src/` onto the decompile output before compilation                                |
+| `scripts/build.ps1`            | Compiles with `amxmlc`, packages with `adt`                                               |
 
 `_decompiled/` and `_build/` are gitignored and regenerated by the scripts above.
 
 ## Crossplay patch files
 
-| File | Change |
-|------|--------|
-| `src/game/session/states/PreAuthState.as` | Replace Steam ticket fetch with Discord OAuth token |
+| File                                         | Change                                                                                       |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `src/game/session/states/PreAuthState.as`    | Replace Steam ticket fetch with Discord OAuth token                                          |
 | `src/engine/steamworks/DiscordSteamworks.as` | New — `ISteamworks` stub that feeds Discord credentials through the existing Steam auth path |
-| `META-INF/AIR/application.xml` | Add `bsf://` URL scheme; remove Steamworks ANE for mobile targets |
+| `META-INF/AIR/application.xml`               | Add `bsf://` URL scheme; remove Steamworks ANE for mobile targets                            |
 
 Server-side prerequisites are tracked in `../BSF/misc/Plan-Enable-Mobile-Windows-Crossplay.md`.
 

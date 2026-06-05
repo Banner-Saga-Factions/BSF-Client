@@ -29,7 +29,9 @@ if (-not $env:AIR_HOME) {
 $amxmlc   = Join-Path $env:AIR_HOME "bin\amxmlc.bat"
 $adt      = Join-Path $env:AIR_HOME "bin\adt.bat"
 $RepoRoot = Split-Path $PSScriptRoot
-$SrcRoot  = Join-Path $RepoRoot "_decompiled\scripts\scripts"
+$SrcRoot  = Join-Path $RepoRoot "_decompiled\scripts"
+$LegacySrc = Join-Path $SrcRoot "scripts"
+if (Test-Path $LegacySrc) { $SrcRoot = $LegacySrc }
 $AppXml   = Join-Path $RepoRoot "META-INF\AIR\application.xml"
 $BuildDir = Join-Path $RepoRoot "_build"
 $SwfOut   = Join-Path $BuildDir "app.game.air.swf"

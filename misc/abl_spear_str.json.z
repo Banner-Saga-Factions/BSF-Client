@@ -1,0 +1,199 @@
+{
+  "abilities": [
+    {
+      "autolevels": [
+        {
+          "overrides": [
+            {
+              "key": "effects(0).ops(0).params.damage",
+              "value": 1
+            }
+          ]
+        },
+        {
+          "overrides": [
+            {
+              "key": "effects(0).ops(0).params.damage",
+              "value": 2
+            }
+          ]
+        },
+        {
+          "overrides": [
+            {
+              "key": "effects(0).ops(0).params.damage",
+              "value": 3
+            }
+          ]
+        }
+      ],
+      "effects": [
+        {
+          "name": "damage",
+          "ops": [
+            {
+              "id": "DAMAGE_STR",
+              "name": "damage",
+              "params": {
+                "damage": 0,
+                "damageOnMiss": 1,
+                "maxMissChance": 80,
+                "missChancePer": 10,
+                "perCasterStrength": 1,
+                "perTargetArmor": -1
+              }
+            }
+          ],
+          "phantasms": [
+            {
+              "anims": [
+                {
+                  "anim": "attack",
+                  "base": {
+                    "targetMode": "CASTER",
+                    "time": 0
+                  }
+                },
+                {
+                  "anim": "gethit",
+                  "base": {
+                    "sync": "apply",
+                    "targetMode": "TARGET",
+                    "time": -1
+                  },
+                  "killingAnim": "die"
+                }
+              ],
+              "applyTime": 5000,
+              "applyTriggers": [
+                {
+                  "animEventId": "hit",
+                  "animId": "attack",
+                  "animTargetMode": "CASTER"
+                }
+              ],
+              "endTime": 5000,
+              "endTriggers": [
+                {
+                  "animEventId": "hit",
+                  "animId": "attack",
+                  "animTargetMode": "CASTER",
+                  "deltaMs": 1000
+                }
+              ],
+              "results": [
+                "OK"
+              ],
+              "sounds": [
+                {
+                  "base": {
+                    "targetMode": "CASTER",
+                    "time": 50
+                  },
+                  "sound": "vocalize_attack"
+                },
+                {
+                  "base": {
+                    "targetMode": "CASTER",
+                    "time": 50
+                  },
+                  "sound": "attack"
+                },
+                {
+                  "base": {
+                    "sync": "apply",
+                    "targetMode": "CASTER",
+                    "time": -1
+                  },
+                  "sound": "strike"
+                },
+                {
+                  "base": {
+                    "sync": "apply",
+                    "targetMode": "TARGET",
+                    "time": -1
+                  },
+                  "sound": "gethit_strength"
+                },
+                {
+                  "base": {
+                    "sync": "apply",
+                    "targetMode": "TARGET",
+                    "time": -1
+                  },
+                  "sound": "vocalize_gethit_strength"
+                }
+              ],
+              "sprites": [
+                {
+                  "base": {
+                    "sync": "apply",
+                    "targetMode": "TARGET",
+                    "time": -1
+                  },
+                  "parameter": "damage",
+                  "spriteName": "str_hit"
+                }
+              ]
+            },
+            {
+              "anims": [
+                {
+                  "anim": "attack",
+                  "base": {
+                    "targetMode": "CASTER",
+                    "time": 0
+                  }
+                }
+              ],
+              "applyTime": 5000,
+              "applyTriggers": [
+                {
+                  "animEventId": "hit",
+                  "animId": "attack",
+                  "animTargetMode": "CASTER"
+                }
+              ],
+              "endTime": 5000,
+              "endTriggers": [
+                {
+                  "animEventId": "hit",
+                  "animId": "attack",
+                  "animTargetMode": "CASTER",
+                  "deltaMs": 500
+                }
+              ],
+              "results": [
+                "MISS"
+              ],
+              "sounds": [
+                {
+                  "base": {
+                    "targetMode": "CASTER",
+                    "time": 50
+                  },
+                  "sound": "vocalize_attack"
+                },
+                {
+                  "base": {
+                    "targetMode": "CASTER",
+                    "time": 50
+                  },
+                  "sound": "attack"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "id": "abl_spear_str",
+      "maxMove": -1,
+      "rangeMax": 2,
+      "rangeMin": 0,
+      "rangeType": "RANGED",
+      "tag": "ATTACK_STR",
+      "targetCount": 1,
+      "targetRule": "ENEMY"
+    }
+  ]
+}

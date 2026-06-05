@@ -1,0 +1,498 @@
+{
+  "abilities": [
+    {
+      "effects": [
+        {
+          "name": "damage",
+          "ops": [
+            {
+              "id": "DAMAGE_ARM",
+              "name": "damage",
+              "params": {
+                "damage": 0
+              }
+            }
+          ],
+          "phantasms": [
+            {
+              "anims": [
+                {
+                  "anim": "attack",
+                  "base": {
+                    "targetMode": "CASTER",
+                    "time": 0
+                  }
+                },
+                {
+                  "anim": "gethit",
+                  "base": {
+                    "sync": "apply",
+                    "targetMode": "TARGET",
+                    "time": -1
+                  },
+                  "killingAnim": "die"
+                }
+              ],
+              "applyTime": 5000,
+              "applyTriggers": [
+                {
+                  "animEventId": "hit",
+                  "animId": "attack",
+                  "animTargetMode": "CASTER"
+                }
+              ],
+              "endTime": 5000,
+              "endTriggers": [
+                {
+                  "animEventId": "hit",
+                  "animId": "attack",
+                  "animTargetMode": "CASTER",
+                  "deltaMs": 500
+                }
+              ],
+              "results": [
+                "OK"
+              ],
+              "sounds": [
+                {
+                  "base": {
+                    "targetMode": "CASTER",
+                    "time": 50
+                  },
+                  "sound": "vocalize_attack"
+                },
+                {
+                  "base": {
+                    "targetMode": "CASTER",
+                    "time": 50
+                  },
+                  "sound": "attack"
+                },
+                {
+                  "base": {
+                    "sync": "apply",
+                    "targetMode": "CASTER",
+                    "time": -1
+                  },
+                  "sound": "strike"
+                },
+                {
+                  "base": {
+                    "sync": "apply",
+                    "targetMode": "TARGET",
+                    "time": -1
+                  },
+                  "sound": "gethit_armor"
+                },
+                {
+                  "base": {
+                    "sync": "apply",
+                    "targetMode": "TARGET",
+                    "time": -1
+                  },
+                  "sound": "vocalize_gethit_armor"
+                }
+              ],
+              "sprites": [
+                {
+                  "base": {
+                    "sync": "apply",
+                    "targetMode": "TARGET",
+                    "time": -1
+                  },
+                  "parameter": "damage",
+                  "spriteName": "arm_hit"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "id": "abl_spear_arm",
+      "levels": [
+        {
+          "costs": {
+            "stats": [
+              {
+                "stat": "WILLPOWER",
+                "value": 1
+              }
+            ]
+          },
+          "effects": [
+            {
+              "name": "damage",
+              "ops": [
+                {
+                  "id": "DAMAGE_ARM",
+                  "name": "damage",
+                  "params": {
+                    "damage": 1
+                  }
+                }
+              ],
+              "phantasms": [
+                {
+                  "anims": [
+                    {
+                      "anim": "attack",
+                      "base": {
+                        "targetMode": "CASTER",
+                        "time": 0
+                      }
+                    },
+                    {
+                      "anim": "gethit",
+                      "base": {
+                        "sync": "apply",
+                        "targetMode": "TARGET",
+                        "time": -1
+                      },
+                      "killingAnim": "die"
+                    }
+                  ],
+                  "applyTime": 5000,
+                  "applyTriggers": [
+                    {
+                      "animEventId": "hit",
+                      "animId": "attack",
+                      "animTargetMode": "CASTER"
+                    }
+                  ],
+                  "endTime": 5000,
+                  "endTriggers": [
+                    {
+                      "animEventId": "hit",
+                      "animId": "attack",
+                      "animTargetMode": "CASTER",
+                      "deltaMs": 1000
+                    }
+                  ],
+                  "results": [
+                    "OK"
+                  ],
+                  "sounds": [
+                    {
+                      "base": {
+                        "targetMode": "CASTER",
+                        "time": 50
+                      },
+                      "sound": "vocalize_attack"
+                    },
+                    {
+                      "base": {
+                        "targetMode": "CASTER",
+                        "time": 50
+                      },
+                      "sound": "attack"
+                    },
+                    {
+                      "base": {
+                        "sync": "apply",
+                        "targetMode": "CASTER",
+                        "time": -1
+                      },
+                      "sound": "strike"
+                    },
+                    {
+                      "base": {
+                        "sync": "apply",
+                        "targetMode": "TARGET",
+                        "time": -1
+                      },
+                      "sound": "gethit_armor"
+                    },
+                    {
+                      "base": {
+                        "sync": "apply",
+                        "targetMode": "TARGET",
+                        "time": -1
+                      },
+                      "sound": "vocalize_gethit_armor"
+                    }
+                  ],
+                  "sprites": [
+                    {
+                      "base": {
+                        "sync": "apply",
+                        "targetMode": "TARGET",
+                        "time": -1
+                      },
+                      "parameter": "damage",
+                      "spriteName": "arm_hit"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "id": "abl_spear_arm",
+          "maxMove": -1,
+          "rangeMax": 1,
+          "rangeMin": 0,
+          "rangeType": "RANGED",
+          "tag": "ATTACK_ARM",
+          "targetCount": 1,
+          "targetRule": "ENEMY"
+        },
+        {
+          "costs": {
+            "stats": [
+              {
+                "stat": "WILLPOWER",
+                "value": "2"
+              }
+            ]
+          },
+          "effects": [
+            {
+              "name": "damage",
+              "ops": [
+                {
+                  "id": "DAMAGE_ARM",
+                  "name": "damage",
+                  "params": {
+                    "damage": 2
+                  }
+                }
+              ],
+              "phantasms": [
+                {
+                  "anims": [
+                    {
+                      "anim": "attack",
+                      "base": {
+                        "targetMode": "CASTER",
+                        "time": 0
+                      }
+                    },
+                    {
+                      "anim": "gethit",
+                      "base": {
+                        "sync": "apply",
+                        "targetMode": "TARGET",
+                        "time": -1
+                      },
+                      "killingAnim": "die"
+                    }
+                  ],
+                  "applyTime": 5000,
+                  "applyTriggers": [
+                    {
+                      "animEventId": "hit",
+                      "animId": "attack",
+                      "animTargetMode": "CASTER"
+                    }
+                  ],
+                  "endTime": 5000,
+                  "endTriggers": [
+                    {
+                      "animEventId": "hit",
+                      "animId": "attack",
+                      "animTargetMode": "CASTER",
+                      "deltaMs": 500
+                    }
+                  ],
+                  "results": [
+                    "OK"
+                  ],
+                  "sounds": [
+                    {
+                      "base": {
+                        "targetMode": "CASTER",
+                        "time": 50
+                      },
+                      "sound": "vocalize_attack"
+                    },
+                    {
+                      "base": {
+                        "targetMode": "CASTER",
+                        "time": 50
+                      },
+                      "sound": "attack"
+                    },
+                    {
+                      "base": {
+                        "sync": "apply",
+                        "targetMode": "CASTER",
+                        "time": -1
+                      },
+                      "sound": "strike"
+                    },
+                    {
+                      "base": {
+                        "sync": "apply",
+                        "targetMode": "TARGET",
+                        "time": -1
+                      },
+                      "sound": "gethit_armor"
+                    },
+                    {
+                      "base": {
+                        "sync": "apply",
+                        "targetMode": "TARGET",
+                        "time": -1
+                      },
+                      "sound": "vocalize_gethit_armor"
+                    }
+                  ],
+                  "sprites": [
+                    {
+                      "base": {
+                        "sync": "apply",
+                        "targetMode": "TARGET",
+                        "time": -1
+                      },
+                      "parameter": "damage",
+                      "spriteName": "arm_hit"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "id": "abl_spear_arm",
+          "maxMove": -1,
+          "rangeMax": 1,
+          "rangeMin": 0,
+          "rangeType": "RANGED",
+          "tag": "ATTACK_ARM",
+          "targetCount": 1,
+          "targetRule": "ENEMY"
+        },
+        {
+          "costs": {
+            "stats": [
+              {
+                "stat": "WILLPOWER",
+                "value": "3"
+              }
+            ]
+          },
+          "effects": [
+            {
+              "name": "damage",
+              "ops": [
+                {
+                  "id": "DAMAGE_ARM",
+                  "name": "damage",
+                  "params": {
+                    "damage": 3
+                  }
+                }
+              ],
+              "phantasms": [
+                {
+                  "anims": [
+                    {
+                      "anim": "attack",
+                      "base": {
+                        "targetMode": "CASTER",
+                        "time": 0
+                      }
+                    },
+                    {
+                      "anim": "gethit",
+                      "base": {
+                        "sync": "apply",
+                        "targetMode": "TARGET",
+                        "time": -1
+                      },
+                      "killingAnim": "die"
+                    }
+                  ],
+                  "applyTime": 5000,
+                  "applyTriggers": [
+                    {
+                      "animEventId": "hit",
+                      "animId": "attack",
+                      "animTargetMode": "CASTER"
+                    }
+                  ],
+                  "endTime": 5000,
+                  "endTriggers": [
+                    {
+                      "animEventId": "hit",
+                      "animId": "attack",
+                      "animTargetMode": "CASTER",
+                      "deltaMs": 500
+                    }
+                  ],
+                  "results": [
+                    "OK"
+                  ],
+                  "sounds": [
+                    {
+                      "base": {
+                        "targetMode": "CASTER",
+                        "time": 50
+                      },
+                      "sound": "vocalize_attack"
+                    },
+                    {
+                      "base": {
+                        "targetMode": "CASTER",
+                        "time": 50
+                      },
+                      "sound": "attack"
+                    },
+                    {
+                      "base": {
+                        "sync": "apply",
+                        "targetMode": "CASTER",
+                        "time": -1
+                      },
+                      "sound": "strike"
+                    },
+                    {
+                      "base": {
+                        "sync": "apply",
+                        "targetMode": "TARGET",
+                        "time": -1
+                      },
+                      "sound": "gethit_armor"
+                    },
+                    {
+                      "base": {
+                        "sync": "apply",
+                        "targetMode": "TARGET",
+                        "time": -1
+                      },
+                      "sound": "vocalize_gethit_armor"
+                    }
+                  ],
+                  "sprites": [
+                    {
+                      "base": {
+                        "sync": "apply",
+                        "targetMode": "TARGET",
+                        "time": -1
+                      },
+                      "parameter": "damage",
+                      "spriteName": "arm_hit"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "id": "abl_spear_arm",
+          "maxMove": -1,
+          "rangeMax": 1,
+          "rangeMin": 0,
+          "rangeType": "RANGED",
+          "tag": "ATTACK_ARM",
+          "targetCount": 1,
+          "targetRule": "ENEMY"
+        }
+      ],
+      "maxMove": -1,
+      "rangeMax": 1,
+      "rangeMin": 0,
+      "rangeType": "RANGED",
+      "tag": "ATTACK_ARM",
+      "targetCount": 1,
+      "targetRule": "ENEMY"
+    }
+  ]
+}

@@ -1,0 +1,324 @@
+{
+  "abilities": [
+    {
+      "effects": [
+        {
+          "name": "heavyimpact_damage",
+          "ops": [
+            {
+              "id": "HEAVYIMPACT_DAMAGE",
+              "name": "heavyimpact_damage"
+            }
+          ],
+          "phantasms": [
+            {
+              "applyTime": 0,
+              "endTime": 800,
+              "results": [
+                "OK"
+              ],
+              "sounds": [
+                {
+                  "base": {
+                    "targetMode": "CASTER",
+                    "time": 0
+                  },
+                  "sound": "heavyimpact"
+                }
+              ],
+              "sprites": [
+                {
+                  "base": {
+                    "casterTagReqs": {
+                      "all": [],
+                      "any": [],
+                      "none": [
+                        "SPECIAL_SUNDERINGIMPACT_ACTIVE"
+                      ]
+                    },
+                    "targetMode": "TARGET",
+                    "time": 0
+                  },
+                  "height": 0,
+                  "spriteName": "heavyimpact_gethit"
+                },
+                {
+                  "base": {
+                    "casterTagReqs": {
+                      "all": [],
+                      "any": [
+                        "SPECIAL_SUNDERINGIMPACT_ACTIVE"
+                      ],
+                      "none": []
+                    },
+                    "targetMode": "TARGET",
+                    "time": 0
+                  },
+                  "height": 0,
+                  "spriteName": "sunderingimpact_gethit"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "id": "abl_heavyimpact_damage",
+      "maxMove": 0,
+      "rangeMax": 0,
+      "rangeMin": 0,
+      "rangeType": "RANGED",
+      "rotationRule": "NONE",
+      "tag": "SPECIAL_NOCOST",
+      "targetCount": 1,
+      "targetRule": "ENEMY_NEIGHBORS"
+    },
+    {
+      "effects": [
+        {
+          "name": "heavyimpact_damage_targets",
+          "ops": [
+            {
+              "id": "DAMAGE_STR",
+              "name": "damage",
+              "params": {
+                "damage": 1,
+                "damageOnMiss": 0,
+                "maxMissChance": 0,
+                "missChancePer": 0,
+                "perCasterStrength": 0,
+                "perTargetArmor": 0
+              }
+            }
+          ],
+          "phantasms": [
+            {
+              "anims": [
+                {
+                  "anim": "gethit",
+                  "base": {
+                    "targetMode": "TARGET",
+                    "time": 0
+                  },
+                  "killingAnim": "die"
+                }
+              ],
+              "applyTime": 400,
+              "endTime": 800,
+              "results": [
+                "OK"
+              ],
+              "sounds": [
+                {
+                  "base": {
+                    "targetMode": "TARGET",
+                    "time": 0
+                  },
+                  "sound": "vocalize_gethit_strength"
+                }
+              ],
+              "sprites": [
+                {
+                  "base": {
+                    "targetMode": "TARGET",
+                    "time": 0
+                  },
+                  "parameter": "damage",
+                  "spriteName": "str_hit"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "id": "abl_heavyimpact_damage_targets",
+      "maxMove": 0,
+      "rangeMax": 0,
+      "rangeMin": 0,
+      "rangeType": "RANGED",
+      "rotationRule": "NONE",
+      "tag": "SPECIAL_NOCOST",
+      "targetCount": 8,
+      "targetRule": "ENEMY"
+    },
+    {
+      "effects": [
+        {
+          "name": "change",
+          "ops": [
+            {
+              "id": "CHANGE_STAT",
+              "name": "change",
+              "params": {
+                "amount": 1,
+                "stat": "WILLPOWER"
+              }
+            }
+          ],
+          "phantasms": [
+            {
+              "applyTime": 0,
+              "endTime": 0,
+              "results": [
+                "OK"
+              ]
+            }
+          ]
+        }
+      ],
+      "id": "abl_rest",
+      "maxMove": 0,
+      "rangeMax": 0,
+      "rangeMin": 0,
+      "rangeType": "NONE",
+      "tag": "END",
+      "targetCount": 1,
+      "targetRule": "SELF"
+    },
+    {
+      "effects": [
+        {
+          "name": "eff_kill",
+          "ops": [
+            {
+              "id": "CHANGE_STAT",
+              "name": "op_kill",
+              "params": {
+                "amount": -100,
+                "stat": "STRENGTH"
+              }
+            }
+          ],
+          "phantasms": [
+            {
+              "applyTime": 0,
+              "endTime": 0,
+              "results": [
+                "OK"
+              ]
+            }
+          ]
+        }
+      ],
+      "id": "abl_kill",
+      "maxMove": -1,
+      "rangeMax": 100,
+      "rangeMin": 0,
+      "rangeType": "NONE",
+      "tag": "SPECIAL",
+      "targetCount": 1,
+      "targetRule": "ANY"
+    },
+    {
+      "effects": [
+        {
+          "name": "heavyimpact",
+          "ops": [
+            {
+              "id": "WAIT_FOR_ACTION_COMPLETE",
+              "name": "heavyimpact",
+              "params": {
+                "ability": "abl_heavyimpact_damage",
+                "casterRule": "SELF",
+                "responsePhase": "POST_COMPLETE",
+                "responseTarget": "TARGET",
+                "responseTargetMustBeAlive": false,
+                "tagReqs": {
+                  "all": [
+                    "DAMAGED_STR"
+                  ],
+                  "any": [],
+                  "none": []
+                },
+                "targetRule": "ENEMY_NEIGHBORS"
+              }
+            }
+          ],
+          "persistent": {
+            "casterDuration": 0,
+            "numUses": 0,
+            "stack": "STACK",
+            "targetDuration": 0
+          },
+          "phantasms": []
+        }
+      ],
+      "id": "pas_heavyimpact",
+      "maxMove": 0,
+      "rangeMax": 1,
+      "rangeMin": 0,
+      "rangeType": "NONE",
+      "tag": "PASSIVE",
+      "targetCount": 1,
+      "targetRule": "NONE"
+    },
+    {
+      "effects": [
+        {
+          "name": "puncture",
+          "ops": [
+            {
+              "id": "INT_STAT_MOD",
+              "name": "puncture",
+              "params": {
+                "amount": 1,
+                "charges": 0,
+                "stat": "PUNCTURE_ATTACK_BONUS"
+              }
+            }
+          ],
+          "persistent": {
+            "casterDuration": 0,
+            "numUses": 0,
+            "stack": "REPLACE",
+            "targetDuration": 0
+          },
+          "phantasms": []
+        }
+      ],
+      "id": "pas_puncture",
+      "maxMove": 0,
+      "rangeMax": 1,
+      "rangeMin": 0,
+      "rangeType": "NONE",
+      "tag": "PASSIVE",
+      "targetCount": 1,
+      "targetRule": "NONE"
+    },
+    {
+      "id": "abl_end",
+      "maxMove": -1,
+      "rangeMax": 0,
+      "rangeMin": 0,
+      "rangeType": "NONE",
+      "tag": "END",
+      "targetCount": 1,
+      "targetRule": "NONE"
+    }
+  ],
+  "refs": [
+    "common/ability/abl_spear_arm.json.z",
+    "common/ability/abl_spear_str.json.z",
+    "common/ability/abl_batteringram.json.z",
+    "common/ability/abl_birdofprey.json.z",
+    "common/ability/abl_bloodyflail.json.z",
+    "common/ability/abl_bringthepain.json.z",
+    "common/ability/abl_bow_arm.json.z",
+    "common/ability/abl_bow_str.json.z",
+    "common/ability/abl_firepit_damage.json.z",
+    "common/ability/abl_forgeahead.json.z",
+    "common/ability/abl_melee_arm.json.z",
+    "common/ability/abl_melee_str.json.z",
+    "common/ability/abl_rainofarrows.json.z",
+    "common/ability/pas_returnthefavor.json.z",
+    "common/ability/abl_runthrough.json.z",
+    "common/ability/abl_skipturn.json.z",
+    "common/ability/abl_slagandburn.json.z",
+    "common/ability/abl_stonewall.json.z",
+    "common/ability/abl_sunderingimpact.json.z",
+    "common/ability/abl_tempest.json.z",
+    "common/ability/abl_horn.json.z",
+    "common/ability/abl_tutorial_threaten.json.z",
+    "common/ability/pas_shieldwall.json.z",
+    "common/ability/abl_malice.json.z"
+  ]
+}

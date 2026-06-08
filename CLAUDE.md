@@ -37,6 +37,7 @@ powershell ./scripts/build.ps1 -Target windows   # or: android, ios
 ## Coordination Protocol
 
 - **Parent repo:** `../` (BSF root) tracks this repo as a git submodule.
+- **Cross-repo doc links:** Any Markdown link from this repo into `bsf-server/...` must use the dual-link form so it works both locally and on github.com. See root `CLAUDE.md` → "Cross-Repo Doc Links" ([local](../CLAUDE.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/CLAUDE.md#cross-repo-doc-links)). The "Server contract" and "Schema truth" bullets below are examples.
 - **Server contract:** Any change to auth flow or URL parameters must be verified against `bsf-server/src/services/auth/` ([local](../bsf-server/src/services/auth/) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/tree/main/bsf-server/src/services/auth/)) — the server is the source of truth for what tokens and fields it expects.
 - **Schema truth:** `bsf-server/src/db/schema.sql` ([local](../bsf-server/src/db/schema.sql) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/src/db/schema.sql)) defines all persistent data shared between client and server.
 

@@ -46,10 +46,10 @@ In practice: when in doubt, open both — they sit side-by-side and a quick diff
 
 Throughout `bsf-client/docs/` we cite files using **`bsf-refs\<mirror>\<path>`** (no `%USERPROFILE%\Code\` prefix) for compactness. The first reference per doc spells out the full `%USERPROFILE%\Code\bsf-refs\...` path; subsequent references abbreviate.
 
-In Markdown line citations we use the convention **`<File>.as:<line>`** (e.g. `BattleBoard.as:456`) — same convention used in [`bsf-server/docs/protocol-cross-reference.md`](../../bsf-server/docs/protocol-cross-reference.md) and the Findings doc.
+In Markdown line citations we use the convention **`<File>.as:<line>`** (e.g. `BattleBoard.as:456`) — same convention used in `bsf-server/docs/protocol-cross-reference.md` ([local](../../bsf-server/docs/protocol-cross-reference.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/protocol-cross-reference.md)) and the Findings doc.
 
 ## Related references
 
 - Parent repo [`REFERENCE.md`](../../REFERENCE.md) — pinned `server-2013-java` SHA, top-7 highest-value server paths.
 - Root [`CLAUDE.md`](../../CLAUDE.md) — reference-codebase table for all four mirrors (this doc covers the three client-side ones).
-- [`bsf-server/misc/Findings-Client-ActionScript-Crossplay.md`](../../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) — the deepest existing client-side analysis (6 items: server URL, Steam auth, login response, entity naming, long-poll, mobile branches). Cited heavily in [`wire-protocol.md`](./wire-protocol.md) and [`battle-engine.md`](./battle-engine.md).
+- `bsf-server/misc/Findings-Client-ActionScript-Crossplay.md` ([local](../../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Findings-Client-ActionScript-Crossplay.md)) — the deepest existing client-side analysis (6 items: server URL, Steam auth, login response, entity naming, long-poll, mobile branches). Cited heavily in [`wire-protocol.md`](./wire-protocol.md) and [`battle-engine.md`](./battle-engine.md).

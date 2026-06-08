@@ -4,7 +4,7 @@
 
 How the client runs a battle: the FSM that drives both players' lockstep turns, the board model that tracks every entity, the entity-ID format that _must match_ between clients, and the DJB hash that guarantees lockstep.
 
-This doc covers the **client** side. The server's authoritative battle state and endgame logic live in `bsf-server/src/services/battle/Battle.ts` — see [`bsf-server/docs/gameFlow.md`](../../bsf-server/docs/gameFlow.md) and [`bsf-server/docs/ARCHITECTURE.md`](../../bsf-server/docs/ARCHITECTURE.md) → "Battle State".
+This doc covers the **client** side. The server's authoritative battle state and endgame logic live in `bsf-server/src/services/battle/Battle.ts` ([local](../../bsf-server/src/services/battle/Battle.ts) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/src/services/battle/Battle.ts)) — see `bsf-server/docs/gameFlow.md` ([local](../../bsf-server/docs/gameFlow.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/gameFlow.md)) and `bsf-server/docs/ARCHITECTURE.md` ([local](../../bsf-server/docs/ARCHITECTURE.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/ARCHITECTURE.md)) → "Battle State".
 
 > **12-stale-file caveat:** the shipped `BattleBoard`, `BattleStateInit`, `BattleStateDeploy`, `BattleFsmConfig`, `BattleTurnOrder`, and `Op.as` are in the [12-stale-file exception list](./reference-codebases.md#prefer-2013-source-over-decompile--except-for-12-files) — read the JPEXS decompile under `bsf-refs\client-decompiled-as3\engine\battle\`, not the 2013 source for those files.
 
@@ -104,7 +104,7 @@ public function addPartyMember(
 
 **Why this is load-bearing:** the per-turn DJB hash (next section) is computed over a string built from every entity's ID, in order. If your client and the opponent's client disagree on even _one_ character of _one_ entity ID, the hashes diverge at turn 0 and the battle desyncs immediately.
 
-The most common way this breaks: the server returns different `account_id` values to the two players for the same opponent. That happens if the server reduces 64-bit Steam IDs inconsistently (e.g. one player sees the full 64-bit ID, the other sees the reduced 32-bit). See [`bsf-server/CLAUDE.md`](../../bsf-server/CLAUDE.md) → "32-bit account IDs in all in-game data" and `.claude/rules/gotchas.md`.
+The most common way this breaks: the server returns different `account_id` values to the two players for the same opponent. That happens if the server reduces 64-bit Steam IDs inconsistently (e.g. one player sees the full 64-bit ID, the other sees the reduced 32-bit). See `bsf-server/CLAUDE.md` ([local](../../bsf-server/CLAUDE.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/CLAUDE.md)) → "32-bit account IDs in all in-game data" and `.claude/rules/gotchas.md`.
 
 ## Per-turn DJB hash — `BattleStateNextTurn`
 
@@ -144,7 +144,7 @@ Each battle FSM state sends or consumes one or more wire messages. The DTOs live
 | `BattleTxnExitSend`      | `POST /battle/exit`      | `BattleExitData`                                                 | `BattleStateAborted` / `BattleStateFinished`                           |
 | `BattleTxnSurrenderSend` | `POST /battle/surrender` | `BattleSurrenderData`                                            | Triggers endgame; opponent receives `BattleFinishedData`               |
 
-Battle-message JSON shapes: [`bsf-server/docs/dataStructures.md`](../../bsf-server/docs/dataStructures.md) (marked WIP — several messages are still stub-only; the doc gaps inventory tracks this).
+Battle-message JSON shapes: `bsf-server/docs/dataStructures.md` ([local](../../bsf-server/docs/dataStructures.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/dataStructures.md)) (marked WIP — several messages are still stub-only; the doc gaps inventory tracks this).
 
 ## Server-pushed messages (the other direction)
 
@@ -161,7 +161,7 @@ Most battle progress arrives via the long-poll, not as responses to the client's
 | `BattleAbortedData`                   | Mid-battle disconnect — triggers `BattleStateAborted`.                     |
 | `BattleExitData`                      | Other side cleanly exited; finalize.                                       |
 
-Server side: `pushData(...items)` in `bsf-server/src/services/auth/auth.ts`. See [`bsf-server/docs/gameFlow.md`](../../bsf-server/docs/gameFlow.md) for the server's view of this sequence.
+Server side: `pushData(...items)` in `bsf-server/src/services/auth/auth.ts` ([local](../../bsf-server/src/services/auth/auth.ts) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/src/services/auth/auth.ts)). See `bsf-server/docs/gameFlow.md` ([local](../../bsf-server/docs/gameFlow.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/gameFlow.md)) for the server's view of this sequence.
 
 ## Endgame — what `BattleFinishedData` carries
 
@@ -189,7 +189,7 @@ If `hashStr` differs between clients, walk the per-entity lines until you find t
 ## Related reading
 
 - [`wire-protocol.md`](./wire-protocol.md) — every `/services/battle/*` route from the client side.
-- [`bsf-server/docs/gameFlow.md`](../../bsf-server/docs/gameFlow.md) — server-side battle lifecycle prose (`pushData` order, endgame computation, renown formula).
-- [`bsf-server/docs/dataStructures.md`](../../bsf-server/docs/dataStructures.md) — wire-format DTOs (some battle messages are WIP — see [`bsf-server/docs/doc-gaps.md`](../../bsf-server/docs/doc-gaps.md) P1 entry).
-- [`bsf-server/misc/Findings-Client-ActionScript-Crossplay.md`](../../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) Items 4–5 — entity IDs, DJB hash, long-poll behavior.
+- `bsf-server/docs/gameFlow.md` ([local](../../bsf-server/docs/gameFlow.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/gameFlow.md)) — server-side battle lifecycle prose (`pushData` order, endgame computation, renown formula).
+- `bsf-server/docs/dataStructures.md` ([local](../../bsf-server/docs/dataStructures.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/dataStructures.md)) — wire-format DTOs (some battle messages are WIP).
+- `bsf-server/misc/Findings-Client-ActionScript-Crossplay.md` ([local](../../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Findings-Client-ActionScript-Crossplay.md)) Items 4–5 — entity IDs, DJB hash, long-poll behavior.
 - [`reference-codebases.md`](./reference-codebases.md) — why battle code is read from `client-decompiled-as3` and not `client-2013-as3`.

@@ -37,8 +37,8 @@ powershell ./scripts/build.ps1 -Target windows   # or: android, ios
 ## Coordination Protocol
 
 - **Parent repo:** `../` (BSF root) tracks this repo as a git submodule.
-- **Server contract:** Any change to auth flow or URL parameters must be verified against `../bsf-server/src/services/auth/` — the server is the source of truth for what tokens and fields it expects.
-- **Schema truth:** `../bsf-server/src/db/schema.sql` defines all persistent data shared between client and server.
+- **Server contract:** Any change to auth flow or URL parameters must be verified against `bsf-server/src/services/auth/` ([local](../bsf-server/src/services/auth/) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/tree/main/bsf-server/src/services/auth/)) — the server is the source of truth for what tokens and fields it expects.
+- **Schema truth:** `bsf-server/src/db/schema.sql` ([local](../bsf-server/src/db/schema.sql) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/src/db/schema.sql)) defines all persistent data shared between client and server.
 
 ## 🚨 Critical Architectural Rules
 

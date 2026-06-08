@@ -8,8 +8,8 @@ replacing Steam auth with Discord OAuth and adding a `bsf://` deep-link URL sche
 
 See [`docs/`](./docs/) for architecture, build workflow, wire-protocol reference,
 and the client-side bsf-refs guide. The original analysis at
-`../BSF/bsf-server/misc/Findings-Client-ActionScript-Crossplay.md` is the canonical
-historical artifact and is cited throughout the new docs.
+`bsf-server/misc/Findings-Client-ActionScript-Crossplay.md` ([local](../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Findings-Client-ActionScript-Crossplay.md))
+is the canonical historical artifact and is cited throughout the new docs.
 
 ## Documentation
 

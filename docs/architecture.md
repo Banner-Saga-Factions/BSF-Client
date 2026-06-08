@@ -61,7 +61,7 @@ The entry point is `GameMainAir.extends Sprite`. Important phases, in order:
    | `--child <n>`     | Multi-account-on-one-Steam index.                                                                       |
    | `--party <names>` | Force-load a specific party (testing).                                                                  |
 
-   The `--server` mechanism is the single most important takeaway for anyone running the client against a custom server: **it does not require a recompile**. See [`bsf-server/misc/Findings-Client-ActionScript-Crossplay.md`](../../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) Item 1.
+   The `--server` mechanism is the single most important takeaway for anyone running the client against a custom server: **it does not require a recompile**. See `bsf-server/misc/Findings-Client-ActionScript-Crossplay.md` ([local](../../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Findings-Client-ActionScript-Crossplay.md)) Item 1.
 
 2. **Platform detection.** `GameMainAir.as:628–642` branches on `Capabilities.os`:
 
@@ -71,7 +71,7 @@ The entry point is `GameMainAir.extends Sprite`. Important phases, in order:
    else                                              { logInfo("UNSUPPORTED OS: ..."); }
    ```
 
-   No iOS/Android branch exists. On mobile the `else` arm fires and the client logs `"UNSUPPORTED OS"` — mobile crossplay work needs to add those branches. See [`bsf-server/misc/Findings-Client-ActionScript-Crossplay.md`](../../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) Item 6.
+   No iOS/Android branch exists. On mobile the `else` arm fires and the client logs `"UNSUPPORTED OS"` — mobile crossplay work needs to add those branches. See `bsf-server/misc/Findings-Client-ActionScript-Crossplay.md` ([local](../../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Findings-Client-ActionScript-Crossplay.md)) Item 6.
 
 3. **`GameConfig.setupHosts()`.** `game/cfg/GameConfig.as:1222–1227`:
 
@@ -122,7 +122,7 @@ The current patches live in `bsf-client/src/`:
 | `src/engine/steamworks/DiscordSteamworks.as` (planned) | New `ISteamworks` implementation that feeds Discord credentials through the existing Steam auth path. Extends `NullSteamworks` (the original Stoic no-op `ISteamworks`). |
 | `META-INF/AIR/application.xml`                         | Adds `bsf://` URL scheme (Discord OAuth deep-link). Mobile targets also remove the Steamworks `<extensionID>`.                                                           |
 
-The patch surface is small by design — replacing one class plus a config tweak is all the original architecture demands. See [`bsf-server/misc/Findings-Client-ActionScript-Crossplay.md`](../../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) Items 2 + 6.
+The patch surface is small by design — replacing one class plus a config tweak is all the original architecture demands. See `bsf-server/misc/Findings-Client-ActionScript-Crossplay.md` ([local](../../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Findings-Client-ActionScript-Crossplay.md)) Items 2 + 6.
 
 ## What this client expects from the server
 
@@ -137,5 +137,5 @@ Constraints the client imposes on any backend that wants to serve it (covered in
 
 - Root [`CLAUDE.md`](../../CLAUDE.md) — repo-wide conventions, reference codebases, doc-path style.
 - Root [`REFERENCE.md`](../../REFERENCE.md) — pinned server reference SHA.
-- [`bsf-server/docs/ARCHITECTURE.md`](../../bsf-server/docs/ARCHITECTURE.md) — server-side counterpart.
+- `bsf-server/docs/ARCHITECTURE.md` ([local](../../bsf-server/docs/ARCHITECTURE.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/ARCHITECTURE.md)) — server-side counterpart.
 - [`bsf-client/CLAUDE.md`](../CLAUDE.md) — AS3 coding standards and refactoring protocol.

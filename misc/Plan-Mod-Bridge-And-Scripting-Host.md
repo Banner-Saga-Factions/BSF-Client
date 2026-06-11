@@ -24,10 +24,10 @@ Enable dynamic, non-destructive modding of the Factions client — Discord Rich 
 +--------------------+   stderr: host logging    +---------------------+
 ```
 
-- **Wire protocol:** one JSON object per LF-terminated line, both directions. stdout is reserved for protocol lines; host logging must use stderr. Full spec in the `ModBridge.as` header comment.
+- **Wire protocol:** one JSON object per LF-terminated line, both directions. stdout is reserved for protocol lines; host logging must use stderr. Command replies are flat (`{"event":"RESULT","id":7,"result":...}`); generic events wrap their payload under `"data"`; HTTP events carry fields top-level. **Host contract: exit on stdin EOF** — AIR cannot reliably kill a lingering host. Full spec in the `ModBridge.as` header comment.
 - **Host discovery:** `<applicationDirectory>/mods/host.exe`, cwd = `mods/`, no args. Absent host = bridge disables itself once; every emit is then a no-op. The game must never depend on the host.
-- **Commands** (host → AS3) go through an explicit registry (`ModBridge.registerCommand`), not reflection. Built-ins: `ping`, `set_spectator`. Commands carrying an `id` get a `RESULT`/`ERROR` reply.
-- **Lifecycle:** crash restart (max 3 attempts), clean shutdown on app exit, buffered stdout parsing safe against chunk-split lines and split multi-byte UTF-8.
+- **Commands** (host → AS3) go through an explicit static registry (`ModBridge.registerCommand`) — registrations made before the bridge starts are kept. Not reflection. Built-ins: `ping`, `set_spectator`. Commands carrying an `id` get a flat `RESULT`/`ERROR` reply.
+- **Lifecycle:** crash restart (max 3 attempts); on app exit the host gets `SHUTDOWN` + stdin EOF, then is force-killed (`exit(true)`) to prevent orphans. Buffered stdout parsing is safe against chunk-split lines and split multi-byte UTF-8.
 
 ## Implemented (Phase 1)
 
@@ -61,4 +61,11 @@ Library maintenance status above is unverified — check before committing.
 
 - `amxmlc` strict-mode friction on the patched decompile (untested).
 - The bus is by design arbitrary-code-execution for any local mod. Never route network/server data into the command router; consider a manifest/allowlist before mods are shared publicly.
-- Multi-line (pretty-printed) JSON responses are re-encoded as strings to preserve framing — hosts must handle both `body` shapes.
+- **Credentials reach the host:** the `AuthTxn` request body (username/password/Discord token) is emitted like any other txn. Any local `mods/host.exe` sees it. Acceptable for self-installed mods; revisit (redact `services/auth/*` bodies?) before recommending third-party hosts.
+- **Duplicate `HTTP_REQUEST` on retry:** `resendOnFail` re-emits the identical event with no retry marker — hosts doing combat logs/replays must dedupe (e.g. by txn+url+body hash) until a sequence field is added.
+- Multi-line (pretty-printed) JSON responses are re-encoded as strings to preserve framing — hosts must handle both `body` shapes (object or string).
+- String request bodies that aren't JSON are re-encoded as JSON strings; `ByteArray` bodies emit `"bodyType":"binary"` with `body:null`.
+
+## Deferred review minors (tracked, not yet fixed)
+
+Unbounded stdout buffer (cap + scan-appended-region), restart backoff / counter reset after uptime, draining final stdout lines in the exit handler, listener cleanup when `start()` throws mid-way.

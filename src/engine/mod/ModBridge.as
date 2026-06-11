@@ -20,9 +20,13 @@ package engine.mod
     *
     * WIRE PROTOCOL (both directions): one JSON object per LF-terminated line.
     *   AS3 -> host (stdin):  {"event":"HTTP_RESPONSE","txn":"AuthTxn","url":"services/auth/login/8","status":200,"success":true,"body":{...}}
+    *                         {"event":"RESULT","id":7,"result":"pong"}   (reply to a host command carrying an "id")
+    *                         {"event":"ERROR","id":7,"message":"..."}
+    *                         generic emits wrap their payload: {"event":"NAME","data":{...}}
     *   host -> AS3 (stdout): {"cmd":"set_spectator","value":true}
-    *                         {"cmd":"ping","id":7}        -> replied with {"event":"RESULT","id":7,"result":"pong"}
+    *                         {"cmd":"ping","id":7}
     *   host logging MUST go to stderr — stdout is reserved for protocol lines.
+    *   The host MUST exit when stdin reaches EOF — AIR cannot reliably kill it.
     *
     * HOST DISCOVERY: <applicationDirectory>/mods/host.exe, launched with the
     * mods/ directory as working directory and no arguments. The host runtime
@@ -53,7 +57,7 @@ package engine.mod
 
       private var m_stdoutBuf:ByteArray = new ByteArray();
 
-      private var m_commands:Object = {};
+      private static var s_commands:Object = createBuiltins();
 
       private var m_restarts:int = 0;
 
@@ -63,7 +67,6 @@ package engine.mod
       {
          super();
          m_logger = logger;
-         registerBuiltins();
       }
 
       // ---------------------------------------------------------------------
@@ -169,13 +172,27 @@ package engine.mod
          }
          try
          {
-            var head:String = JSON.stringify({
+            var envelope:Object = {
                "event":"HTTP_REQUEST",
                "txn":txn,
                "url":url
-            });
-            var rawBody:String = body != null ? JSON.stringify(body) : null;
-            s_instance.writeLine(spliceBody(head,rawBody));
+            };
+            var rawBody:String = null;
+            if(body is String)
+            {
+               // Already-stringified JSON (e.g. LobbyOptionsTxn) — splice verbatim.
+               rawBody = String(body);
+            }
+            else if(body is ByteArray)
+            {
+               // Binary body (IAP path) — flag it rather than emit reflection junk.
+               envelope.bodyType = "binary";
+            }
+            else if(body != null)
+            {
+               rawBody = JSON.stringify(body);
+            }
+            s_instance.writeLine(spliceBody(JSON.stringify(envelope),rawBody));
          }
          catch(e:Error)
          {
@@ -188,13 +205,12 @@ package engine.mod
        * future injections) register explicit, typed entry points.
        *   ModBridge.registerCommand("get_roster", function(args:Object):Object { ... return data; });
        * A non-null return is sent back when the command carried an "id".
+       * The registry is static: registrations made before the bridge starts
+       * (or when no host is present) are kept, never dropped.
        */
       public static function registerCommand(name:String, handler:Function) : void
       {
-         if(s_instance)
-         {
-            s_instance.m_commands[name] = handler;
-         }
+         s_commands[name] = handler;
       }
 
       // ---------------------------------------------------------------------
@@ -215,8 +231,8 @@ package engine.mod
             m_proc.addEventListener("standardInputIoError",onStdinError);
             m_proc.start(info);
             NativeApplication.nativeApplication.addEventListener("exiting",onAppExiting);
-            logInfo("ModBridge started host pid via " + hostExe.nativePath);
-            emit("BRIDGE_READY",{"clientVersion":"1.10.51"});
+            logInfo("ModBridge started host: " + hostExe.nativePath);
+            emit("BRIDGE_READY",null);
             return true;
          }
          catch(e:Error)
@@ -342,7 +358,8 @@ package engine.mod
             logInfo("ModBridge command failed: " + e2.message);
             if(cmd && cmd.hasOwnProperty("id"))
             {
-               emit("ERROR",{
+               sendReply({
+                  "event":"ERROR",
                   "id":cmd.id,
                   "message":e2.message
                });
@@ -357,12 +374,13 @@ package engine.mod
          {
             return;
          }
-         var handler:Function = m_commands[name] as Function;
+         var handler:Function = s_commands[name] as Function;
          if(handler == null)
          {
             if(cmd.hasOwnProperty("id"))
             {
-               emit("ERROR",{
+               sendReply({
+                  "event":"ERROR",
                   "id":cmd.id,
                   "message":"unknown command: " + name
                });
@@ -372,24 +390,40 @@ package engine.mod
          var result:Object = handler(cmd);
          if(cmd.hasOwnProperty("id"))
          {
-            emit("RESULT",{
+            sendReply({
+               "event":"RESULT",
                "id":cmd.id,
                "result":result
             });
          }
       }
 
-      private function registerBuiltins() : void
+      /** Replies use the flat documented shape — NOT the emit() data envelope. */
+      private function sendReply(reply:Object) : void
       {
-         m_commands["ping"] = function(cmd:Object):Object
+         try
+         {
+            writeLine(JSON.stringify(reply));
+         }
+         catch(e:Error)
+         {
+            logInfo("ModBridge sendReply failed: " + e.message);
+         }
+      }
+
+      private static function createBuiltins() : Object
+      {
+         var cmds:Object = {};
+         cmds["ping"] = function(cmd:Object):Object
          {
             return "pong";
          };
-         m_commands["set_spectator"] = function(cmd:Object):Object
+         cmds["set_spectator"] = function(cmd:Object):Object
          {
             spectatorMode = cmd.value == true;
             return spectatorMode;
          };
+         return cmds;
       }
 
       private function onExit(event:NativeProcessExitEvent) : void
@@ -435,9 +469,10 @@ package engine.mod
             catch(e:Error)
             {
             }
-            // Give the host its EOF; force-kill if it lingers. exit(false) asks
-            // politely; the 500ms GameMainAir exit timer outlives this call.
-            m_proc.exit(false);
+            // closeInput() delivers EOF (host contract: exit on EOF), then
+            // force-kill so a misbehaving host can't outlive the game as an
+            // orphan. Hosts must not rely on time between SHUTDOWN and kill.
+            m_proc.exit(true);
          }
       }
 

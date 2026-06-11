@@ -19,6 +19,8 @@ Key patch files:
 |------|--------|
 | `src/game/session/states/PreAuthState.as` | Replace Steam ticket fetch with Discord OAuth token |
 | `src/engine/steamworks/DiscordSteamworks.as` | New — `ISteamworks` stub feeding Discord credentials through existing Steam auth path |
+| `src/engine/mod/ModBridge.as` | New — NativeProcess event bus to external mod host (`mods/host.exe`); newline-delimited JSON over stdin/stdout, command registry, restart/shutdown lifecycle |
+| `src/engine/core/http/HttpAction.as` | Patched decompile — taps every outbound request (`doSend`) and raw response (`onResponseReceived`) into `ModBridge`; lazy-starts the host on first txn |
 | `META-INF/AIR/application.xml` | Add `bsf://` URL scheme; remove Steamworks ANE for mobile targets |
 
 ## Development Commands

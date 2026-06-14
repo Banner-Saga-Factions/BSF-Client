@@ -45,7 +45,17 @@ package game.session.states
          var _loc1_:String = data.getValue(GameStateDataEnum.SCENE_URL);
          if(!_loc1_)
          {
-            _loc1_ = config.sceneListDef.items[0].url;
+            // Guard the list access: items[0] is normally a valid versus map, but if the scene list
+            // hasn't loaded yet, log clearly and leave the URL null -- SceneLoadState.handleEnteredState
+            // then throws its own clear "no URL" error instead of an opaque items[0]-is-undefined crash.
+            if(config.sceneListDef != null && config.sceneListDef.items.length > 0)
+            {
+               _loc1_ = config.sceneListDef.items[0].url;
+            }
+            else
+            {
+               logger.error("AiBattleLoadState: battle scene list is empty; pass a scene URL or ensure the scene list is loaded");
+            }
          }
 
          data.setValue(GameStateDataEnum.SCENELOADER_PRESERVE,false);

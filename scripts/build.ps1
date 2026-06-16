@@ -51,7 +51,12 @@ New-Item -ItemType Directory -Path $BuildDir -Force | Out-Null
 
 # ── Compile ──────────────────────────────────────────────────────────────────
 Write-Host "Compiling ($Target) ..."
+# -swf-version=20 stamps the output as SWF v20. NOTE: the game's 2013 captive AIR runtime still
+# cannot run a SWF built with this 2025 SDK (newer APIs -> silent VerifyError at load), so the
+# compiled client is launched under the SDK's modern runtime via scripts/run-adl.ps1, which loads
+# v20 fine. Retained as the tested config; safe to remove if you only ever run under adl.
 & $amxmlc `
+    -swf-version=20 `
     -source-path $SrcRoot `
     -output $SwfOut `
     "$SrcRoot\GameMainAir.as"

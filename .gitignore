@@ -1,5 +1,6 @@
 _decompiled/
 _build/
+build.log
 *.swf
 *.air
 *.p12

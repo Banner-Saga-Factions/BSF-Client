@@ -1,12 +1,15 @@
 # Plan — Fix BSF-Client #12, finding #2: offline AI battle loads but is not playable
 
-> **Status (2026-06-22):** root cause **re-diagnosed from the real failure log** and the original theory
-> (null `frameLeft` in the deploy branch) was **wrong**. The proven crash is fixable in `app.game.air.swf`
-> via the normal patch model — **no gui-SWF editing needed**. Phase 1 fix is implemented in `src/`
-> (`BattleHudPageLoadHelper`), awaiting a local build + re-test. Title keeps "init-hang" for link stability,
-> but both that label and the earlier `frameLeft` diagnosis were wrong.
+> **Status (2026-06-23): PLAYABLE END-TO-END — milestone reached.** A full offline AI battle now runs
+> **deploy → resolution with 0 uncaught `#1009`** (Wave 2 exit criteria met; verified by the user). The
+> enabling fix is the scoped `battle_initiative.swf` → `currentDomain` reroute — see the "Crash A RESOLVED"
+> update below. The title keeps "init-hang" for link stability, but that label and the earlier `frameLeft`
+> diagnosis were both wrong; the real root causes are in the fix table and dated updates below.
 >
-> Canonical execution plan: `~/.claude/plans/review-c-users-rleyb-code-bsf-bsf-client-splendid-lighthouse.md`.
+> **Remaining, deferred to future cold-start chats:** finding #1 (unit portraits) is **confirmed still
+> missing** after the reroute → Wave 3; AI-vs-AI spectator → Wave 4.
+>
+> Canonical wave plan: `~/.claude/plans/review-bsf-client-misc-plan-fix-issue-12-clever-storm.md`.
 
 ## TL;DR (read this first)
 
@@ -236,6 +239,27 @@ is clean.
   non-blocking, parked.
 
 Canonical wave plan: `~/.claude/plans/review-bsf-client-misc-plan-fix-issue-12-clever-storm.md`.
+
+## Update (2026-06-23, later still) — Playable milestone reached; remaining waves deferred
+
+**Wave 2 exit criteria met.** A complete offline AI battle was played from **deploy → resolution with 0
+uncaught `#1009`** (the scoped reroute was the last fix needed). Waves 1 + 2 of the canonical wave plan are
+**done**, and the client branch `fix/ai-battle-init-hang-12` is pushed.
+
+**Finding #1 (unit portraits) — CONFIRMED still broken.** The scoped `battle_initiative.swf` reroute fixed
+Crash A (the initiative HUD) but did **not** restore unit portraits; portraits are still missing in a played
+battle. Finding #1 is therefore a **real, open issue**, deferred to **Wave 3** — likely a *different* gui SWF
+(`battle_self_popup.swf` / `battle_enemy_popup.swf`), to be confirmed with the same decompile-diff decision
+gate and a scoped reroute-or-guard.
+
+**Deferred to future cold-start chats** (kickoff prompts live in the canonical wave plan):
+
+- **Wave 3** — portraits (finding #1, confirmed broken).
+- **Wave 4** — AI-vs-AI spectator (Chunk 2).
+
+**Deferred (git):** the parent-repo submodule pointer bump (`bc5258e → 163a495`) is intentionally **not**
+committed yet — it lands when issue-12 merges to client `master`, to avoid pointing a parent branch at an
+unmerged client SHA.
 
 ## Playbook for the next `#1009` (so any session can continue mechanically)
 

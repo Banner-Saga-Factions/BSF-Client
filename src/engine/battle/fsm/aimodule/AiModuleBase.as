@@ -76,7 +76,12 @@ package engine.battle.fsm.aimodule
          enemies.splice(0,enemies.length);
          for each(var _loc1_ in battleFsm.board.entities)
          {
-            if(_loc1_.alive)
+            // [Inference] BSF-Client #12: skip scenery props (e.g. "prop+pole03"). They are alive
+            // board entities with a team but no combat stats, so the AI's plan math throws
+            // "ArgumentError: No such stat: ARMOR" (BattleCalculationHelper.calculatePunctureBonus
+            // -> stats.getStat(ARMOR)). Every real combatant has ARMOR; props don't -- use it to
+            // keep props out of both enemies and friends. See A-0.log-ai test (prop+pole03).
+            if(_loc1_.alive && _loc1_.stats.hasStat(StatType.ARMOR))
             {
                if(_loc1_.team != caster.team)
                {

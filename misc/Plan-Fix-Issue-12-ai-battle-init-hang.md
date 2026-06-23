@@ -164,11 +164,40 @@ After the AI fix, the AI now **moves and rests** (AI fix verified). Two further 
 | 1 | HUD #1009 at battle load, stuck in deploy | `checkInitiativeEntities` calls `setInitiativeEntities(null)` → old gui-SWF empty branch | `src/game/gui/page/BattleHudPageLoadHelper.as` |
 | 2 | AI #1009, enemy never acts | `getFirstAbilityByTag(ATTACK_STR).def` on a str-less **enemy** (Shieldbanger) | `src/engine/battle/fsm/aimodule/AiPlan.as` |
 | 3 | (latent) AI #1009 when AI's own str-less unit acts | `atkStr.id`/`atkArm.id` on null in ctor | `src/engine/battle/fsm/aimodule/AiModuleBase.as` |
-| 4 | Deploy HUD #1009 (real entities) | null **child** into `GuiUtil.updateDisplayList` (gui-SWF deploy branch) | `src/game/gui/GuiUtil.as` |
-| 5 | #1009 selecting an ability | unguarded `infobar` chain / `def.description` | `src/game/gui/InfoBarHelper.as` |
+| 4 | Deploy HUD #1009, `setInitiativeEntities` deploy branch | null **child** into `GuiUtil.updateDisplayList` — **overlay does NOT take effect: gui SWF bundles its own `GuiUtil`** (see inflection) | `src/game/gui/GuiUtil.as` (live for app.game.air.swf callers; **dead** for the gui-SWF path → **OPEN, needs Phase 3**) |
+| 5 | #1009 *selecting* an ability (`showAbilityInfo`) | unguarded `infobar` chain / `def.description` | `src/game/gui/InfoBarHelper.as` |
+| 6 | #1009 *executing* an ability (`hideAbilityInfo`) | same unguarded `infobar` chain | `src/game/gui/InfoBarHelper.as` |
+| 7 | AI `ArgumentError: No such stat: ARMOR on prop+pole03` | `buildEnemyArray` treats scenery props as enemies; props lack combat stats | `src/engine/battle/fsm/aimodule/AiModuleBase.as` |
 
-`GuiInitiative.as` overlay remains **inert/parked** (gui-SWF copy runs). Phase 3 (DisplayResourceLoader →
-`currentDomain`) is still **not needed** — every crash so far was reachable/guardable from `app.game.air.swf`.
+`GuiInitiative.as` overlay remains **inert/parked** (gui-SWF copy runs).
+
+## Strategic inflection (2026-06-23): the deploy HUD crash (Crash A) needs Phase 3
+
+Fix #4 (the `GuiUtil` null-child guard) was built and deployed, but the deploy crash **persists unchanged** —
+while fix #5/#6 (`InfoBarHelper`) clearly took effect (the throw moved `showAbilityInfo` → `hideAbilityInfo`).
+The only explanation: the `GuiUtil.updateDisplayList` call made *from inside* `GuiInitiative` resolves to a
+**`GuiUtil` bundled inside `battle_initiative.swf`**, not our patched `app.game.air.swf` copy. (Gui SWFs load
+with `allowCodeImport` into a child ApplicationDomain; classes the gui SWF was compiled with — `GuiInitiative`
+**and its dependency `GuiUtil`** — resolve from that child domain first.)
+
+**Consequence:** Crash A cannot be fixed by guarding `GuiUtil` (or any class the gui SWF bundled) from
+`app.game.air.swf`. This is the **Phase 3** trigger. Two tracks remain:
+
+- **Track 1 — `app.game.air.swf` guards (cheap, continue as before):** any crash whose *throwing* class is NOT
+  bundled in the gui SWF — the AI (`AiPlan`, `AiModuleBase`) and HUD helpers reached from `app.game.air.swf`
+  (`InfoBarHelper`, `BattleHudPageLoadHelper`). Fixes #6/#7 are here.
+- **Track 2 — Phase 3 (systemic, deliberate) for the gui-SWF HUD:** in `DisplayResourceLoader`
+  (`DisplayResourceLoader.as:61-64`) load the battle gui SWFs into `ApplicationDomain.currentDomain` with
+  `allowCodeImport = false`, so the `app.game.air.swf` copies of `GuiInitiative` **and** `GuiUtil` (both
+  already patched in `src/`) win. Fixes Crash A and likely the rest of the HUD crashes at once, and makes the
+  parked `GuiInitiative.as` live. **Verify first:** every class the battle gui SWFs instantiate by symbol must
+  exist in `app.game.air.swf` (else those symbols fail to resolve); broad blast radius — scope to the battle
+  gui SWFs. **Fallback:** ship a JPEXS-patched `battle_initiative.swf` via a scripted build step if Phase 3's
+  class-linkage is too risky.
+
+> Playbook caveat (updates step 2 below): the throwing class is *usually* in `app.game.air.swf`, but NOT when
+> the gui SWF bundled it (e.g. `GuiUtil` called from `GuiInitiative`). If a guard built into `app.game.air.swf`
+> has no effect on the crash, suspect a gui-SWF-bundled copy → Track 2.
 
 ## Playbook for the next `#1009` (so any session can continue mechanically)
 

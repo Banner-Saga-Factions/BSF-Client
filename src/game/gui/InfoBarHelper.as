@@ -95,7 +95,16 @@ package game.gui
       
       public function hideAbilityInfo() : void
       {
-         _battleHudPage.battleHudPageLoadHelper.guihud.initiative.infobar.setVisible(false);
+         // [Inference] BSF-Client #12: same unguarded guihud.initiative.infobar chain as
+         // showAbilityInfo -- executing an ability (guiAbilityPopupExecute) threw #1009 when a link
+         // was null. Walk it null-safely; nothing to hide if the info bar isn't there.
+         var _loc1_:IGuiBattleHud = _battleHudPage.battleHudPageLoadHelper ? _battleHudPage.battleHudPageLoadHelper.guihud : null;
+         var _loc2_:* = _loc1_ ? _loc1_.initiative : null;
+         var _loc3_:* = _loc2_ ? _loc2_.infobar : null;
+         if(_loc3_)
+         {
+            _loc3_.setVisible(false);
+         }
       }
       
       public function showAbilityInfo() : void

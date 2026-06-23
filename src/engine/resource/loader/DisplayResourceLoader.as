@@ -58,7 +58,19 @@ package engine.resource.loader
                emitCompleteCallback(false);
                return;
             }
-            _loc5_ = null;
+            // [Inference] BSF-Client #12 finding #2 ("Crash A"): battle_initiative.swf ships its own
+            // older, UNGUARDED copies of GuiInitiative + GuiUtil. Loaded into a fresh private domain
+            // (null) they win, so a null child in the initiative deploy branch throws #1009 inside
+            // GuiUtil.updateDisplayList and kills the battle HUD.
+            // Fix: route ONLY battle_initiative.swf through ApplicationDomain.currentDomain (scoped by
+            // URL so town/map/popups keep their isolated-domain behavior). allowCodeImport stays true.
+            // OBSERVED (2026-06-23 logs, ~4 battles, 0 #1009): the gui-SWF GuiInitiative SYMBOL still
+            // binds to its own copy (it still logs), but GuiUtil -- referenced BY NAME -- resolves to our
+            // guarded app.game.air.swf copy and absorbs the null child, which is what stops Crash A. If a
+            // residual #1009 ever appears (e.g. the gui-SWF GuiInitiative's own unguarded frameleft
+            // deref), switch to allowCodeImport=false to force the app GuiInitiative (frameleft-guarded)
+            // to win too. See ~/.claude/plans/review-bsf-client-misc-plan-fix-issue-12-clever-storm.md.
+            _loc5_ = url.indexOf("battle_initiative.swf") != -1 ? ApplicationDomain.currentDomain : null;
             _loc4_ = null;
             _loc2_ = new LoaderContext(false,_loc5_,_loc4_);
             _loc2_.allowCodeImport = true;

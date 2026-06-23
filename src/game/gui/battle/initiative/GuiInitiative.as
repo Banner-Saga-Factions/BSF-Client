@@ -1,22 +1,19 @@
 /**
- * GuiInitiative -- INERT OVERLAY (this code does NOT run at runtime).
+ * GuiInitiative -- INERT OVERLAY (this code does NOT run at runtime, even with the Wave-1 reroute).
  *
- * The GuiInitiative that actually executes is an OLDER copy compiled into
- * gui\battle_initiative.swf, not this one. Gui SWFs are loaded with allowCodeImport=true and
- * their own ApplicationDomain (see DisplayResourceLoader), so each supplies its own class
- * bytecode; the copy compiled into app.game.air.swf (this file) is dead. Proof: the running
- * class logs strings ("nonsetting-start", "GuiInitiative.init") that do not exist here.
+ * Runtime proof (2026-06-23 logs): battle_initiative.swf's OWN copy of this class runs -- it logs
+ * "GuiInitiative.init" / "GuiInitiative.setEntities ... nonsetting-start", strings present in NEITHER the
+ * raw _decompiled app copy NOR this overlay. The Wave-1 DisplayResourceLoader reroute
+ * (battle_initiative.swf -> ApplicationDomain.currentDomain, allowCodeImport=true) did NOT make this
+ * app.game.air.swf copy win the symbol linkage -- the gui-SWF copy still binds and runs.
  *
- * So the frameLeft guards below are SPECULATIVE and currently have NO effect. The real
- * BSF-Client #12 finding #2 crash is NOT the deploy-branch frameLeft deref -- it is a
- * setInitiativeEntities(null) call into the OLD gui-SWF copy's empty/"nonsetting" else
- * branch, fixed in BattleHudPageLoadHelper.checkInitiativeEntities (which IS in
- * app.game.air.swf and patchable the normal way). See
- * bsf-client/misc/Plan-Fix-Issue-12-ai-battle-init-hang.md.
+ * The reroute DID fix Crash A, though: across ~4 offline AI battles (turns up to 39, two battles in one
+ * session) there were ZERO #1009s, vs. a reliable crash before. [Inference] mechanism: GuiUtil is
+ * referenced BY NAME, so in currentDomain the gui-SWF GuiInitiative's GuiUtil.updateDisplayList calls
+ * resolve to our GUARDED app GuiUtil (src/game/gui/GuiUtil.as), which absorbs the null child.
  *
- * This file becomes LIVE only under Phase 3 (route gui SWFs through
- * ApplicationDomain.currentDomain so this app.game.air.swf copy wins). Keep it; if Phase 3
- * lands, re-verify whether the deploy branch actually needs the frameLeft guards.
+ * The frameleft guards below stay SPECULATIVE/inert: they only become load-bearing if the reroute is
+ * later switched to allowCodeImport=false to force THIS copy to win. See Plan-Fix-Issue-12.
  */
 package game.gui.battle.initiative
 {
@@ -197,11 +194,10 @@ package game.gui.battle.initiative
                GuiUtil.updateDisplayList(statFlags,this);
                activeFrame.visible = false;
                GuiUtil.updateDisplayList(activeFrame,this);
-               // [Inference] SPECULATIVE guard -- this overlay is inert at runtime (see file header).
-               // frameleft is getChildByName("frameLeft") in init(); guarded in case the gui-SWF
-               // copy's deploy branch derefs a null frameLeft once this file goes live under Phase 3.
-               // NOTE: this is NOT the #12 finding-#2 crash -- that crash is the null-entities empty
-               // branch in the OLD gui-SWF copy, fixed in BattleHudPageLoadHelper. See Plan-Fix-Issue-12.
+               // [Inference] SPECULATIVE guard -- this overlay is INERT at runtime (gui-SWF copy runs;
+               // see file header). frameleft = getChildByName("frameLeft") and can be null; guarded in
+               // case this copy is ever made live (reroute switched to allowCodeImport=false). The live
+               // Crash-A fix is the guarded GuiUtil, not this. See Plan-Fix-Issue-12.
                if(frameleft)
                {
                   frameleft.visible = true;
@@ -218,8 +214,8 @@ package game.gui.battle.initiative
                tweenFlagIn();
                orderChangeHandler(null);
                activeFrameChangeHandler(null);
-               // [Inference] Same SPECULATIVE frameleft guard as the deploy branch above; inert until
-               // Phase 3 (see file header). Not the #12 finding-#2 crash. See Plan-Fix-Issue-12.
+               // [Inference] Same SPECULATIVE frameleft guard as the deploy branch above; INERT at
+               // runtime (gui-SWF copy runs -- see file header). See Plan-Fix-Issue-12.
                if(frameleft && frameleft.visible)
                {
                   frameleft.visible = false;

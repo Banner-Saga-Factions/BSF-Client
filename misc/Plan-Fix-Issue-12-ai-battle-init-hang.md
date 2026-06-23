@@ -14,7 +14,7 @@
 2. The deploy stall is caused by a **null-reference crash (`TypeError #1009`) while the battle HUD is being
    built** — but **not** where the old plan said. The real crash is
    `BattleHudPageLoadHelper.checkInitiativeEntities → GuiInitiative.setInitiativeEntities(null) →
-   GuiUtil.updateDisplayList`. The initiative bar is asked to render **before any entities exist**, and the
+GuiUtil.updateDisplayList`. The initiative bar is asked to render **before any entities exist**, and the
    old gui-SWF copy of `GuiInitiative` dereferences a null in its empty/"nonsetting" branch.
 3. A broken HUD ⇒ deploy controls don't work ⇒ deployment never completes ⇒ match never starts.
 4. **The fix is in `app.game.air.swf`, not the gui SWF.** `BattleHudPageLoadHelper` (the caller that passes
@@ -24,7 +24,7 @@
 ## How we know (runtime evidence)
 
 Authoritative log: `%APPDATA%\TheBannerSagaFactions\Local Store\logs\A-8.log-AI-battle-failed.txt`.
-(The repo-root `A-*.log.txt` and the other `…\Local Store\logs\A-*` files are from unrelated tests.)
+(The `…\Local Store\logs\A-*` files are from unrelated tests.)
 
 ```
 GuiBattleHud.initiative value=[object battle_initiative] _initiative=null
@@ -125,7 +125,7 @@ null check:
 - `AiPlan.computePositionalEnemyWeight` (`:234`) — `…getFirstAbilityByTag(ATTACK_STR).def` on an **enemy**
   (the crash seen). The value is even guarded one line later (`if(_loc13_)`), so the deref just predates the
   guard. **Fixed:** compute it null-safely.
-- `AiModuleBase` constructor (`:43`) — `atkStr.id`/`atkArm.id` on the **caster** (the *next* crash, the
+- `AiModuleBase` constructor (`:43`) — `atkStr.id`/`atkArm.id` on the **caster** (the _next_ crash, the
   moment the AI's own Shieldbanger acts). **Fixed:** null-safe bow check; downstream
   (`AiModuleDredge.performMove`, `AiPlan`) already tolerates null `atkStr`/`atkArm`.
 
@@ -147,10 +147,10 @@ After the AI fix, the AI now **moves and rests** (AI fix verified). Two further 
 `app.game.air.swf` utilities (no Phase 3 needed):
 
 1. **Deploy HUD crash** — `BattleStateDeploy.handleEnteredState → BattleBoard.autoDeployPartyById → … →
-   BattleHudPage.checkDeploymentInitiative → BattleHudPageLoadHelper.setInitiativeEntities (public) →
-   checkInitiativeEntities → GuiInitiative.setInitiativeEntities → GuiUtil.updateDisplayList #1009`. This is
-   the *deploy branch* with **real** entities (so it passes the Phase-1 null guard). The old gui-SWF
-   `GuiInitiative` passes a **null child** to `GuiUtil.updateDisplayList`, which only guarded the *parent*.
+BattleHudPage.checkDeploymentInitiative → BattleHudPageLoadHelper.setInitiativeEntities (public) →
+checkInitiativeEntities → GuiInitiative.setInitiativeEntities → GuiUtil.updateDisplayList #1009`. This is
+   the _deploy branch_ with **real** entities (so it passes the Phase-1 null guard). The old gui-SWF
+   `GuiInitiative` passes a **null child** to `GuiUtil.updateDisplayList`, which only guarded the _parent_.
    **Fixed:** `src/game/gui/GuiUtil.as` — guard null `param1` in `updateDisplayList` + `updateDisplayListAtIndex`
    (behavior-preserving: null child = nothing to add/remove).
 2. **Ability-info crash** — selecting the Siege Archer ability: `InfoBarHelper.showAbilityInfo #1009`. It
@@ -159,23 +159,23 @@ After the AI fix, the AI now **moves and rests** (AI fix verified). Two further 
 
 ## Fixes applied so far (running list — all `app.game.air.swf`, normal patch model)
 
-| # | Symptom | Root cause | Overlay |
-|---|---------|-----------|---------|
-| 1 | HUD #1009 at battle load, stuck in deploy | `checkInitiativeEntities` calls `setInitiativeEntities(null)` → old gui-SWF empty branch | `src/game/gui/page/BattleHudPageLoadHelper.as` |
-| 2 | AI #1009, enemy never acts | `getFirstAbilityByTag(ATTACK_STR).def` on a str-less **enemy** (Shieldbanger) | `src/engine/battle/fsm/aimodule/AiPlan.as` |
-| 3 | (latent) AI #1009 when AI's own str-less unit acts | `atkStr.id`/`atkArm.id` on null in ctor | `src/engine/battle/fsm/aimodule/AiModuleBase.as` |
-| 4 | Deploy HUD #1009, `setInitiativeEntities` deploy branch | null **child** into `GuiUtil.updateDisplayList` — **overlay does NOT take effect: gui SWF bundles its own `GuiUtil`** (see inflection) | `src/game/gui/GuiUtil.as` (live for app.game.air.swf callers; **dead** for the gui-SWF path → **OPEN, needs Phase 3**) |
-| 5 | #1009 *selecting* an ability (`showAbilityInfo`) | unguarded `infobar` chain / `def.description` | `src/game/gui/InfoBarHelper.as` |
-| 6 | #1009 *executing* an ability (`hideAbilityInfo`) | same unguarded `infobar` chain | `src/game/gui/InfoBarHelper.as` |
-| 7 | AI `ArgumentError: No such stat: ARMOR on prop+pole03` | `buildEnemyArray` treats scenery props as enemies; props lack combat stats | `src/engine/battle/fsm/aimodule/AiModuleBase.as` |
+| #   | Symptom                                                 | Root cause                                                                                                                             | Overlay                                                                                                                |
+| --- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| 1   | HUD #1009 at battle load, stuck in deploy               | `checkInitiativeEntities` calls `setInitiativeEntities(null)` → old gui-SWF empty branch                                               | `src/game/gui/page/BattleHudPageLoadHelper.as`                                                                         |
+| 2   | AI #1009, enemy never acts                              | `getFirstAbilityByTag(ATTACK_STR).def` on a str-less **enemy** (Shieldbanger)                                                          | `src/engine/battle/fsm/aimodule/AiPlan.as`                                                                             |
+| 3   | (latent) AI #1009 when AI's own str-less unit acts      | `atkStr.id`/`atkArm.id` on null in ctor                                                                                                | `src/engine/battle/fsm/aimodule/AiModuleBase.as`                                                                       |
+| 4   | Deploy HUD #1009, `setInitiativeEntities` deploy branch | null **child** into `GuiUtil.updateDisplayList`; the gui-SWF `GuiInitiative` symbol still runs, but `GuiUtil` (called **by name**) now resolves to our guarded copy via the domain reroute | `src/game/gui/GuiUtil.as` + `src/engine/resource/loader/DisplayResourceLoader.as` (route `battle_initiative.swf` → `currentDomain`) — **FIXED, verified ~4 battles / 0 #1009** |
+| 5   | #1009 _selecting_ an ability (`showAbilityInfo`)        | unguarded `infobar` chain / `def.description`                                                                                          | `src/game/gui/InfoBarHelper.as`                                                                                        |
+| 6   | #1009 _executing_ an ability (`hideAbilityInfo`)        | same unguarded `infobar` chain                                                                                                         | `src/game/gui/InfoBarHelper.as`                                                                                        |
+| 7   | AI `ArgumentError: No such stat: ARMOR on prop+pole03`  | `buildEnemyArray` treats scenery props as enemies; props lack combat stats                                                             | `src/engine/battle/fsm/aimodule/AiModuleBase.as`                                                                       |
 
 `GuiInitiative.as` overlay remains **inert/parked** (gui-SWF copy runs).
 
-## Strategic inflection (2026-06-23): the deploy HUD crash (Crash A) needs Phase 3
+## Strategic inflection (2026-06-23): the deploy HUD crash (Crash A) needs Phase 3 — RESOLVED (see next section)
 
 Fix #4 (the `GuiUtil` null-child guard) was built and deployed, but the deploy crash **persists unchanged** —
 while fix #5/#6 (`InfoBarHelper`) clearly took effect (the throw moved `showAbilityInfo` → `hideAbilityInfo`).
-The only explanation: the `GuiUtil.updateDisplayList` call made *from inside* `GuiInitiative` resolves to a
+The only explanation: the `GuiUtil.updateDisplayList` call made _from inside_ `GuiInitiative` resolves to a
 **`GuiUtil` bundled inside `battle_initiative.swf`**, not our patched `app.game.air.swf` copy. (Gui SWFs load
 with `allowCodeImport` into a child ApplicationDomain; classes the gui SWF was compiled with — `GuiInitiative`
 **and its dependency `GuiUtil`** — resolve from that child domain first.)
@@ -183,7 +183,7 @@ with `allowCodeImport` into a child ApplicationDomain; classes the gui SWF was c
 **Consequence:** Crash A cannot be fixed by guarding `GuiUtil` (or any class the gui SWF bundled) from
 `app.game.air.swf`. This is the **Phase 3** trigger. Two tracks remain:
 
-- **Track 1 — `app.game.air.swf` guards (cheap, continue as before):** any crash whose *throwing* class is NOT
+- **Track 1 — `app.game.air.swf` guards (cheap, continue as before):** any crash whose _throwing_ class is NOT
   bundled in the gui SWF — the AI (`AiPlan`, `AiModuleBase`) and HUD helpers reached from `app.game.air.swf`
   (`InfoBarHelper`, `BattleHudPageLoadHelper`). Fixes #6/#7 are here.
 - **Track 2 — Phase 3 (systemic, deliberate) for the gui-SWF HUD:** in `DisplayResourceLoader`
@@ -195,9 +195,47 @@ with `allowCodeImport` into a child ApplicationDomain; classes the gui SWF was c
   gui SWFs. **Fallback:** ship a JPEXS-patched `battle_initiative.swf` via a scripted build step if Phase 3's
   class-linkage is too risky.
 
-> Playbook caveat (updates step 2 below): the throwing class is *usually* in `app.game.air.swf`, but NOT when
+> Playbook caveat (updates step 2 below): the throwing class is _usually_ in `app.game.air.swf`, but NOT when
 > the gui SWF bundled it (e.g. `GuiUtil` called from `GuiInitiative`). If a guard built into `app.game.air.swf`
 > has no effect on the crash, suspect a gui-SWF-bundled copy → Track 2.
+
+## Update (2026-06-23, later) — Crash A RESOLVED with a *scoped, lightweight* Phase 3
+
+Crash A is fixed; the offline AI battle is playable (deploy → turns → resolution). The fix is a **single line**
+in `DisplayResourceLoader` — much cheaper than the full Phase 3 above.
+
+**What we did:** route **only** `battle_initiative.swf` into `ApplicationDomain.currentDomain`, keeping
+`allowCodeImport = true` (not the `false` the inflection proposed):
+
+```actionscript
+_loc5_ = url.indexOf("battle_initiative.swf") != -1 ? ApplicationDomain.currentDomain : null;
+```
+
+**The surprising mechanism (proven against the runtime log).** The gui-SWF `GuiInitiative` **symbol still binds
+to its own bundled copy** — it keeps logging `GuiInitiative.init` / `setEntities ... nonsetting-start`, strings
+absent from both the raw `_decompiled` app copy and our `src/` overlay. So the reroute did **not** make our
+`GuiInitiative` win. **But `GuiUtil` is referenced _by name_**, so inside `currentDomain` the gui-SWF
+`GuiInitiative`'s `GuiUtil.updateDisplayList(...)` calls resolve to the already-defined, **guarded**
+`app.game.air.swf` `GuiUtil` (`src/game/gui/GuiUtil.as`), which null-guards the child and absorbs the crash.
+**Symbol-linkage classes stay gui-SWF; by-name class references resolve to the app copy** — that asymmetry is
+the whole trick, and it means we did **not** need `allowCodeImport=false` (and its "every symbol class must
+exist in app.game.air.swf" risk) for this crash.
+
+**Verification:** ~4 offline AI battles (`A-*.log`; turns up to 39; two battles in one session) — **0 ×
+`#1009`**, vs. a reliable crash before. The reroute was the only change since "persists unchanged", so causation
+is clean.
+
+**Status notes:**
+- Fix-table row #4 → **FIXED**.
+- `GuiInitiative.as` overlay stays **inert** (the gui-SWF copy runs). Its `frameleft` guards are
+  belt-and-suspenders: only load-bearing if a *residual* deploy-branch `#1009` (the gui-SWF copy's own
+  unguarded `frameleft` deref) ever appears — then escalate this one SWF to `allowCodeImport=false` to force
+  the app `GuiInitiative` (frameleft-guarded) to win too.
+- Separate/pre-existing (NOT this crash): every log shows `#1069 IGuiContext::party/renown not found` loading
+  `VersusPage`/`GreatHallPage`/`MeadHousePage` — the offline harness not populating a full account context;
+  non-blocking, parked.
+
+Canonical wave plan: `~/.claude/plans/review-bsf-client-misc-plan-fix-issue-12-clever-storm.md`.
 
 ## Playbook for the next `#1009` (so any session can continue mechanically)
 
@@ -212,7 +250,7 @@ with `allowCodeImport` into a child ApplicationDomain; classes the gui SWF was c
    `_decompiled/scripts/<pkg path>.as`. Verify with `diff _decompiled/scripts/<f> src/<f>` (only your change)
    and an `awk` brace count.
 5. Rebuild → copy SWF → `run-adl.ps1` → repro → paste newest log. Repeat.
-6. Escalate to **Phase 3** only if a crash is genuinely *inside* the gui-SWF `GuiInitiative` with no
+6. Escalate to **Phase 3** only if a crash is genuinely _inside_ the gui-SWF `GuiInitiative` with no
    `app.game.air.swf` choke point to guard.
 
 ## Verify (run locally; paste back the newest log)

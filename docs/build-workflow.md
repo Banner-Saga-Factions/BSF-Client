@@ -50,6 +50,41 @@ For local development, a **self-signed** cert is fine. Generate one in seconds:
 
 Drop the resulting `SIGNING_KEY.p12` in the repo root (or pass `-KeystorePath C:\path\to\your.p12` to `build.ps1`). `.p12` files are gitignored. Real Play Store / App Store distribution needs a CA-issued cert — that's covered in the per-target notes below.
 
+## Distribution & certificate identity
+
+You almost certainly **do not have the certificate Stoic originally signed Factions with** — it shipped with the game, not with the source. This section explains exactly what that does (and does not) break when you ship a rebuilt client to players. Short version: it's mostly fine, because this project distributes full repackaged installers rather than AIR auto-updates, and the original shipped through Steam.
+
+**The one rule that governs everything below:** an AIR app's update identity = **app ID + signing certificate**. Two packages can update each other only if they share the app ID _and_ are signed by the same cert (or are bridged by a migration signature). Because you lack Stoic's `.p12`, every build you make is — to AIR — a _different publisher_ than the shipped client. There is no workaround for that fact; only its consequences matter, and they're manageable.
+
+### What players experience
+
+| Audience                                                | What happens                                                                                                                                                                                  | Why                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Existing players** (already have the Steam Factions install) | Your rebuilt client installs as a **separate** app and coexists with the Steam copy — no certificate clash. Their local save data (`global_0.sol`, cached account / roster / news) **carries over**. | Steam dropped the original on disk itself; it was never registered through the AIR installer, so there is no AIR-managed "original" for your build's cert to collide with. Save data survives because AIR keys local storage to the **app ID** — unchanged at `TheBannerSagaFactions` — not the cert. _(See assumptions.)_ |
+| **New players** (first-ever install)                    | Clean install. Only wart: a self-signed cert shows an **"unknown publisher"** prompt, and on Windows, SmartScreen may flag the `.exe`. Functionally fine.                                       | No prior app exists, so nothing to conflict with. Self-signed certs aren't vouched for by a certificate authority, hence the warnings.                                                                                                                                            |
+
+### Your cert is the new permanent baseline
+
+Whatever cert you sign your **first public build** with, reuse it for **every** future update — forever:
+
+- **Same cert across your builds** → they update each other cleanly.
+- **Different cert between two of _your own_ builds** → the AIR installer refuses to install one over the other ("already installed by a different publisher"); players must uninstall first. This is the main _self-inflicted_ trap — avoid it by never rotating the cert.
+- You can **never** make a build that updates Stoic's original in place. `adt`'s `-migrate` flag (sign with a new cert _plus_ a signature from the old one) is the official bridge for a cert change, but it requires the **old** cert — which you don't have. So migrating from the original is impossible; establish your own cert as the baseline and move on.
+
+**Practical guidance:** generate **one** signing cert with a long validity, back up the `.p12` as a permanent project asset, and store its password where you won't lose it. Losing it re-creates this entire problem against your _own_ prior releases. A CA-issued code-signing cert (instead of self-signed) removes the SmartScreen / "unknown publisher" warnings but is **not** required for the game to run.
+
+### Mobile
+
+Factions originally shipped on **Windows and macOS only** — there was never a mobile release. So there is no "existing mobile install" to update: any Android / iOS build (see the per-target notes below) is a brand-new app signed with **your own** key from day one, free of the cross-cert concerns above. Mobile signing has its own rules — Android update keys must match across versions; iOS requires your own Apple Distribution cert — but those only ever involve _your_ keys, never Stoic's.
+
+### Assumptions
+
+These claims rest on a few things worth verifying before you rely on them with real players:
+
+- **[Assumption — medium confidence]** The original Factions was distributed via **Steam as plain on-disk files**, not installed through the Adobe AIR Application Installer. This is why a rebuilt client with a different cert coexists with the Steam copy instead of being rejected at install time. _Verify on one real machine before publishing install instructions_ — captive-runtime vs. shared-runtime packaging can change install-over behavior.
+- **[Assumption — high confidence]** Local save data survives a cert change because the descriptor has **no `<publisherID>`** (commented out in `META-INF/AIR/application.xml`) and targets AIR namespace ≥ 1.5.3 (it uses `3.7`), so AIR derives the storage path from the **app ID alone**. This continuity breaks the moment you change `<id>` — keep it as `TheBannerSagaFactions`.
+- **[Fact — per project history]** Factions released on Windows / macOS only; the Android / iOS targets in this repo are new crossplay work, not updates to any prior mobile app.
+
 ## Step 1 — `decompile.ps1`
 
 JPEXS exports the SWF's AS3 bytecode to source. Output lands in `_decompiled/` (gitignored). Typical runtime: 60–120 seconds; first run can be slower as JPEXS caches font/asset tables.

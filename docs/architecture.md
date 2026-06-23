@@ -32,6 +32,8 @@ bsf-client/
 
 The build sequence is always: `decompile.ps1` → `apply-patches.ps1` → `build.ps1`. See [`build-workflow.md`](./build-workflow.md).
 
+`_decompiled/` is one of **four AS3 trees** in play — one editable (`src/` + the generated `_decompiled/`) and three read-only references under `bsf-refs\`. In particular, the gitignored `_decompiled/` here is _not_ the same as the checked-in `bsf-refs\client-decompiled-as3\` reference snapshot, even though both are decompiles of the same SWF. For the full map and that distinction, see [`reference-codebases.md`](./reference-codebases.md) → "The four AS3 trees".
+
 ## Runtime stack
 
 The client is an Adobe AIR application — Flash Player runtime packaged with a native installer.

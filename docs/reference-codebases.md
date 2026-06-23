@@ -8,6 +8,25 @@ This is the client-side analogue of the parent repo's [`REFERENCE.md`](../../REF
 
 > **Do not vendor, submodule, copy, or otherwise pull these directories into `bsf-client/` or `BSF/`.** The patch-only repo model depends on `_decompiled/` being a _generated_ gitignored tree, not a checked-in mirror.
 
+## The four AS3 trees — editable vs reference
+
+This is the part that trips people up: **two of these trees are JPEXS decompiles of the same SWF**, so it looks like you have a choice of where to make changes. You don't. There is exactly **one tree you edit** and **three read-only reference mirrors**. You never edit a reference mirror — you read them to decide what to patch in `src/`.
+
+| Tree                              | Role                                                                                                | Tracked?               | You…                       |
+| --------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------- | -------------------------- |
+| `bsf-client/src/`                 | **The only thing you edit.** Patch files overlaid on `_decompiled/` at build time.                 | committed              | **edit**                   |
+| `bsf-client/_decompiled/`         | Working decompile you build against. Generated from your own SWF by `scripts/decompile.ps1`.        | gitignored (generated) | build against, never edit  |
+| `bsf-refs\client-2013-as3\`       | Readable 2013 Stoic source — the **default** thing to read.                                         | read-only reference    | read                       |
+| `bsf-refs\client-decompiled-as3\` | Checked-in snapshot of the SWF decompile — read when 2013 is missing or stale.                      | read-only reference    | read                       |
+| `bsf-refs\client-swf-and-ane\`    | Raw `app.game.air.swf` + ANE inputs (binary).                                                       | read-only reference    | rarely touch               |
+
+**`_decompiled/` vs `client-decompiled-as3/` — same content, different jobs.** Both are JPEXS decompiles of the same shipped SWF, so their files are near-identical. They are _not_ redundant:
+
+- `bsf-client/_decompiled/` is **generated locally and gitignored** — the working copy the compiler overlays your `src/` patches onto. Every contributor regenerates it from their own SWF; it is a _build input_, never read as a reference and never committed.
+- `bsf-refs\client-decompiled-as3\` is a **stable, checked-in reference snapshot** you _read_ while deciding what to patch — outside the build, shared across contributors so line citations stay stable.
+
+Keeping these two separate is exactly what makes the patch-only model work (see [`architecture.md`](./architecture.md) → "The patch-only repo model"). The rest of this doc covers the **three reference mirrors** (the bottom three rows above) — when to read each.
+
 ## The three mirrors
 
 | Path                              | What it is                                                                                                                                                  | Files       | When to consult                                                                                                                                                                                                                       |

@@ -172,6 +172,7 @@ checkInitiativeEntities → GuiInitiative.setInitiativeEntities → GuiUtil.upda
 | 6   | #1009 _executing_ an ability (`hideAbilityInfo`)        | same unguarded `infobar` chain                                                                                                         | `src/game/gui/InfoBarHelper.as`                                                                                        |
 | 7   | AI `ArgumentError: No such stat: ARMOR on prop+pole03`  | `buildEnemyArray` treats scenery props as enemies; props lack combat stats                                                             | `src/engine/battle/fsm/aimodule/AiModuleBase.as`                                                                       |
 | 8   | Great hall `#1069 IGuiContext::party/renown not found` (Quick Match crash + great-hall/roster portraits blank) | stale `great_hall.swf` / `mead_house.swf` `GuiGreatHall` / `GuiMeadHouse` call old `context.party` / `context.renown`; rebuilt app moved them onto `context.legend.*` and dropped them from the context | `src/game/gui/IGuiContext.as` + `src/game/gui/GameGuiContext.as` + `src/game/gui/mock/MockGuiContext.as` — compat shim re-adds `party`/`renown` (→ `legend.*`). **FIXED, verified 2026-06-24** |
+| 9   | Mead House `#1069 IGuiContext::rosterSlotAvailable not found` (clicking **Hire** throws) | stale `mead_house.swf` `GuiMeadHouse` calls `context.rosterSlotAvailable()` (`:296`) + `context.purchaseRosterUnit(...)` (`:264`) as **functions**; the refactor moved both onto `Legend` (`rosterSlotAvailable` getter, `hireRosterUnit`) and dropped them from the context | `src/game/gui/IGuiContext.as` + `src/game/gui/GameGuiContext.as` (delegate → `legend.rosterSlotAvailable` / `legend.hireRosterUnit`); `MockGuiContext` already satisfies. **FIXED, verified 2026-06-24 (Hire confirmed)** |
 
 `GuiInitiative.as` overlay remains **inert/parked** (gui-SWF copy runs).
 
@@ -306,6 +307,42 @@ payoff (Ranked is server matchmaking, not part of the offline AI feature).
 > property). Enumerate every other stale `context.*` call in `great_hall.swf` / `mead_house.swf`, then
 > recommend JPEXS-patch vs. park. Context: the `party`/`renown` compat shim (committed) already fixed Quick
 > Match + portraits; `allowCodeImport=false` is ruled out (SecurityError #3226 on code-bearing SWFs).
+
+## Update (2026-06-24, later) — Wave 3 follow-up: Mead-House Hire `#1069` shimmed; `#1006` narrowed to one instruction
+
+Follows through on the "investigate first, then decide" kickoff above. The user extracted `great_hall.swf` +
+`mead_house.swf` into `_decompiled/gui/{great_hall,mead_house}/`; a read-only `context.*` enumeration of both
+trees (the planned "Step 2") is **done**, and both remaining town crashes are pinned at their call sites.
+
+**Mead-House "Hire" `#1069` — FIXED (app-side shim; user-verified: Hire → confirm a hire, no `#1069`).** Stale
+`GuiMeadHouse` calls two members the refactor moved onto `Legend`, both as **functions**:
+`context.rosterSlotAvailable()` (`GuiMeadHouse.as:296`) → now `legend.rosterSlotAvailable` (a **getter**), and
+`context.purchaseRosterUnit(pu,fake,cb)` (`:264`) → renamed `legend.hireRosterUnit(...)`. Fix re-adds both to
+`IGuiContext` + `GameGuiContext` as thin delegates to `legend.*` (matching the stale **function** form);
+`MockGuiContext` already declared both, so no change there. Fix-table row #9; same by-name mechanism as the
+party/renown shim (row #8).
+
+**Scope = Hire only (2 members), by design.** The full enumeration of **both** extracted trees shows these are the
+*only* missing-member calls. The sibling roster ops are **not** in these SWFs: `.promote(` / `.rename(` have
+**zero** call-sites; `purchaseStat`/`purchaseStats`/`purchaseVariation`/`setStatsToMinimum` hits are the SWFs'
+own **bundled old context-class copies**, not page calls; `getKillsRequiredToPromote` is called on
+`context.statCosts` (present), not the context. They live in **other** screens (proving grounds etc.) and are
+**deferred** to a future wave — extract those SWFs, enumerate, shim only verified call-sites (all targets already
+exist on `Legend.as:121–151`; `purchaseVariation` also helps **#119**).
+
+**Ranked `#1006` — narrowed to a single-instruction patch (still author-don't-apply = Wave 2).** Confirmed at
+`GuiGreatHallBannerVersus.as:80` → `context.party.totalPower()` (a getter called as a function). **Correction to
+the earlier note:** `partyLimitsExceeded` is read as a **property** already (`GuiGreatHall.as:190`, no parens) — it
+matches the new getter and does **not** crash, so the JPEXS patch is just the one `callproperty …::totalPower,0`
+→ `getproperty …::totalPower` swap. Not shimmable (a getter can't be made callable app-side).
+
+**Two-mechanism rule (validated):** missing member dropped from the context → **app-side shim** (delegate to its
+new `legend.*` home, *matching the stale call form*); member that became a getter but is called as a function →
+**JPEXS SWF patch** (only fix). Cleaner signature oracle than `MockGuiContext`: each stale SWF bundles its own old
+`game/gui/IGuiContext.as` (e.g. `_decompiled/gui/mead_house/scripts/game/gui/IGuiContext.as:138,140`).
+
+Reviewed/split plan: `~/.claude/plans/review-c-users-rleyb-claude-plans-swf-pa-transient-gadget.md` (Wave 1 = this
+shim; Wave 2 = the `#1006` patch authoring). Committed on `fix/ai-battle-init-hang-12`.
 
 ## Playbook for the next `#1009` (so any session can continue mechanically)
 

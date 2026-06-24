@@ -19,7 +19,7 @@ param(
     [string]$GamePath  = "C:\Program Files (x86)\Steam\steamapps\common\The Banner Saga Factions\win32",
     [string]$ServerUrl = "http://localhost:8082/",
     [string]$Username  = "test2",
-    [string]$SteamId   = "123457"
+    [string]$SteamId   = "123456"
 )
 
 if (-not $env:AIR_HOME) { Write-Error "AIR_HOME is not set. Point it at the AIR SDK 51 root."; exit 1 }

@@ -11,6 +11,7 @@ package game.gui
    import engine.entity.def.IEntityClassDef;
    import engine.entity.def.IEntityDef;
    import engine.entity.def.IPartyDef;
+   import engine.entity.def.IPurchasableUnit;
    import engine.entity.def.Legend;
    import engine.resource.AnimClipResource;
    import engine.resource.BitmapResource;
@@ -346,6 +347,19 @@ package game.gui
       public function get renown() : int
       {
          return legend.renown;
+      }
+
+      // [Inference] Re-add roster members the refactor moved onto Legend; the stale
+      // mead_house.swf GuiMeadHouse calls these by name on this context instance
+      // (#1069 Hire fix, mirrors the party/renown shim above).
+      public function rosterSlotAvailable() : Boolean
+      {
+         return legend.rosterSlotAvailable;
+      }
+
+      public function purchaseRosterUnit(param1:IPurchasableUnit, param2:Boolean, param3:Function) : void
+      {
+         legend.hireRosterUnit(param1,param2,param3);
       }
 
       public function get accountInfo() : AccountInfoDef

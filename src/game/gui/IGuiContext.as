@@ -10,6 +10,7 @@ package game.gui
    import engine.entity.def.IEntityClassDef;
    import engine.entity.def.IEntityDef;
    import engine.entity.def.IPartyDef;
+   import engine.entity.def.IPurchasableUnit;
    import engine.entity.def.Legend;
    import engine.session.IIapManager;
    import engine.tourney.TourneyDefList;
@@ -79,7 +80,13 @@ package game.gui
       function get party() : IPartyDef;
 
       function get renown() : int;
-      
+
+      // [Inference] Re-add roster members the refactor moved onto Legend, so the stale
+      // mead_house.swf symbol class resolves them by name (mirrors the party/renown shim).
+      function rosterSlotAvailable() : Boolean;
+
+      function purchaseRosterUnit(param1:IPurchasableUnit, param2:Boolean, param3:Function) : void;
+
       function getCrownChitIcon() : GuiIcon;
       
       function getCrownIcon() : GuiIcon;

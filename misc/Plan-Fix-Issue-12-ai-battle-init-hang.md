@@ -171,6 +171,7 @@ checkInitiativeEntities → GuiInitiative.setInitiativeEntities → GuiUtil.upda
 | 5   | #1009 _selecting_ an ability (`showAbilityInfo`)        | unguarded `infobar` chain / `def.description`                                                                                          | `src/game/gui/InfoBarHelper.as`                                                                                        |
 | 6   | #1009 _executing_ an ability (`hideAbilityInfo`)        | same unguarded `infobar` chain                                                                                                         | `src/game/gui/InfoBarHelper.as`                                                                                        |
 | 7   | AI `ArgumentError: No such stat: ARMOR on prop+pole03`  | `buildEnemyArray` treats scenery props as enemies; props lack combat stats                                                             | `src/engine/battle/fsm/aimodule/AiModuleBase.as`                                                                       |
+| 8   | Great hall `#1069 IGuiContext::party/renown not found` (Quick Match crash + great-hall/roster portraits blank) | stale `great_hall.swf` / `mead_house.swf` `GuiGreatHall` / `GuiMeadHouse` call old `context.party` / `context.renown`; rebuilt app moved them onto `context.legend.*` and dropped them from the context | `src/game/gui/IGuiContext.as` + `src/game/gui/GameGuiContext.as` + `src/game/gui/mock/MockGuiContext.as` — compat shim re-adds `party`/`renown` (→ `legend.*`). **FIXED, verified 2026-06-24** |
 
 `GuiInitiative.as` overlay remains **inert/parked** (gui-SWF copy runs).
 
@@ -234,9 +235,16 @@ is clean.
   belt-and-suspenders: only load-bearing if a *residual* deploy-branch `#1009` (the gui-SWF copy's own
   unguarded `frameleft` deref) ever appears — then escalate this one SWF to `allowCodeImport=false` to force
   the app `GuiInitiative` (frameleft-guarded) to win too.
-- Separate/pre-existing (NOT this crash): every log shows `#1069 IGuiContext::party/renown not found` loading
-  `VersusPage`/`GreatHallPage`/`MeadHousePage` — the offline harness not populating a full account context;
-  non-blocking, parked.
+- **CORRECTED (Wave 3, 2026-06-23):** the `#1069 IGuiContext::party/renown not found` loading
+  `GreatHallPage`/`MeadHousePage`/`VersusPage` is **not** an unpopulated account context — it is a
+  **stale-gui-SWF API mismatch**, and it is **blocking** (it breaks Quick Match and the great-hall/roster
+  portraits = finding #1, which fail because the throw aborts page load before rendering). `great_hall.swf` /
+  `mead_house.swf` bundle pre-refactor `GuiGreatHall` / `GuiMeadHouse` that call `context.party` /
+  `context.renown`; the rebuilt app moved those onto `Legend` (`context.legend.*`) and dropped them from
+  `GameGuiContext` / `IGuiContext`, so the stale by-name calls find nothing. The Crash-A reroute does **not**
+  apply (no app-side property to resolve to). **Fix (implemented, VERIFIED 2026-06-24 — Quick Match + portraits
+  render):** a backward-compat shim re-adds `party` / `renown` to `IGuiContext` + `GameGuiContext` (→
+  `legend.*`) and `party` to `MockGuiContext`. Plan: `~/.claude/plans/context-i-get-this-toasty-simon.md`.
 
 Canonical wave plan: `~/.claude/plans/review-bsf-client-misc-plan-fix-issue-12-clever-storm.md`.
 
@@ -260,6 +268,44 @@ gate and a scoped reroute-or-guard.
 **Deferred (git):** the parent-repo submodule pointer bump (`bc5258e → 163a495`) is intentionally **not**
 committed yet — it lands when issue-12 merges to client `master`, to avoid pointing a parent branch at an
 unmerged client SHA.
+
+## Update (2026-06-24) — Wave 3: great-hall context shim landed (portraits + Quick Match fixed); Ranked `#1006` deferred
+
+**Root cause (corrected) for finding #1 + a Quick Match crash.** The great hall (`great_hall.swf`) and mead
+house / roster (`mead_house.swf`) load their pages as movie clips whose `GuiGreatHall` / `GuiMeadHouse` are
+**stale symbol classes**, compiled before party/renown moved off the gui context onto `Legend`. They call
+`context.party` / `context.renown` **by name** on the rebuilt app `GameGuiContext`, which dropped both →
+`#1069`. That throw fires during page **load**, which is why the great-hall/roster **portraits never rendered**
+(finding #1) — it was never a battle-SWF blind spot, so the clever-storm decompile-diff / reroute-or-guard gate
+did **not** apply (the portrait classes are by-name → app copy; a reroute changes nothing). The fix is an
+app-side compat shim.
+
+**Fix (landed, VERIFIED).** Re-add `party` / `renown` to `IGuiContext` + `GameGuiContext` (delegating to
+`legend.party` / `legend.renown`) and `party` to `MockGuiContext`. New overlays: `src/game/gui/IGuiContext.as`,
+`src/game/gui/GameGuiContext.as`, `src/game/gui/mock/MockGuiContext.as`. **User-verified 2026-06-24:** Quick
+Match no longer throws and great-hall + roster **portraits render**. Fix-table row #8.
+
+**Ranked Match `#1006` — deferred (not shimmable; online-only).** Clicking Ranked throws `TypeError #1006:
+value is not a function` in the stale `GuiGreatHallBannerVersus.rankedMatchHandler`. This is a **call-shape
+drift**: the stale code *calls as a function* something the refactor made a **property** (`createDialog()`,
+`totalPower`, `partyLimitsExceeded` all exist now; `totalPower`/`partyLimitsExceeded` are getters — likely
+`context.party.totalPower()` on the now-`int` property). A getter on a shared class can't be made callable
+without breaking the app's own property-style callers, so **the shim approach can't fix it**. The plan's
+`allowCodeImport=false` reroute fallback is **also out**: in the AIR app sandbox, loading a code-bearing SWF
+with `allowCodeImport=false` throws `SecurityError #3226` (the SWF would fail to load entirely). The only real
+fix is a **JPEXS patch of `great_hall.swf`** (the gui SWFs are packed, not loose) — heavy, and online-only
+payoff (Ranked is server matchmaking, not part of the offline AI feature).
+
+**Decision (2026-06-24):** park Ranked; the next chat does **"investigate first, then decide."**
+
+**Next-chat kickoff prompt:**
+> Issue-12 Wave 3 follow-up (Ranked `#1006`): decompile `great_hall.swf` (the gui SWFs are packed — extract it
+> the way `battle_initiative.swf` was extracted into `_decompiled/gui/`), read
+> `game.gui.pages::GuiGreatHallBannerVersus.rankedMatchHandler` and `GuiGreatHall`, and pin the exact
+> call-shape drift behind `TypeError #1006` (suspect `context.party.totalPower()` — `totalPower` is now a
+> property). Enumerate every other stale `context.*` call in `great_hall.swf` / `mead_house.swf`, then
+> recommend JPEXS-patch vs. park. Context: the `party`/`renown` compat shim (committed) already fixed Quick
+> Match + portraits; `allowCodeImport=false` is ruled out (SecurityError #3226 on code-bearing SWFs).
 
 ## Playbook for the next `#1009` (so any session can continue mechanically)
 

@@ -32,6 +32,11 @@ Key patch files:
 
 There are four AS3 trees total — one editable (`src/` + generated `_decompiled/`) and three read-only mirrors. See [`docs/reference-codebases.md`](./docs/reference-codebases.md) for the full four-tree map, the 12-stale-file list, and the "which mirror do I read?" decision tree.
 
+## Documentation conventions
+
+- **Durable concepts vs issue-specifics — cross-link, never duplicate.** Put reusable knowledge — a mental model, a verification method, a recurring gotcha — in the durable docs suite (`docs/`), **not** in an issue plan. Keep `misc/Plan-*.md` for issue-specific findings, decisions, and wave breakdowns, and have them *link* to the concept in `docs/`. Burying a reusable finding inside one issue's plan means the next session re-derives it from scratch — which is exactly how the gui-SWF resolution model and the decompile-provenance method got rediscovered repeatedly before they were finally written down.
+- **Where durable knowledge lives:** the SWF/runtime mental model + class-resolution + repair mechanisms → [`docs/architecture.md`](./docs/architecture.md); which mirror to read + the "did Stoic do it, or did we?" provenance recipe + the silent-decompile-loss trap → [`docs/reference-codebases.md`](./docs/reference-codebases.md); build mechanics → [`docs/build-workflow.md`](./docs/build-workflow.md). When a chat clarifies something reusable, land it in the right doc and point the plan at it.
+
 ## Development Commands
 
 ```powershell
@@ -59,6 +64,7 @@ powershell ./scripts/build.ps1 -Target windows   # or: android, ios
 - **Safety:** Always verify a function is defined in the same `.as` file before calling it. JPEXS decompile output is ~95% correct — type mismatches and missing `override` keywords appear; fix them one at a time.
 - **No Refactoring:** Extend existing classes. Do not rewrite working legacy logic unless explicitly asked.
 - **Patch files only:** Only add files under `src/` that differ from the original decompile. Do not commit the full `_decompiled/` tree.
+- **Resource gui SWFs are a patch blind spot:** the client loads `game.gui.*` UI classes from separate resource SWFs at runtime (`great_hall.swf`, `battle_initiative.swf`, …) that bundle a **stale, symbol-linked** copy your `src/` rebuild cannot touch. Before patching anything UI-related, know whether the broken reference is symbol-linked (needs a JPEXS bytecode patch) or by-name (a shim/reroute reaches it) — see [`docs/architecture.md`](./docs/architecture.md) → "Resource SWFs and runtime class resolution".
 
 ## AS3 Coding Standards
 

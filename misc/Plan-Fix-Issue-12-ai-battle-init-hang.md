@@ -10,6 +10,13 @@
 > missing** after the reroute → Wave 3; AI-vs-AI spectator → Wave 4.
 >
 > Canonical wave plan: `~/.claude/plans/review-bsf-client-misc-plan-fix-issue-12-clever-storm.md`.
+>
+> **Mechanism reference:** the symbol-linkage-vs-by-name resolution model and the shim/reroute/JPEXS-patch
+> decision behind this whole crash class are now documented canonically in
+> [`../docs/architecture.md`](../docs/architecture.md) → "Resource SWFs and runtime class resolution"; the
+> "did Stoic do it, or did we?" provenance recipe is in
+> [`../docs/reference-codebases.md`](../docs/reference-codebases.md) → "Verifying provenance". The
+> public-release verdict + wave breakdown is [`Plan-Issue-12-Player-vs-AI-Public-Release.md`](./Plan-Issue-12-Player-vs-AI-Public-Release.md).
 
 ## TL;DR (read this first)
 

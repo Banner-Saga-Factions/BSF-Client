@@ -61,6 +61,27 @@ Does X live under engine/battle/fsm/, engine/battle/board/, engine/entity/def/, 
 
 In practice: when in doubt, open both — they sit side-by-side and a quick diff confirms whether the 2013 source is authoritative or stale for that file.
 
+## Verifying provenance — "did Stoic do it, or did we?"
+
+When something looks wrong — a context is missing a member, a method does nothing — the first question is always: **is this pre-existing in Stoic's shipped game, or did our decompile/recompile introduce it?** The answer changes everything (a pre-existing skew is a bounded thing to shim; a decompile artifact means the rebuild is lossy). The two read-only mirrors are the oracles, because **they predate and are untouched by our patching.**
+
+**Integrity check first.** Confirm `client-decompiled-as3\` really is the pristine original: it must contain **none of our new files** (`ModBridge.as`, `AiBattleLoadState.as`, `DiscordSteamworks.as`, …). If those are absent, the mirror is the untouched shipped decompile and is safe to trust as the "what shipped" oracle.
+
+**The recipe:**
+
+1. **What shipped?** Look up the member/behavior in `client-decompiled-as3\` (faithful decompile of the shipped SWF).
+2. **What did Stoic write?** Cross-check `client-2013-as3\` (Stoic's readable source). Two independent Stoic artifacts agreeing is strong proof.
+3. **Did we change it?** Check `bsf-client/src/` for an overlay of that class. No overlay ⇒ we didn't touch it.
+4. **Conclude.** Present in both mirrors + no `src/` overlay ⇒ **Stoic's, pre-existing.** Differs only in our `src/` overlay ⇒ **ours.**
+
+**Worked example (BSF-Client #12).** "Did we move `party`/`renown` off `GameGuiContext` onto `Legend`?" — No, Stoic did: `Legend.party` (`engine/entity/def/Legend.as:85`) and `Legend.renown` (`:137`, real `_renown` field + `"Legend.RENOWN"` event) exist in **both** `client-2013-as3\` and `client-decompiled-as3\`; the shipped `GameGuiContext` has only `get legend()`; and there is **no** `src/.../Legend.as` overlay. Our `src/game/gui/GameGuiContext.as` shim does the _opposite_ (re-adds `party`/`renown` onto the context, delegating to `legend.*`).
+
+### The silent-decompile-loss trap
+
+The dangerous decompile failure is not a compile error — it is a method JPEXS lifts as an **empty `{}` body**: it compiles, runs as a silent no-op, and a compile-diff audit will **never** flag it. To tell a genuine stub from a lift failure, **check `client-2013-as3\`**: if Stoic's readable source _also_ has an empty body, it is a genuine base-class stub (often a server-txn method whose real work lives in a subclass), not a decompile loss.
+
+**Worked example.** `Legend`'s roster ops (`hireRosterUnit`, `purchaseStat`, `rename`, `promote`, `purchaseVariation`) are empty `{}` in `client-decompiled-as3\` — alarming until you confirm they are **also** empty in `client-2013-as3\Legend.as`. Genuine stubs, faithfully decompiled. (Caveat: which `Legend` subclass is live at runtime then determines whether a call actually no-ops — verify the subclass before asserting behavior.)
+
 ## Path conventions in this docs suite
 
 Throughout `bsf-client/docs/` we cite files using **`bsf-refs\<mirror>\<path>`** (no `%USERPROFILE%\Code\` prefix) for compactness. The first reference per doc spells out the full `%USERPROFILE%\Code\bsf-refs\...` path; subsequent references abbreviate.

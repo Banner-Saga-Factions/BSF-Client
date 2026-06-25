@@ -74,7 +74,7 @@ The resource gui SWFs are an **older generation** than the app SWF: Stoic kept e
 | **Domain reroute** | A resource SWF's **by-name dependency** must resolve to the patched app copy — load that SWF into `currentDomain`. | `battle_initiative.swf` → app's guarded `GuiUtil` |
 | **JPEXS bytecode patch** | A **symbol-linked** class, or a getter-called-as-a-function (`#1006`) — a shim can't reach it; edit the resource SWF's bytecode directly. | Ranked `totalPower()` (`callproperty` → `getproperty`) |
 
-For the full reasoning, the worked diagnosis, and the public-release backlog, see [`../misc/Plan-Issue-12-Player-vs-AI-Public-Release.md`](../misc/Plan-Issue-12-Player-vs-AI-Public-Release.md). To prove whether a given drift is Stoic's (pre-existing) or introduced by our rebuild, see [`reference-codebases.md`](./reference-codebases.md) → "Verifying provenance".
+For the full reasoning, the worked diagnosis, and the public-release backlog, see [`../misc/Plan-Issue-12-Player-vs-AI-Public-Release.md`](../misc/Plan-Issue-12-Player-vs-AI-Public-Release.md). To prove whether a given drift is Stoic's (pre-existing) or introduced by our rebuild, see [`reference-codebases.md`](./reference-codebases.md) → "Verifying provenance". For the mechanical how-to of the **JPEXS bytecode patch** row — and `scripts/patch-gui-swf.ps1`, the ready-but-shelved Ranked `#1006` patch built from it — see [`build-workflow.md`](./build-workflow.md) → "Patching a resource gui SWF".
 
 ## Boot sequence — `GameMainAir.as`
 

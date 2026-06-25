@@ -159,6 +159,20 @@ Patches **belong in `src/`**, never in `_decompiled/` — anything in `_decompil
 
 For deeper guidance on AS3 patch hygiene, see [`bsf-client/CLAUDE.md`](../CLAUDE.md) → "AS3 Coding Standards" and "Refactoring Protocol".
 
+## Patching a resource gui SWF (`patch-gui-swf.ps1`)
+
+The three-step flow above only rebuilds `app.game.air.swf`. The **resource gui SWFs** (`great_hall.swf`, `mead_house.swf`, `battle_initiative.swf`, …) ship as Stoic's originals and are never recompiled — so when the bug is in a **symbol-linked** class baked into a resource SWF (or a getter-called-as-a-function, `#1006`), no `src/` overlay can reach it. The only fix is to edit that SWF's bytecode directly with JPEXS. See [`architecture.md`](./architecture.md) → "Resource SWFs and runtime class resolution" for _when_ this is the right mechanism (vs. an app-side shim or a domain reroute).
+
+`scripts/patch-gui-swf.ps1` is the worked example: it fixes the Ranked-match crash (`#1006`) by swapping one AVM2 instruction in `great_hall.swf`. It reads the install SWF **read-only** and writes a patched **copy** to `_build/great_hall.patched.swf` — it does **not** install anything (Ranked is online-only, so that patch stays shelved). Use it as a template for future resource-SWF patches.
+
+The hard-won, reusable parts of the recipe (these cost a session to rediscover the first time):
+
+- **`-replace` addresses AS3 method bodies by their _global_ index in the SWF's ABC**, not by class+method. The CLI form is `ffdec -replace <in> <out> "<dotted.class.Name>" <pcode-file> <methodBodyIndex>`. Derive the index once (export P-code with `-format script:pcode`, then find which `-replace` index is the _only_ one whose patch removes the target instruction), then **bake it in with a verification guard** — it's intrinsic to a fixed asset and won't drift, but the guard aborts rather than emit a bad patch if the SWF is ever replaced.
+- **Import the whole `method … end ; method` block, not just the `body`.** A body-only import silently drops the method's parameter signature (`foo(param1:T)` → `foo()`); a 0-param method later invoked _with_ an argument throws AVM2 `#1063` at call time — you'd trade one crash for another.
+- **The getter-as-function fix is `callproperty X, 0` → `getproperty X`.** Identical stack effect (both pop the receiver, push one value). The patched body is one byte shorter (no arg-count operand), so JPEXS renumbers the method's jump-offset labels (`ofs0064` → `ofs0063`); that renumbering is cosmetic, not a behavior change.
+- **Verify by re-decompiling the _patched copy_ and diffing its P-code against the original** — the only lines that may differ are the swapped instruction and those `ofs####` labels. Also hash the input SWF before/after to prove it was untouched. `patch-gui-swf.ps1` runs all of these checks itself and deletes its output if any fails.
+- **Don't trust the GUI-only knobs from the CLI.** `showMethodBodyId` and `-config export.formats=…` do _not_ annotate the CLI P-code export with method indices (they affect the JPEXS GUI panel only) — which is why the index has to be derived by the sweep above.
+
 ## Per-target build notes
 
 ### Windows (`-target air`)

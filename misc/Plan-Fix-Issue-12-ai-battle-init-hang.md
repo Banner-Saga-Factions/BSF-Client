@@ -167,7 +167,7 @@ checkInitiativeEntities → GuiInitiative.setInitiativeEntities → GuiUtil.upda
    walks `guihud.initiative.infobar.setVisible(...)` / `turn.ability.def.description` unguarded. **Fixed:**
    `src/game/gui/InfoBarHelper.as` — walk the chain null-safely; skip showing the info bar if a link is null.
 
-## Fixes applied so far (running list — all `app.game.air.swf`, normal patch model)
+## Fixes applied so far (running list — `app.game.air.swf` normal patch model, except #10 = shelved JPEXS `great_hall.swf` patch)
 
 | #   | Symptom                                                 | Root cause                                                                                                                             | Overlay                                                                                                                |
 | --- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
@@ -180,6 +180,7 @@ checkInitiativeEntities → GuiInitiative.setInitiativeEntities → GuiUtil.upda
 | 7   | AI `ArgumentError: No such stat: ARMOR on prop+pole03`  | `buildEnemyArray` treats scenery props as enemies; props lack combat stats                                                             | `src/engine/battle/fsm/aimodule/AiModuleBase.as`                                                                       |
 | 8   | Great hall `#1069 IGuiContext::party/renown not found` (Quick Match crash + great-hall/roster portraits blank) | stale `great_hall.swf` / `mead_house.swf` `GuiGreatHall` / `GuiMeadHouse` call old `context.party` / `context.renown`; rebuilt app moved them onto `context.legend.*` and dropped them from the context | `src/game/gui/IGuiContext.as` + `src/game/gui/GameGuiContext.as` + `src/game/gui/mock/MockGuiContext.as` — compat shim re-adds `party`/`renown` (→ `legend.*`). **FIXED, verified 2026-06-24** |
 | 9   | Mead House `#1069 IGuiContext::rosterSlotAvailable not found` (clicking **Hire** throws) | stale `mead_house.swf` `GuiMeadHouse` calls `context.rosterSlotAvailable()` (`:296`) + `context.purchaseRosterUnit(...)` (`:264`) as **functions**; the refactor moved both onto `Legend` (`rosterSlotAvailable` getter, `hireRosterUnit`) and dropped them from the context | `src/game/gui/IGuiContext.as` + `src/game/gui/GameGuiContext.as` (delegate → `legend.rosterSlotAvailable` / `legend.hireRosterUnit`); `MockGuiContext` already satisfies. **FIXED, verified 2026-06-24 (Hire confirmed)** |
+| 10  | Ranked Match `#1006 value is not a function` (clicking **Ranked** throws) | stale `great_hall.swf` `GuiGreatHallBannerVersus.rankedMatchHandler` (`:80`) calls `context.party.totalPower()` as a **function**, but the refactor made `IPartyDef.totalPower` a **getter** → AVM2 invokes the getter, gets an `int`, then calls the `int` → TypeError. A getter can't be made callable app-side (modern callers read it as a property), so no shim/reroute reaches it — this is the symbol-linked JPEXS-patch case. | **JPEXS bytecode patch — `scripts/patch-gui-swf.ps1`**: one `callproperty …IPartyDef::totalPower, 0` → `getproperty …IPartyDef::totalPower` swap at ABC method-body index **777**. **AUTHORED + proven on a copy; NOT applied** — Ranked is online-only, so the patch is shelved (`_build/great_hall.patched.swf`, install left byte-identical). See Update (2026-06-25). |
 
 `GuiInitiative.as` overlay remains **inert/parked** (gui-SWF copy runs).
 
@@ -350,6 +351,44 @@ new `legend.*` home, *matching the stale call form*); member that became a gette
 
 Reviewed/split plan: `~/.claude/plans/review-c-users-rleyb-claude-plans-swf-pa-transient-gadget.md` (Wave 1 = this
 shim; Wave 2 = the `#1006` patch authoring). Committed on `fix/ai-battle-init-hang-12`.
+
+## Update (2026-06-25) — Wave 2: Ranked `#1006` JPEXS patch authored (do-not-apply) and proven on a copy
+
+Wave 2 of the reviewed/split plan is **done**. New file `scripts/patch-gui-swf.ps1` produces a surgically-patched
+**copy** of `great_hall.swf` that fixes the Ranked crash, and **leaves the installed SWF untouched** (Ranked is
+online-only — the patch stays on the shelf). Fix-table row #10.
+
+**The fix is one AVM2 instruction.** In `game.gui.pages.GuiGreatHallBannerVersus.rankedMatchHandler`
+(`great_hall.swf`, ABC method-body index **777**):
+
+```
+callproperty  QName(Namespace("engine.entity.def:IPartyDef"),"totalPower"), 0     ; call the getter as a method
+->  getproperty   QName(Namespace("engine.entity.def:IPartyDef"),"totalPower")    ; read the getter
+```
+
+Both pop the `PartyDef` receiver and push one `int` (identical stack effect), so the following `convert_i`/`setlocal2`
+are unaffected. `partyLimitsExceeded` is **not** touched — it is already read property-form (`GuiGreatHall.as:190`),
+matching the new getter. This is the symbol-linked / getter-as-function case from the two-mechanism rule: a getter
+can't be made callable app-side without breaking the app's own property-style callers, so a shim/reroute can't reach
+it — only a bytecode edit of the resource SWF does.
+
+**Proven, not applied.** The script reads the install SWF read-only and writes `_build/great_hall.patched.swf`
+(gitignored), then self-verifies and **passed all five checks**: swap applied (`getproperty` present), stale
+`callproperty` removed, method signature preserved (`rankedMatchHandler(param1:ButtonWithIndex)`), no other P-code
+line changed (only the swap + auto-renumbered `ofs####` jump labels differ), and the input SWF is byte-identical
+(SHA-256 unchanged → install untouched). To apply later (only if Ranked is enabled): back up
+`%ProgramFiles(x86)%\Steam\steamapps\common\The Banner Saga Factions\gui\great_hall.swf`, then copy the patched file
+over it — the script prints the exact commands.
+
+**Reusable how-to is in the durable docs** (per the docs-conventions rule — concepts in `docs/`, issue-specifics
+here): the JPEXS resource-SWF patch recipe + the three gotchas hit this session (global method-body-index addressing;
+import the whole `method` block, not just `body`, or the param signature is dropped → `#1063`; verify by
+re-decompiling the patched copy) live in [`../docs/build-workflow.md`](../docs/build-workflow.md) → "Patching a
+resource gui SWF", linked from [`../docs/architecture.md`](../docs/architecture.md)'s repair table.
+
+This clears the last item from the reviewed/split plan; both town crashes (Hire `#1069`, Ranked `#1006`) are now
+resolved (Hire shimmed + verified; Ranked authored + shelved). Remaining issue-12 work (roster-op cluster, Wave 4
+spectator, parent submodule bump) is unchanged and still deferred.
 
 ## Playbook for the next `#1009` (so any session can continue mechanically)
 

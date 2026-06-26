@@ -14,6 +14,17 @@
 #   Both pop the PartyDef receiver and push one int — identical stack effect — so the following
 #   convert_i / setlocal2 are unaffected. Nothing else in the SWF changes.
 #
+# SCOPE — this covers ONE of the three #1006 sites in great_hall.swf (KNOWN GAP)
+#   It patches only GuiGreatHallBannerVersus.rankedMatchHandler (the Ranked button). The SAME
+#   getter-as-function bug exists, UNPATCHED, at two more sites in the same SWF — a different
+#   class, so different method-body indices that index 777 does not touch:
+#       GuiGreatHallBannerTournament.onTourneyBannerClick   (GuiGreatHallBannerTournament.as:208)
+#       GuiGreatHallBannerTournament.onJoinClick            (GuiGreatHallBannerTournament.as:251)
+#   Both call context.party.totalPower() as a function and will throw the same #1006 once the
+#   Tournament UI is reachable. Tournament is also online-only, so it is shelved for the same
+#   reason — but BEFORE enabling Tournament, extend this script with a -replace for each (derive
+#   their indices the same way 777 was; see "HOW THE METHOD-BODY INDEX ... WAS DERIVED" below).
+#
 # WHY A BYTECODE PATCH (and not a src/ patch + build.ps1)
 #   great_hall.swf is a SEPARATE resource SWF loaded at runtime; build.ps1 only rebuilds
 #   app.game.air.swf and never touches it. The crashing class is symbol-linked INSIDE
@@ -64,6 +75,9 @@ $MethodName      = "rankedMatchHandler"
 $MethodBodyIndex = 777
 $CallPcode = 'callproperty QName(Namespace("engine.entity.def:IPartyDef"),"totalPower"), 0'
 $GetPcode  = 'getproperty QName(Namespace("engine.entity.def:IPartyDef"),"totalPower")'
+# NOTE for anyone copying this as a template: the verification below counts these two as literal
+# (-SimpleMatch) needles, so they must NOT be substrings of each other. They aren't here
+# ("getproperty" is not a substring of "callproperty"); pick opcodes with that property.
 
 function Invoke-Ffdec {
     param([string[]]$FfdecArgs)
@@ -76,7 +90,7 @@ function Invoke-Ffdec {
 }
 
 # Count literal (non-regex) occurrences of a string across an array of lines.
-function Count-Lines { param($Lines, [string]$Needle) return @($Lines | Select-String -SimpleMatch $Needle).Count }
+function Get-MatchCount { param($Lines, [string]$Needle) return @($Lines | Select-String -SimpleMatch $Needle).Count }
 
 # ── 0. Preconditions ──────────────────────────────────────────────────────────
 if (-not (Test-Path $FfdecJar)) { Write-Error "JPEXS not found at '$FfdecJar'. Install FFDec or pass -FfdecJar."; exit 1 }
@@ -91,7 +105,9 @@ $work = Join-Path ([System.IO.Path]::GetTempPath()) ("bsf-patch-gui-swf-" + [Sys
 New-Item -ItemType Directory -Path $work -Force | Out-Null
 
 try {
-    # Hash the input up front so we can prove at the end we never modified the original.
+    # Hash the input up front so we can prove at the end we never modified the original. Safety is by
+    # construction — the install path is only ever a JPEXS *input*, never an output — and this hash
+    # re-check is the proof of that, not an OS-level lock.
     $inHashBefore = (Get-FileHash -Algorithm SHA256 $SwfPath).Hash
 
     # ── 1. Export the target class P-code from the (unmodified) input ──────────
@@ -102,7 +118,12 @@ try {
     $preLines = Get-Content $preFile
 
     # ── 2. Confirm the expected stale state (exactly one callproperty totalPower) ──
-    $callCount = Count-Lines $preLines $CallPcode
+    #   This class (GuiGreatHallBannerVersus) has exactly ONE totalPower() call site
+    #   (rankedMatchHandler), so a healthy stale input has count == 1 — the count-1 guard relies on
+    #   that. (The two Tournament call sites are in a different SWF script, so they don't appear in
+    #   this class's export — see the SCOPE note in the header.) Any other count means this isn't the
+    #   expected SWF or index 777 has drifted → abort rather than risk patching the wrong method.
+    $callCount = Get-MatchCount $preLines $CallPcode
     if ($callCount -ne 1) {
         throw ("Expected exactly 1 stale '$CallPcode' in the input, found $callCount. " +
                "This is not the expected stale great_hall.swf; aborting (method index $MethodBodyIndex may not apply).")
@@ -132,8 +153,8 @@ try {
 
     # ── 4. Apply the swap inside the extracted block ──────────────────────────
     $block = $block | ForEach-Object { $_ -replace [regex]::Escape($CallPcode), $GetPcode }
-    if ((Count-Lines $block $GetPcode)  -ne 1) { throw "Swap did not apply cleanly (getproperty not present once)." }
-    if ((Count-Lines $block $CallPcode) -ne 0) { throw "Stale callproperty still present after swap." }
+    if ((Get-MatchCount $block $GetPcode)  -ne 1) { throw "Swap did not apply cleanly (getproperty not present once)." }
+    if ((Get-MatchCount $block $CallPcode) -ne 0) { throw "Stale callproperty still present after swap." }
     $importFile = Join-Path $work "rankedMatchHandler.pcode"
     Set-Content -Path $importFile -Value $block -Encoding ascii
 
@@ -149,9 +170,9 @@ try {
     if (-not (Test-Path $postFile)) { throw "Could not re-export $TargetClass from the patched copy." }
     $postLines = Get-Content $postFile
 
-    $okGet  = (Count-Lines $postLines $GetPcode)  -eq 1
-    $okCall = (Count-Lines $postLines $CallPcode) -eq 0
-    $okSig  = (Count-Lines $postLines "rankedMatchHandler(param1:ButtonWithIndex)") -ge 1
+    $okGet  = (Get-MatchCount $postLines $GetPcode)  -eq 1
+    $okCall = (Get-MatchCount $postLines $CallPcode) -eq 0
+    $okSig  = (Get-MatchCount $postLines "rankedMatchHandler(param1:ButtonWithIndex)") -ge 1
 
     # Strong guard: the ONLY lines allowed to differ pre vs post are the swapped instruction and
     # the auto-renumbered jump-offset labels (every such line contains 'totalPower' or 'ofs').

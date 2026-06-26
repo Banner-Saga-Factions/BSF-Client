@@ -386,9 +386,19 @@ import the whole `method` block, not just `body`, or the param signature is drop
 re-decompiling the patched copy) live in [`../docs/build-workflow.md`](../docs/build-workflow.md) → "Patching a
 resource gui SWF", linked from [`../docs/architecture.md`](../docs/architecture.md)'s repair table.
 
-This clears the last item from the reviewed/split plan; both town crashes (Hire `#1069`, Ranked `#1006`) are now
-resolved (Hire shimmed + verified; Ranked authored + shelved). Remaining issue-12 work (roster-op cluster, Wave 4
-spectator, parent submodule bump) is unchanged and still deferred.
+**Known gap — the patch covers one of three `#1006` sites in `great_hall.swf`** (surfaced by post-commit code
+review). The same getter-as-function `context.party.totalPower()` bug also exists, unpatched, at
+`GuiGreatHallBannerTournament.onTourneyBannerClick` (`:208`) and `.onJoinClick` (`:251`) — a different class, so
+different method-body indices that index 777 does not touch. Both are Tournament (also online-only), so they are
+shelved for the same reason, but the script must be extended (one `-replace` each, indices derived the same way as
+777) **before** Tournament is enabled. Flagged in the script's `SCOPE` header so an apply-time reader isn't
+surprised. (General lesson — sibling classes in one resource SWF often share the same drift; grep the whole
+extracted tree for every call site before patching. Now in `docs/build-workflow.md`.)
+
+This clears the last *planned* item from the reviewed/split plan; both town crashes that block the **offline**
+feature (Hire `#1069`, Ranked-Versus `#1006`) are resolved (Hire shimmed + verified; Ranked-Versus authored +
+shelved). Remaining issue-12 work (the Tournament `#1006` siblings above, roster-op cluster, Wave 4 spectator,
+parent submodule bump) is deferred.
 
 ## Playbook for the next `#1009` (so any session can continue mechanically)
 

@@ -32,6 +32,8 @@ bsf-client/
 
 The build sequence is always: `decompile.ps1` → `apply-patches.ps1` → `build.ps1`. See [`build-workflow.md`](./build-workflow.md).
 
+`_decompiled/` is one of **four AS3 trees** in play — one editable (`src/` + the generated `_decompiled/`) and three read-only references under `bsf-refs\`. In particular, the gitignored `_decompiled/` here is _not_ the same as the checked-in `bsf-refs\client-decompiled-as3\` reference snapshot, even though both are decompiles of the same SWF. For the full map and that distinction, see [`reference-codebases.md`](./reference-codebases.md) → "The four AS3 trees".
+
 ## Runtime stack
 
 The client is an Adobe AIR application — Flash Player runtime packaged with a native installer.
@@ -44,6 +46,35 @@ The client is an Adobe AIR application — Flash Player runtime packaged with a 
 | **Steamworks ANE**               | Native extension wrapping the Steam C API.             | Removed for mobile builds; replaced by `DiscordSteamworks` for crossplay.                          |
 
 The AIR descriptor `META-INF/AIR/application.xml` declares the runtime version, app ID, the `bsf://` URL scheme (used by the Discord OAuth callback to deep-link back into the running client), and the platform-specific `<extensionID>` block for Steamworks.
+
+## Resource SWFs and runtime class resolution
+
+The shipped client is **not one SWF.** It is a main application SWF (`app.game.air.swf`, ~1,113 classes — engine, battle FSM, AI, game logic) **plus a set of "resource" gui SWFs loaded on demand at runtime** (`battle_initiative.swf`, `great_hall.swf`, `mead_house.swf`, `battle.swf`, …). The resource SWFs carry **art _and_ some compiled UI code** — the "gui symbol classes" like `GuiInitiative`, `GuiGreatHall`, `GuiMeadHouse`, loaded by `engine/resource/loader/DisplayResourceLoader.as`.
+
+**The patch model only rebuilds the app SWF.** `decompile → apply-patches → build` regenerates `app.game.air.swf` only. The resource gui SWFs ship **byte-for-byte as Stoic's originals** — they are never decompiled or recompiled. So a `src/` patch can change app code, but the older UI code baked into a resource SWF runs untouched.
+
+### Two ways a class reference resolves — this is the whole story behind the gui-SWF crashes
+
+When a resource SWF is loaded and its code references a class, AS3 resolves that reference one of two ways, and the difference is everything:
+
+| Mechanism | What it is | Which copy runs | Patchable from the app SWF? |
+| --- | --- | --- | --- |
+| **Symbol linkage** | A movie clip in the SWF is tagged with a class (e.g. the great-hall page clip `extends GuiGreatHall`); instantiating the clip instantiates that class. | **Always the copy bundled _inside that resource SWF_** — version- and `ApplicationDomain`-independent. | **No.** |
+| **By-name** | Plain `new Foo()` / `obj.prop` in the resource SWF's code. | Resolves through the active `ApplicationDomain`, so it can find the **app SWF's** copy. | **Yes**, if the SWF is loaded into a domain where the app copy is already defined. |
+
+**Worked example (verified, BSF-Client #12).** `GreatHallPage.handleStart()` calls `loadFullPageMovieClip("great_hall.swf")` and casts the embedded clip (`greathall extends GuiGreatHall`) to `IGuiGreatHall` — there is no `new GuiGreatHall()` anywhere in app code. So `GuiGreatHall` is **symbol-linked**: the stale copy inside `great_hall.swf` runs, no matter what. Meanwhile a _by-name_ dependency that stale copy calls (e.g. `GuiUtil.updateDisplayList`) resolves through the domain. Routing `battle_initiative.swf` into `ApplicationDomain.currentDomain` (`DisplayResourceLoader.as`) leaves the symbol-linked `GuiInitiative` still running from the SWF, but makes its by-name `GuiUtil` resolve to the patched app copy — that asymmetry is exactly why the reroute fixes some crashes and not others.
+
+### The gui-SWF API skew, and the three ways to repair it
+
+The resource gui SWFs are an **older generation** than the app SWF: Stoic kept evolving the app (e.g. moving `party`/`renown` off `GameGuiContext` onto `Legend`) without rebuilding the resource SWFs. So a stale gui symbol class calls a member the modern app context no longer exposes → `#1069 (property not found)`; or calls a method-turned-getter → `#1006 (value is not a function)`. This is a **bounded, enumerable** backlog (the finite set of drifted calls), not open-ended breakage. Three repair mechanisms, chosen by _how the broken reference resolves_:
+
+| Repair | Use when | Example |
+| --- | --- | --- |
+| **App-side compat shim** | A **by-name** call to a member the app dropped — re-add it to the app class, delegating to its new home. | `GameGuiContext.party` getter → `legend.party` |
+| **Domain reroute** | A resource SWF's **by-name dependency** must resolve to the patched app copy — load that SWF into `currentDomain`. | `battle_initiative.swf` → app's guarded `GuiUtil` |
+| **JPEXS bytecode patch** | A **symbol-linked** class, or a getter-called-as-a-function (`#1006`) — a shim can't reach it; edit the resource SWF's bytecode directly. | Ranked `totalPower()` (`callproperty` → `getproperty`) |
+
+For the full reasoning, the worked diagnosis, and the public-release backlog, see [`../misc/Plan-Issue-12-Player-vs-AI-Public-Release.md`](../misc/Plan-Issue-12-Player-vs-AI-Public-Release.md). To prove whether a given drift is Stoic's (pre-existing) or introduced by our rebuild, see [`reference-codebases.md`](./reference-codebases.md) → "Verifying provenance". For the mechanical how-to of the **JPEXS bytecode patch** row — and `scripts/patch-gui-swf.ps1`, the ready-but-shelved Ranked `#1006` patch built from it — see [`build-workflow.md`](./build-workflow.md) → "Patching a resource gui SWF".
 
 ## Boot sequence — `GameMainAir.as`
 

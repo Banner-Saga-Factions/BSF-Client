@@ -2,9 +2,14 @@
 # Run decompile.ps1 and apply-patches.ps1 first.
 #
 # Usage:
-#   .\scripts\build.ps1                    # defaults to windows
+#   .\scripts\build.ps1                    # compile-only: produces _build\app.game.air.swf (for adl)
+#   .\scripts\build.ps1 -Package           # also build + sign the .air installer (prompts for cert pw)
 #   .\scripts\build.ps1 -Target android
 #   .\scripts\build.ps1 -Target ios
+#
+# Packaging is OPT-IN: run-adl.ps1 loads the raw .swf, so day-to-day dev only needs the compile step.
+# The adt packaging step needs a signing cert and rejects the Steamworks/FMOD ANEs on desktop targets
+# (error 112), so it is skipped unless you pass -Package.
 #
 # Prerequisites:
 #   - AIR_HOME env var pointing to HARMAN AIR SDK root
@@ -18,6 +23,7 @@
 param(
     [ValidateSet("windows","android","ios")]
     [string]$Target      = "windows",
+    [switch]$Package,                           # opt-in: also build the signed .air/.apk/.ipa via adt
     [string]$KeystorePath = "SIGNING_KEY.p12"   # TODO: replace with real cert path
 )
 
@@ -36,7 +42,9 @@ $AppXml   = Join-Path $RepoRoot "META-INF\AIR\application.xml"
 $BuildDir = Join-Path $RepoRoot "_build"
 $SwfOut   = Join-Path $BuildDir "app.game.air.swf"
 
-foreach ($tool in $amxmlc, $adt) {
+$requiredTools = @($amxmlc)
+if ($Package) { $requiredTools += $adt }   # adt is only needed when packaging
+foreach ($tool in $requiredTools) {
     if (-not (Test-Path $tool)) {
         Write-Error "$tool not found. Is AIR_HOME set correctly? ($env:AIR_HOME)"
         exit 1
@@ -51,7 +59,12 @@ New-Item -ItemType Directory -Path $BuildDir -Force | Out-Null
 
 # ── Compile ──────────────────────────────────────────────────────────────────
 Write-Host "Compiling ($Target) ..."
+# -swf-version=20 stamps the output as SWF v20. NOTE: the game's 2013 captive AIR runtime still
+# cannot run a SWF built with this 2025 SDK (newer APIs -> silent VerifyError at load), so the
+# compiled client is launched under the SDK's modern runtime via scripts/run-adl.ps1, which loads
+# v20 fine. Retained as the tested config; safe to remove if you only ever run under adl.
 & $amxmlc `
+    -swf-version=20 `
     -source-path $SrcRoot `
     -output $SwfOut `
     "$SrcRoot\GameMainAir.as"
@@ -59,7 +72,14 @@ Write-Host "Compiling ($Target) ..."
 if ($LASTEXITCODE -ne 0) { Write-Error "amxmlc failed."; exit 1 }
 Write-Host "Compiled: $SwfOut"
 
-# ── Package ───────────────────────────────────────────────────────────────────
+# ── Package (opt-in) ───────────────────────────────────────────────────────────
+if (-not $Package) {
+    Write-Host ""
+    Write-Host "Compile-only build complete. SWF ready: $SwfOut" -ForegroundColor Green
+    Write-Host "Deploy it with run-adl.ps1 (it loads the raw .swf). Pass -Package to also build the signed installer." -ForegroundColor DarkGray
+    exit 0
+}
+
 Write-Host "Packaging ..."
 $keystoreArgs = @("-storetype", "pkcs12", "-keystore", $KeystorePath)
 

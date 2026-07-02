@@ -19,7 +19,24 @@ Key patch files:
 |------|--------|
 | `src/game/session/states/PreAuthState.as` | Replace Steam ticket fetch with Discord OAuth token |
 | `src/engine/steamworks/DiscordSteamworks.as` | New — `ISteamworks` stub feeding Discord credentials through existing Steam auth path |
+| `src/engine/mod/ModBridge.as` | New — NativeProcess event bus to external mod host (`mods/host.exe`); newline-delimited JSON over stdin/stdout, command registry, restart/shutdown lifecycle |
+| `src/engine/core/http/HttpAction.as` | Patched decompile — taps every outbound request (`doSend`) and raw response (`onResponseReceived`) into `ModBridge`; lazy-starts the host on first txn |
 | `META-INF/AIR/application.xml` | Add `bsf://` URL scheme; remove Steamworks ANE for mobile targets |
+
+## Reference codebases
+
+`_decompiled/` is only the build input. To **read** original client code while deciding what to patch, use the read-only mirrors at `%USERPROFILE%\Code\bsf-refs\` — never edit them, never copy them into this repo:
+
+- `client-2013-as3\` — **default reference**: readable 2013 Stoic source (real parameter names + original comments).
+- `client-decompiled-as3\` — the shipped SWF decompiled; read when a class is post-2013 (absent from the 2013 source) or is one of the 12 files where 2013 is stale (battle `fsm/`+`board/`, `entity/def/`, `game/cfg/`, `Op.as`).
+
+There are four AS3 trees total — one editable (`src/` + generated `_decompiled/`) and three read-only mirrors. See [`docs/reference-codebases.md`](./docs/reference-codebases.md) for the full four-tree map, the 12-stale-file list, and the "which mirror do I read?" decision tree.
+
+## Documentation conventions
+
+- **Plain language in all prose.** Write docs, READMEs, PR descriptions, commit/changelog bodies, and comments so a non-programmer can follow them; gloss any unavoidable jargon on first use. This is the parent repo's rule ([`../CLAUDE.md`](../CLAUDE.md) → "Plain Language") — repeated here because this submodule is often opened on its own, where the parent guide isn't loaded.
+- **Durable concepts vs issue-specifics — cross-link, never duplicate.** Put reusable knowledge — a mental model, a verification method, a recurring gotcha — in the durable docs suite (`docs/`), **not** in an issue plan. Keep `misc/Plan-*.md` for issue-specific findings, decisions, and wave breakdowns, and have them *link* to the concept in `docs/`. Burying a reusable finding inside one issue's plan means the next session re-derives it from scratch — which is exactly how the gui-SWF resolution model and the decompile-provenance method got rediscovered repeatedly before they were finally written down.
+- **Where durable knowledge lives:** the SWF/runtime mental model + class-resolution + repair mechanisms → [`docs/architecture.md`](./docs/architecture.md); which mirror to read + the "did Stoic do it, or did we?" provenance recipe + the silent-decompile-loss trap → [`docs/reference-codebases.md`](./docs/reference-codebases.md); build mechanics → [`docs/build-workflow.md`](./docs/build-workflow.md). When a chat clarifies something reusable, land it in the right doc and point the plan at it.
 
 ## Development Commands
 
@@ -48,6 +65,7 @@ powershell ./scripts/build.ps1 -Target windows   # or: android, ios
 - **Safety:** Always verify a function is defined in the same `.as` file before calling it. JPEXS decompile output is ~95% correct — type mismatches and missing `override` keywords appear; fix them one at a time.
 - **No Refactoring:** Extend existing classes. Do not rewrite working legacy logic unless explicitly asked.
 - **Patch files only:** Only add files under `src/` that differ from the original decompile. Do not commit the full `_decompiled/` tree.
+- **Resource gui SWFs are a patch blind spot:** the client loads `game.gui.*` UI classes from separate resource SWFs at runtime (`great_hall.swf`, `battle_initiative.swf`, …) that bundle a **stale, symbol-linked** copy your `src/` rebuild cannot touch. Before patching anything UI-related, know whether the broken reference is symbol-linked (needs a JPEXS bytecode patch) or by-name (a shim/reroute reaches it) — see [`docs/architecture.md`](./docs/architecture.md) → "Resource SWFs and runtime class resolution".
 
 ## AS3 Coding Standards
 
@@ -61,3 +79,7 @@ powershell ./scripts/build.ps1 -Target windows   # or: android, ios
 1. **Explain first:** Describe the AS3 logic change and why before writing any code.
 2. **Search/Replace:** Use SEARCH/REPLACE blocks with file paths relative to repo root.
 3. **Check boundaries:** Verify any new request fields or OAuth parameters match what `../bsf-server` expects.
+
+## Start-of-Session interview
+
+At the **start of every new plan chat**, before doing other work, interview user in-deph using askuserquestion tool and focus on pulling out and clarifying any ambiguities.

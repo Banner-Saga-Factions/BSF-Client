@@ -8,21 +8,27 @@ Architecture, build workflow, wire protocol, and reference material for the patc
 
 | Doc                                                  | Answers                                                                                                                                             |
 | ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`client-overview.md`](./client-overview.md)         | **Start here.** What is the client, how does it boot, and what are its four big pieces? A one-read map with hand-offs.                               |
+| [`game-flow.md`](./game-flow.md)                     | What happens after boot? The `GameFsm` state machine, its ~48 states + 24 server actions, and the generic FSM base.                                 |
 | [`architecture.md`](./architecture.md)               | How does the patch-only repo model work? What does `GameMainAir.as` do at boot? Where does the server URL come from?                                |
 | [`build-workflow.md`](./build-workflow.md)           | How do I go from a stock SWF to a built `.air` / `.apk` / `.ipa`? What are the prerequisites? How do I fix JPEXS decompile artifacts?               |
 | [`wire-protocol.md`](./wire-protocol.md)             | Which AS3 class issues each `/services/*` request? What does the login flow look like end-to-end? How does the long-poll behave on a flaky network? |
 | [`battle-engine.md`](./battle-engine.md)             | How does the battle FSM transition? Where are entity IDs constructed? Where is the per-turn DJB hash computed? What can cause a turn-0 desync?      |
 | [`subsystem-index.md`](./subsystem-index.md)         | "Where do I look for X?" — package-by-package map of notable classes with both decompile and 2013-source paths.                                     |
 | [`reference-codebases.md`](./reference-codebases.md) | When do I read `client-2013-as3` vs `client-decompiled-as3`? Which 12 files are stale in the 2013 source?                                           |
+| [`patch-inventory.md`](./patch-inventory.md)         | Exactly what does our fork change? The 33 `src/` overlays grouped by concern, each with what changed and why.                                       |
+| [`doc-gaps.md`](./doc-gaps.md)                       | What's still undocumented? The tracked, closeable list of remaining client-doc gaps.                                                                |
 
 ## Reading orders
 
 ### "I'm new to this client and want to understand it"
 
-1. [`architecture.md`](./architecture.md) — start here for the 30,000-ft view.
-2. [`build-workflow.md`](./build-workflow.md) — build it once on your own machine.
-3. [`wire-protocol.md`](./wire-protocol.md) — trace a login from `PreAuthState` through the server response.
-4. [`subsystem-index.md`](./subsystem-index.md) — bookmark this; you'll keep coming back to it.
+1. [`client-overview.md`](./client-overview.md) — the whole client in one read; start here.
+2. [`architecture.md`](./architecture.md) — the patch model, runtime stack, boot sequence, and resource-SWF crash model.
+3. [`game-flow.md`](./game-flow.md) — the `GameFsm` spine that everything after the menu runs on.
+4. [`wire-protocol.md`](./wire-protocol.md) — trace a login from `PreAuthState` through the server response.
+5. [`build-workflow.md`](./build-workflow.md) — build it once on your own machine.
+6. [`subsystem-index.md`](./subsystem-index.md) — bookmark this; you'll keep coming back to it.
 
 ### "I'm working on Discord/mobile crossplay"
 

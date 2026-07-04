@@ -65,7 +65,7 @@ In practice: when in doubt, open both — they sit side-by-side and a quick diff
 
 When something looks wrong — a context is missing a member, a method does nothing — the first question is always: **is this pre-existing in Stoic's shipped game, or did our decompile/recompile introduce it?** The answer changes everything (a pre-existing skew is a bounded thing to shim; a decompile artifact means the rebuild is lossy). The two read-only mirrors are the oracles, because **they predate and are untouched by our patching.**
 
-**Integrity check first.** Confirm `client-decompiled-as3\` really is the pristine original: it must contain **none of our new files** (`ModBridge.as`, `AiBattleLoadState.as`, `DiscordSteamworks.as`, …). If those are absent, the mirror is the untouched shipped decompile and is safe to trust as the "what shipped" oracle.
+**Integrity check first.** Confirm `client-decompiled-as3\` really is the pristine original: it must contain **none of our new files** (`ModBridge.as`, `AiBattleLoadState.as`, …). (`DiscordSteamworks.as` is *planned*, not yet created — it is not a reliable marker.) If those are absent, the mirror is the untouched shipped decompile and is safe to trust as the "what shipped" oracle.
 
 **The recipe:**
 
@@ -87,6 +87,43 @@ The dangerous decompile failure is not a compile error — it is a method JPEXS 
 Throughout `bsf-client/docs/` we cite files using **`bsf-refs\<mirror>\<path>`** (no `%USERPROFILE%\Code\` prefix) for compactness. The first reference per doc spells out the full `%USERPROFILE%\Code\bsf-refs\...` path; subsequent references abbreviate.
 
 In Markdown line citations we use the convention **`<File>.as:<line>`** (e.g. `BattleBoard.as:456`) — same convention used in `bsf-server/docs/protocol-cross-reference.md` ([local](../../bsf-server/docs/protocol-cross-reference.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/protocol-cross-reference.md)) and the Findings doc.
+
+## Pinned provenance & highest-value client paths
+
+This is the client-side counterpart to the server block in [`REFERENCE.md`](../../REFERENCE.md)
+("Pinned reference SHA" + "Top 7 highest-value paths"). This docs suite is written against these anchors.
+
+**Provenance anchor — there is no commit SHA to pin.** Unlike the server's Java reference (a checkout
+with a recorded upstream commit), these client mirrors are **plain directories, not git repositories** —
+there is nothing to `rev-parse`. The stable anchor is instead:
+
+- **Shipped SWF version `v1.10.51`** — what `client-decompiled-as3\` (and a fresh local `_decompiled/`)
+  decompile from. A decompile of a binary has no upstream repo, so the version string *is* its provenance.
+- **File-count fingerprints** — `client-decompiled-as3\` = **1,113** `.as`; `client-2013-as3\` = **385**
+  `.as`; a fresh local `_decompiled/scripts` = **~1,272** `.as`. If any of these drift, the reference has
+  changed and this doc + the 12-stale-file list should be re-verified.
+
+If a newer SWF is ever adopted, bump the version here and re-run the pass-2 signature comparison.
+
+**Top highest-value client paths.** Ordered by how often the docs and patches touch them. Paths under
+`_decompiled/scripts/` unless noted; `†` = on the 12-stale-file list, so **read `_decompiled/`, not the
+2013 mirror**.
+
+1. `game/session/GameFsm.as` — the top-level state machine; the spine of [`game-flow.md`](./game-flow.md).
+2. `game/session/states/PreAuthState.as` — the crossplay auth patch point (`:31–33`).
+3. `engine/battle/fsm/BattleFsm.as` — the battle state machine ([`battle-engine.md`](./battle-engine.md)). (Its `*Config`/`*Init`/`*Deploy`/`*TurnOrder` siblings **are** on the 12-stale list — read `_decompiled/` for those.)
+4. `engine/battle/board/model/BattleBoard.as` † — entity-ID construction (`:456`) + per-battle RNG seed.
+5. `engine/battle/fsm/state/BattleStateNextTurn.as` — the per-turn DJB sync hash (`:130`).
+6. `game/cfg/GameConfig.as` † — hosts, options, config root (`setupHosts()` at `:1222`).
+7. `engine/entity/def/EntityDef.as` † — per-unit definitions (the `Def` pattern; planned `data-model.md`).
+8. `engine/resource/ResourceManager.as` — the asset loader (planned `asset-loading.md`).
+9. `engine/gui/core/GuiApplication.as` — the app + render-loop host in the boot spine.
+10. `engine/core/http/HttpCommunicator.as` / `engine/session/TxnGet.as` — the long-poll loop + its GET.
+11. `src/engine/mod/ModBridge.as` — the fork's mod bus (planned `mod-bridge.md`).
+
+The full `src/` patch surface is [`patch-inventory.md`](./patch-inventory.md). A one-line "Client-side"
+pointer to this section will be added to parent [`REFERENCE.md`](../../REFERENCE.md) as a separate
+parent-repo follow-up (it lives outside this submodule).
 
 ## Related references
 

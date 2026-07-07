@@ -13,15 +13,21 @@ is the canonical historical artifact and is cited throughout the new docs.
 
 ## Documentation
 
-| Doc                                                            | Purpose                                                                                         |
-| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| [`docs/README.md`](./docs/README.md)                           | Doc index — start here.                                                                         |
-| [`docs/architecture.md`](./docs/architecture.md)               | Patch-only repo model, AIR + Starling runtime, `GameMainAir` boot sequence, config hierarchy.   |
-| [`docs/build-workflow.md`](./docs/build-workflow.md)           | Full decompile → patch → build flow, prerequisites, per-target packaging, JPEXS artifact fixes. |
-| [`docs/wire-protocol.md`](./docs/wire-protocol.md)             | Client side of every `/services/*` route, login flow walkthrough, long-poll mechanics.          |
-| [`docs/battle-engine.md`](./docs/battle-engine.md)             | Battle FSM, entity ID format, DJB hash mechanics, common desync patterns.                       |
-| [`docs/subsystem-index.md`](./docs/subsystem-index.md)         | "Where do I look for X?" package-by-package map with decompile and 2013-source paths.           |
-| [`docs/reference-codebases.md`](./docs/reference-codebases.md) | Guide to the three client mirrors under `bsf-refs/` and the 12-stale-file exception list.       |
+| Doc | Purpose |
+| --- | --- |
+| [`docs/README.md`](./docs/README.md) | Doc index — start here. |
+| [`docs/client-overview.md`](./docs/client-overview.md) | The whole client in one read: what it is, how it boots, and the four pillars. |
+| [`docs/game-flow.md`](./docs/game-flow.md) | The `GameFsm` spine — its states, the server actions, and the generic FSM base. |
+| [`docs/architecture.md`](./docs/architecture.md) | Patch-only repo model, runtime stack, `GameMainAir` boot sequence, and the resource-SWF crash model. |
+| [`docs/build-workflow.md`](./docs/build-workflow.md) | Decompile → patch → build flow, prerequisites, per-target packaging, FMOD audio + the AIR SDK wall, JPEXS fixes. |
+| [`docs/wire-protocol.md`](./docs/wire-protocol.md) | Client side of every `/services/*` route, login flow, long-poll mechanics. |
+| [`docs/battle-engine.md`](./docs/battle-engine.md) | Battle FSM, entity ID format, DJB hash mechanics, common desync patterns. |
+| [`docs/ui-system.md`](./docs/ui-system.md) | The visible client: the two widget roots, the page/screen framework, and the battle HUD. |
+| [`docs/asset-loading.md`](./docs/asset-loading.md) | The resource-loading pipeline beneath UI **and** battle/anim/sound. |
+| [`docs/subsystem-index.md`](./docs/subsystem-index.md) | "Where do I look for X?" package-by-package class map with decompile and 2013-source paths. |
+| [`docs/reference-codebases.md`](./docs/reference-codebases.md) | Guide to the three client mirrors under `bsf-refs/` and the 12-stale-file exception list. |
+| [`docs/patch-inventory.md`](./docs/patch-inventory.md) | Everything in `src/` — the fork's 33 overlays grouped by concern, each with what/why. |
+| [`docs/doc-gaps.md`](./docs/doc-gaps.md) | The tracked, closeable list of remaining client-doc gaps. |
 
 ## Prerequisites
 
@@ -35,7 +41,7 @@ is the canonical historical artifact and is cited throughout the new docs.
 ## Build workflow
 
 ```powershell
-# 1. Export all 1,267 AS3 files from the original SWF to _decompiled/
+# 1. Export all ~1,272 AS3 files from the original SWF to _decompiled/
 .\scripts\decompile.ps1
 
 # 2. Overlay the patch files from src/ onto the decompile output
@@ -50,7 +56,7 @@ is the canonical historical artifact and is cited throughout the new docs.
 | Path                           | Purpose                                                                                   |
 | ------------------------------ | ----------------------------------------------------------------------------------------- |
 | `src/`                         | Only the files being patched or added — applied over the decompile by `apply-patches.ps1` |
-| `META-INF/AIR/application.xml` | AIR app descriptor — modified to add `bsf://` URL scheme for Discord OAuth callback       |
+| `META-INF/AIR/application.xml` | AIR app descriptor — **planned** to add the `bsf://` URL scheme for the Discord OAuth callback (not yet in the committed descriptor)       |
 | `scripts/decompile.ps1`        | Runs JPEXS to export the full AS3 source into `_decompiled/`                              |
 | `scripts/apply-patches.ps1`    | Copies `src/` onto the decompile output before compilation                                |
 | `scripts/build.ps1`            | Compiles with `amxmlc`, packages with `adt`                                               |
@@ -62,10 +68,10 @@ is the canonical historical artifact and is cited throughout the new docs.
 | File                                         | Change                                                                                       |
 | -------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `src/game/session/states/PreAuthState.as`    | Replace Steam ticket fetch with Discord OAuth token                                          |
-| `src/engine/steamworks/DiscordSteamworks.as` | New — `ISteamworks` stub that feeds Discord credentials through the existing Steam auth path |
-| `META-INF/AIR/application.xml`               | Add `bsf://` URL scheme; remove Steamworks ANE for mobile targets                            |
+| `src/engine/steamworks/DiscordSteamworks.as` | **Planned — not yet created.** Intended `ISteamworks` stub feeding Discord credentials through the existing Steam auth path; crossplay currently lives in `PreAuthState.as` |
+| `META-INF/AIR/application.xml`               | **Planned — not yet applied.** Add the `bsf://` URL scheme and remove the Steamworks ANE for mobile targets                            |
 
-Server-side prerequisites are tracked in `../BSF/misc/Plan-Enable-Mobile-Windows-Crossplay.md`.
+Server-side prerequisites are tracked in `bsf-server/misc/Plan-Enable-Mobile-Windows-Crossplay.md` ([local](../bsf-server/misc/Plan-Enable-Mobile-Windows-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Plan-Enable-Mobile-Windows-Crossplay.md)).
 
 ## Build notes
 

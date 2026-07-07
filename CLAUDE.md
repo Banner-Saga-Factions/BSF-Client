@@ -8,7 +8,7 @@ The full ~1,272-file AS3 source lives in `_decompiled/` (gitignored, generated b
 | Path | Purpose |
 |------|---------|
 | `src/` | Only files being patched or added — applied over `_decompiled/` before compile |
-| `META-INF/AIR/application.xml` | AIR descriptor — adds `bsf://` URL scheme for Discord OAuth callback |
+| `META-INF/AIR/application.xml` | AIR descriptor — **planned** to add the `bsf://` URL scheme for the Discord OAuth callback (not yet in the committed descriptor) |
 | `scripts/decompile.ps1` | Runs JPEXS to export the full AS3 source into `_decompiled/` |
 | `scripts/apply-patches.ps1` | Copies `src/` onto `_decompiled/` |
 | `scripts/build.ps1` | Compiles with `amxmlc`, packages with `adt` |
@@ -21,7 +21,7 @@ Key patch files (a representative subset — the full 33-file inventory is [`doc
 | `src/engine/steamworks/DiscordSteamworks.as` | **Planned — not yet created.** Intended `ISteamworks` stub feeding Discord credentials through the existing Steam auth path; crossplay currently lives entirely in `PreAuthState.as` |
 | `src/engine/mod/ModBridge.as` | New — NativeProcess event bus to external mod host (`mods/host.exe`); newline-delimited JSON over stdin/stdout, command registry, restart/shutdown lifecycle |
 | `src/engine/core/http/HttpAction.as` | Patched decompile — taps every outbound request (`doSend`) and raw response (`onResponseReceived`) into `ModBridge`; lazy-starts the host on first txn |
-| `META-INF/AIR/application.xml` | Add `bsf://` URL scheme; remove Steamworks ANE for mobile targets |
+| `META-INF/AIR/application.xml` | **Planned — not yet applied.** Add the `bsf://` URL scheme and remove the Steamworks ANE for mobile targets |
 
 ## Reference codebases
 

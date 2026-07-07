@@ -17,10 +17,12 @@ the original never did (offline practice, a mod hook, Discord/Steam crossplay).
 
 Two facts shape everything else:
 
-- **It's an Adobe AIR / Flash application rendered with Starling.** AIR is the desktop runtime that
-  hosts Flash's ActionScript 3 (AS3) bytecode; Starling is the GPU-accelerated 2D renderer the game
-  draws with. The full runtime stack (AIR, the Flash VM, Starling, the Steamworks native extension)
-  is laid out in [`architecture.md`](./architecture.md) → "Runtime stack".
+- **It's an Adobe AIR / Flash application.** AIR is the desktop runtime that hosts Flash's
+  ActionScript 3 (AS3) bytecode. The client renders entirely on the **native Flash display list** —
+  menus and the HUD as native display objects, and the isometric battle board and scenes via the
+  `as3isolib` library. The SWF also bundles the Starling GPU renderer, but `[Inference]` it is never
+  started (see [`ui-system.md`](./ui-system.md)). The full runtime stack (AIR, the Flash VM, Starling,
+  the Steamworks native extension) is laid out in [`architecture.md`](./architecture.md) → "Runtime stack".
 - **It talks to the server over HTTP long-poll.** "Long-poll" means the client makes an ordinary web
   request and the server *holds it open* until it has something to send back, then the client
   immediately asks again — a simple way to get near-real-time pushes over plain HTTP. Every request
@@ -73,7 +75,7 @@ The screens, buttons, panels, and the in-battle heads-up display are a retained-
 page/screen framework that a `GameFsm` scene-state loads. A wrinkle unique to this game: some UI code
 lives in **separate "resource" SWFs** loaded at runtime, which is the root of most UI crashes — see
 [`architecture.md`](./architecture.md) → "Resource SWFs and runtime class resolution". **Deep-dive:**
-`ui-system.md` and `asset-loading.md` (planned — P2 of the docs track; see [`doc-gaps.md`](./doc-gaps.md)).
+[`ui-system.md`](./ui-system.md) and [`asset-loading.md`](./asset-loading.md).
 
 ### 3. The battle engine
 
@@ -128,8 +130,10 @@ Class-level pointers are in [`subsystem-index.md`](./subsystem-index.md) ("Where
 3. [`game-flow.md`](./game-flow.md) — the `GameFsm` spine that everything after the menu runs on.
 4. [`wire-protocol.md`](./wire-protocol.md) — trace a login and a battle over the wire.
 5. [`battle-engine.md`](./battle-engine.md) — how a battle actually runs (lockstep + sync hash).
-6. [`patch-inventory.md`](./patch-inventory.md) — exactly what our fork changed, and why.
-7. [`subsystem-index.md`](./subsystem-index.md) — bookmark it; you'll keep coming back.
+6. [`ui-system.md`](./ui-system.md) — the widget roots, the page/screen framework, and the battle HUD.
+7. [`asset-loading.md`](./asset-loading.md) — how screens and every other asset are loaded.
+8. [`patch-inventory.md`](./patch-inventory.md) — exactly what our fork changed, and why.
+9. [`subsystem-index.md`](./subsystem-index.md) — bookmark it; you'll keep coming back.
 
-The remaining pillars (UI, assets, data model, offline AI, mod bridge) are being written in P2/P3 of
-the documentation track — [`doc-gaps.md`](./doc-gaps.md) tracks what's still missing.
+The remaining pillars (data model, offline AI, mod bridge) are being written in P3 of the documentation
+track — [`doc-gaps.md`](./doc-gaps.md) tracks what's still missing.

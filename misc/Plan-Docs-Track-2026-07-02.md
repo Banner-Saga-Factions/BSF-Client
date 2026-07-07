@@ -4,7 +4,7 @@
 
 **Source:** the approved `bsf-client` documentation-track planning chat (2026-07-02). This file is the
 **in-repo anchor** for the whole track — each tier (P1 → P2 → P3) is run in its own fresh chat and
-resumes from *here*, not from a transcript. It mirrors the proven server track,
+resumes from _here_, not from a transcript. It mirrors the proven server track,
 `bsf-server/misc/Plan-Docs-Track-2026-06-19.md` ([local](../../bsf-server/misc/Plan-Docs-Track-2026-06-19.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Plan-Docs-Track-2026-06-19.md)).
 
 ## Context
@@ -26,14 +26,14 @@ from decompiled source.
 - **Scope = both.** Document each original Stoic subsystem as the mental-model backbone, and give each
   pillar doc a "Where our fork touches this" callout that cross-links one durable **patch inventory**.
 - **Depth = architecture narrative** — per subsystem: responsibility, key classes, data flow, entry
-  points, gotchas — *not* a per-class API reference. Kept sustainable against decompile churn by
+  points, gotchas — _not_ a per-class API reference. Kept sustainable against decompile churn by
   citing (not restating) and writing against `_decompiled/scripts` for the 12 stale files.
 - **Rollout = tiered, one PR per tier, pause for review between tiers.**
 
 ## Conventions (apply to every doc — reuse, don't reinvent)
 
 - **Cite, don't restate.** New docs cross-link the existing suite; durable concepts live in `docs/`,
-  issue-specifics stay in `misc/Plan-*.md` and *link* to the concept (`bsf-client/CLAUDE.md` →
+  issue-specifics stay in `misc/Plan-*.md` and _link_ to the concept (`bsf-client/CLAUDE.md` →
   "Documentation conventions").
 - **Dual-link cross-repo form** into `bsf-server`:
   `` `<path>` ([local](rel) | [GitHub](…/BSF-Custom-Server/<blob|tree>/main/<path>)) `` (root `CLAUDE.md`).
@@ -55,20 +55,20 @@ the **submodule-pointer bump** and the one-line `REFERENCE.md` "Client-side" poi
 
 ## Verified baseline (confirmed on disk 2026-07-03)
 
-| Fact | Value | Use |
-|---|---|---|
-| `bsf-client/_decompiled/scripts` (live generated tree) | **1,272** `.as` | "how many files does the client have" |
-| `bsf-client/src/` overlays | **33** `.as` + 3 `.cff` fonts (+ `META-INF/AIR/application.xml`) | the real patch surface |
-| `DiscordSteamworks.as` in `src/` **and** `_decompiled/` | **absent** | *referenced but planned / not-yet-created* |
-| `%USERPROFILE%\Code\bsf-refs\client-decompiled-as3` mirror | **1,113** `.as` | the checked-in reference *snapshot* count (≠ 1,272 live) |
-| `%USERPROFILE%\Code\bsf-refs\client-2013-as3` mirror | **385** `.as` | default-reference count |
-| `game/session/states/` | **52** files = ~48 State subclasses + 4 helpers | the GameFsm state count (docs previously said "~37") |
-| `game/session/actions/` | **24** files (22 `*Txn` extend `HttpJsonAction`) | the action count |
-| `bsf-refs` mirrors are git repos? | **No** — plain directories | so provenance anchors on SWF **v1.10.51** + file counts, not a commit SHA |
+| Fact                                                       | Value                                                            | Use                                                                       |
+| ---------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `bsf-client/_decompiled/scripts` (live generated tree)     | **1,272** `.as`                                                  | "how many files does the client have"                                     |
+| `bsf-client/src/` overlays                                 | **33** `.as` + 3 `.cff` fonts (+ `META-INF/AIR/application.xml`) | the real patch surface                                                    |
+| `DiscordSteamworks.as` in `src/` **and** `_decompiled/`    | **absent**                                                       | _referenced but planned / not-yet-created_                                |
+| `%USERPROFILE%\Code\bsf-refs\client-decompiled-as3` mirror | **1,113** `.as`                                                  | the checked-in reference _snapshot_ count (≠ 1,272 live)                  |
+| `%USERPROFILE%\Code\bsf-refs\client-2013-as3` mirror       | **385** `.as`                                                    | default-reference count                                                   |
+| `game/session/states/`                                     | **52** files = ~48 State subclasses + 4 helpers                  | the GameFsm state count (docs previously said "~37")                      |
+| `game/session/actions/`                                    | **24** files (22 `*Txn` extend `HttpJsonAction`)                 | the action count                                                          |
+| `bsf-refs` mirrors are git repos?                          | **No** — plain directories                                       | so provenance anchors on SWF **v1.10.51** + file counts, not a commit SHA |
 
 ## Progress
 
-**Status (2026-07-03): P1 authored on `docs/p1-client-doc-gaps` (cut from `origin/master` `b6e357a`); pending review + PR.** P2/P3 not started.
+**Status (2026-07-06): P2 authored on `docs/p2-client-doc-gaps` (cut from `origin/master` `7d63322`); pending review + PR.** P1 merged (PR #15, `7d63322`); P3 not started.
 
 - **PR 1 (P1) — the on-ramp, the game-flow spine, and scaffolding.** New `docs/client-overview.md`,
   `docs/game-flow.md`, `docs/patch-inventory.md`, `docs/doc-gaps.md`, and this tracker; accuracy fixes
@@ -80,35 +80,35 @@ the **submodule-pointer bump** and the one-line `REFERENCE.md` "Client-side" poi
   `docs/build-workflow.md` ("Audio & the FMOD ANE", "AIR SDK 33-vs-51 wall") and `docs/subsystem-index.md`
   (real `game/gui`/`game/view` rows). Also folds in the deferred `build-workflow.md` file-count fix.
 - **PR 3 (P3) — data model, offline AI, mod tooling.** New `docs/data-model.md` + `docs/offline-ai.md`
-  + `docs/mod-bridge.md`; extend `docs/battle-engine.md` (offline-AI pointer) and `docs/subsystem-index.md`.
-  Empties `docs/doc-gaps.md`.
+  - `docs/mod-bridge.md`; extend `docs/battle-engine.md` (offline-AI pointer) and `docs/subsystem-index.md`.
+    Empties `docs/doc-gaps.md`.
 
 ---
 
 ## PR 1 — P1 tier · `docs/p1-client-doc-gaps`
 
-| Deliverable | Type | Closes |
-|---|---|---|
-| `docs/client-overview.md` | new — "how the client works in one read" pillar map | on-ramp gap |
-| `docs/game-flow.md` | new — `GameFsm` spine + ~48 states + 24 actions + the generic `Fsm`/`State` base | game-flow spine gap |
-| `docs/patch-inventory.md` | new — the real `src/` inventory (33 overlays, what/why), `DiscordSteamworks` = planned | stale `src/` claim |
-| `docs/doc-gaps.md` | new — remaining gaps as a tracked, closeable list | tracking |
-| `misc/Plan-Docs-Track-2026-07-02.md` | new — this tracker | tracking |
-| `docs/architecture.md` | edit — `src/` inventory, 1,272-vs-1,113 counts, `DiscordSteamworks` planned | doc drift |
-| `docs/subsystem-index.md` | edit — drop "only file in `src/`", fix phantom states, `DiscordSteamworks` planned | doc drift |
-| `docs/reference-codebases.md` | edit — client reference block (SWF v1.10.51 + top paths) | reference provenance |
-| `docs/README.md` | edit — doc-map + reading-order additions | discoverability |
-| `CLAUDE.md` (submodule) | edit — `~1,272` count, `DiscordSteamworks` planned, `doc-gaps.md` pointer | doc drift |
+| Deliverable                          | Type                                                                                   | Closes               |
+| ------------------------------------ | -------------------------------------------------------------------------------------- | -------------------- |
+| `docs/client-overview.md`            | new — "how the client works in one read" pillar map                                    | on-ramp gap          |
+| `docs/game-flow.md`                  | new — `GameFsm` spine + ~48 states + 24 actions + the generic `Fsm`/`State` base       | game-flow spine gap  |
+| `docs/patch-inventory.md`            | new — the real `src/` inventory (33 overlays, what/why), `DiscordSteamworks` = planned | stale `src/` claim   |
+| `docs/doc-gaps.md`                   | new — remaining gaps as a tracked, closeable list                                      | tracking             |
+| `misc/Plan-Docs-Track-2026-07-02.md` | new — this tracker                                                                     | tracking             |
+| `docs/architecture.md`               | edit — `src/` inventory, 1,272-vs-1,113 counts, `DiscordSteamworks` planned            | doc drift            |
+| `docs/subsystem-index.md`            | edit — drop "only file in `src/`", fix phantom states, `DiscordSteamworks` planned     | doc drift            |
+| `docs/reference-codebases.md`        | edit — client reference block (SWF v1.10.51 + top paths)                               | reference provenance |
+| `docs/README.md`                     | edit — doc-map + reading-order additions                                               | discoverability      |
+| `CLAUDE.md` (submodule)              | edit — `~1,272` count, `DiscordSteamworks` planned, `doc-gaps.md` pointer              | doc drift            |
 
 **Accuracy fixes (P1):**
 
-| Fix | Wrong now | Correction |
-|---|---|---|
-| `src/` inventory | `architecture.md`/`subsystem-index.md` call `PreAuthState` the only file in `src/` | Real: **33 `.as` overlays** (+ 3 `.cff` fonts); point to `patch-inventory.md`. |
-| `DiscordSteamworks` | referenced as if present | **Not in `src/` or `_decompiled/`** — mark *planned/not-yet-created* uniformly. |
-| File count | `CLAUDE.md` "~1,267"; live-tree refs say "1,113" | **1,272** = live `_decompiled`; **1,113** = checked-in mirror snapshot (distinct meanings). |
-| Phantom states | `subsystem-index.md` names `OnlineState`/`LoginState` (absent); keeps `OfflineState` (real) | Point at `game-flow.md`'s real ~48-state map. |
-| `## Co-Authored-By:` signature | every `docs/*.md` line 3 | **KEEP — do not remove.** It is the intentional authorship mark; every `docs/*.md` **and** this tracker carries it uniformly. |
+| Fix                            | Wrong now                                                                                   | Correction                                                                                                                    |
+| ------------------------------ | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `src/` inventory               | `architecture.md`/`subsystem-index.md` call `PreAuthState` the only file in `src/`          | Real: **33 `.as` overlays** (+ 3 `.cff` fonts); point to `patch-inventory.md`.                                                |
+| `DiscordSteamworks`            | referenced as if present                                                                    | **Not in `src/` or `_decompiled/`** — mark _planned/not-yet-created_ uniformly.                                               |
+| File count                     | `CLAUDE.md` "~1,267"; live-tree refs say "1,113"                                            | **1,272** = live `_decompiled`; **1,113** = checked-in mirror snapshot (distinct meanings).                                   |
+| Phantom states                 | `subsystem-index.md` names `OnlineState`/`LoginState` (absent); keeps `OfflineState` (real) | Point at `game-flow.md`'s real ~48-state map.                                                                                 |
+| `## Co-Authored-By:` signature | every `docs/*.md` line 3                                                                    | **KEEP — do not remove.** It is the intentional authorship mark; every `docs/*.md` **and** this tracker carries it uniformly. |
 
 **Deferrals (called out, not dropped):** `build-workflow.md`'s "~1,113 .as files" count → **P2** (that
 tier already edits the file); `scripts/run-adl.ps1`'s `DiscordSteamworks` reference → code cleanup,
@@ -124,12 +124,12 @@ Trim the three P1 entries from `doc-gaps.md`. → **pause for review.**
 
 ## PR 2 — P2 tier · `docs/p2-client-doc-gaps`
 
-| Deliverable | Type |
-|---|---|
-| `docs/ui-system.md` | new — retained-mode widget toolkit + page/screen framework + battle HUD |
-| `docs/asset-loading.md` | new — `ResourceManager` loader pipeline (consumed by UI **and** battle/anim/sound) |
-| `docs/build-workflow.md` | extend — "Audio & the FMOD ANE", "AIR SDK 33-vs-51 wall"; fix the deferred file-count |
-| `docs/subsystem-index.md` | extend — real `game/gui`/`game/view` rows (replace the stub) |
+| Deliverable               | Type                                                                                  |
+| ------------------------- | ------------------------------------------------------------------------------------- |
+| `docs/ui-system.md`       | new — retained-mode widget toolkit + page/screen framework + battle HUD               |
+| `docs/asset-loading.md`   | new — `ResourceManager` loader pipeline (consumed by UI **and** battle/anim/sound)    |
+| `docs/build-workflow.md`  | extend — "Audio & the FMOD ANE", "AIR SDK 33-vs-51 wall"; fix the deferred file-count |
+| `docs/subsystem-index.md` | extend — real `game/gui`/`game/view` rows (replace the stub)                          |
 
 **Tier-2 verify:** UI class names spot-checked; asset-loader class graph confirmed; the FMOD/`NullSoundDriver`
 fallback traced to the local-2-client hang; link check. Trim P2 entries from `doc-gaps.md`. → **pause.**
@@ -138,13 +138,13 @@ fallback traced to the local-2-client hang; link check. Trim P2 entries from `do
 
 ## PR 3 — P3 tier · `docs/p3-client-doc-gaps`
 
-| Deliverable | Type |
-|---|---|
-| `docs/data-model.md` | new — entities + the `Def`/`Vars`/`Wrangler` pattern (documented once) |
-| `docs/offline-ai.md` | new — `aimodule/` + the AI battle path (same lockstep FSM + DJB hash as multiplayer) |
-| `docs/mod-bridge.md` | new — the NativeProcess newline-delimited-JSON bus to the mod host |
-| `docs/battle-engine.md` | extend — short "Offline AI path" pointer to `offline-ai.md` |
-| `docs/subsystem-index.md` | extend — `aimodule/`, `engine/mod/`, resource-loader rows |
+| Deliverable               | Type                                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------------ |
+| `docs/data-model.md`      | new — entities + the `Def`/`Vars`/`Wrangler` pattern (documented once)               |
+| `docs/offline-ai.md`      | new — `aimodule/` + the AI battle path (same lockstep FSM + DJB hash as multiplayer) |
+| `docs/mod-bridge.md`      | new — the NativeProcess newline-delimited-JSON bus to the mod host                   |
+| `docs/battle-engine.md`   | extend — short "Offline AI path" pointer to `offline-ai.md`                          |
+| `docs/subsystem-index.md` | extend — `aimodule/`, `engine/mod/`, resource-loader rows                            |
 
 **Tier-3 verify:** entity/`Def` triad confirmed; the offline battle path traced end-to-end; mod-bridge
 wire protocol matched to `ModBridge.as`; link check. `doc-gaps.md` should be **empty** when P3 merges. → final review.

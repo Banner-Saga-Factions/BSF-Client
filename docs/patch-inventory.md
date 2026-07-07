@@ -14,7 +14,7 @@ buried in a plan.
 |---|---|---|
 | Patched/added `.as` overlays | **33** | The behavior + repair surface below. |
 | Embedded font glyph data | 3 `.cff` | `src/_assets/*.cff` — the outlines the three font wrappers re-embed. |
-| AIR descriptor | 1 | `META-INF/AIR/application.xml` — **outside `src/`**; adds the `bsf://` URL scheme, declares the `extendedDesktop` profile (needed by the mod bridge's NativeProcess), and lists the platform ANEs (Adobe Native Extensions — bundled native-code plugins, e.g. Steamworks and FMOD). |
+| AIR descriptor | 1 | `META-INF/AIR/application.xml` — **outside `src/`**; declares the `extendedDesktop` profile (needed by the mod bridge's NativeProcess) and lists the platform ANEs (Adobe Native Extensions — bundled native-code plugins, e.g. Steamworks and FMOD). Adding the `bsf://` URL scheme is **planned — not yet in the committed descriptor**. |
 
 **Two kinds of patch.** Roughly a third of the 33 overlays change **no behavior at all** — they are
 faithful repairs of code the JPEXS decompiler mangled (illegal class names, lost imports, raw
@@ -105,7 +105,7 @@ All four are **no-behavior-change** repairs of decompiler damage.
 
 | File | What changed | Why |
 |---|---|---|
-| `src/engine/sound/NullSoundDriver.as` | File-internal-classes import repair of the no-op sound driver (`:165`). | **No behavior change.** The FMOD-vs-`NullSoundDriver` fallback story (which causes the local-2-client init hang) is planned for `build-workflow.md` → "Audio & the FMOD ANE" (P2). |
+| `src/engine/sound/NullSoundDriver.as` | File-internal-classes import repair of the no-op sound driver (`:165`). | **No behavior change.** The FMOD-vs-`NullSoundDriver` fallback story (which causes the local-2-client init hang) is documented in [`build-workflow.md`](./build-workflow.md) → "Audio & the FMOD ANE". |
 
 ## Saga (1)
 

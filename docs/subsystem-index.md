@@ -99,9 +99,26 @@ Crossplay's main patch zone.
 | `actions/AuthTxn` ★     | Builds the POST body for `/services/auth/login/{protocolVersion}` (body at lines 17–26). Reads `user_id`, `session_key`, `vbb_name`, `display_name`, `build_number` from the response.                                                                    |
 | `actions/` (other)      | Other server-bound actions (party arrange, unit hire, etc. — see [`wire-protocol.md`](./wire-protocol.md)).                                                                                                                                               |
 
-### `game/entity/`, `game/view/`, `game/gui/`, `game/saga/`
+### `game/view/`, `game/gui/`, `engine/gui/` — UI, screens & the battle HUD
 
-Rendering, UI, and saga-mode (campaign) code. Out of scope for crossplay; consult on a case-by-case basis when filing UI bugs.
+The visible client. Full narrative in [`ui-system.md`](./ui-system.md) (the two widget roots, the page/screen framework, how a `GameFsm` state becomes a screen, and the battle HUD); loading mechanics in [`asset-loading.md`](./asset-loading.md). **★** marks a class the fork patches.
+
+| Package / class | Role | Narrative |
+|---|---|---|
+| `engine/gui/core/` (`GuiSprite`, `GuiHList`, `GuiButton`/`GuiLabel`/`GuiImage`) | The code-driven widget toolkit; `GuiSprite` (`extends Sprite`) is the base of the `Page` framework. | [`ui-system.md`](./ui-system.md) |
+| `engine/gui/page/` (`Page`, `PageManagerAdapter`) | Page lifecycle + the base FSM-state→page router. | [`ui-system.md`](./ui-system.md) |
+| `game/gui/GuiBase` | The other widget root (`extends MovieClip`) — symbol-linked Flash clips; every real screen + the HUD. | [`ui-system.md`](./ui-system.md) |
+| `game/gui/GameGuiContext` ★ | The service handle every Flash-authored widget calls into (`playSound`/`createDialog`/`translate`); carries the fork's compat shims. | [`ui-system.md`](./ui-system.md) |
+| `game/gui/` shared widgets (`GuiDialog`, `GuiRoster`, `GuiAlert`, `GuiToolTip`, `GuiChat`, `GuiIcon`) + `GuiUtil` ★ | Dialogs, roster panel, chat, icons; `GuiUtil` is a guarded fork shim the rerouted `battle_initiative.swf` resolves to by name. | [`ui-system.md`](./ui-system.md) |
+| `game/gui/page/` (`GamePage`, `ScenePage`, `BattleHudPage`) | The concrete screen base, the scene/battle host, and the combat HUD page. | [`ui-system.md`](./ui-system.md) |
+| `game/gui/battle/` (`GuiBattleHud`, `GuiInitiative` ★, popups, fly-text) | The battle HUD widgets (SWF-resident). | [`ui-system.md`](./ui-system.md) |
+| `game/view/` (`GameWrapper`, `GamePageManagerAdapter`) | The on-screen page holder + the concrete FSM-state→page map. | [`ui-system.md`](./ui-system.md) |
+
+Loading mechanics for every clip / bitmap / animation above — the `guiresman` / `ResourceManager` pipeline — are in [`asset-loading.md`](./asset-loading.md). (A structured `engine/resource` row is deferred to P3.)
+
+### `game/entity/`, `game/saga/`
+
+Entity model and saga-mode (campaign) code. Brief for now: the entity `Def`/`Vars`/`Wrangler` data model is planned for `data-model.md` and the offline/saga flow for `offline-ai.md` (both P3 — see [`doc-gaps.md`](./doc-gaps.md)).
 
 ## `tbs/srv/` — wire-format DTOs
 

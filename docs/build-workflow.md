@@ -7,7 +7,7 @@ End-to-end build and packaging for `bsf-client`. For why the repo uses a patch-o
 ## The three-step flow
 
 ```powershell
-.\scripts\decompile.ps1        # 1. JPEXS → _decompiled/  (~1,113 .as files)
+.\scripts\decompile.ps1        # 1. JPEXS → _decompiled/  (~1,272 .as files)
 .\scripts\apply-patches.ps1    # 2. src/   → _decompiled/  (overlay patches)
 .\scripts\build.ps1            # 3. amxmlc + adt → _build/  (.air, .apk, .ipa)
 ```
@@ -93,7 +93,7 @@ Common output:
 
 ```
 JPEXS scanning frames... 1/47 ... 47/47
-Exporting actionscript... 1113 / 1113 files written.
+Exporting actionscript... 1272 / 1272 files written.
 ```
 
 After this, `_decompiled/` mirrors the package layout described in [`subsystem-index.md`](./subsystem-index.md): `engine/`, `game/`, `tbs/`, `lib/` plus root-level `GameMainAir.as` and `AneFixer.as`.
@@ -144,6 +144,47 @@ Per target:
 | Android | `_build/bsf.apk` | `apk` or `apk-debug`                                   |
 | iOS     | `_build/bsf.ipa` | `ipa-ad-hoc` or `ipa-app-store`                        |
 
+## Audio & the FMOD ANE
+
+Sound is the one subsystem that routinely runs in a **degraded** (reduced-capability) mode during development, and knowing why saves a lot of head-scratching. All audio goes through a small driver interface — `ISoundDriver` (`engine/sound/ISoundDriver.as:8`) — with two implementations:
+
+| Driver | Where | What it does |
+|---|---|---|
+| `FmodSoundDriver` | `air/fmod/ane/FmodSoundDriver.as:20` | The real thing. It reaches the native FMOD audio engine through an **ANE** (AIR Native Extension — a bundle of native OS code an AIR app can call into), opening the extension by id (`CONTEXT_ID = "air.fmod.ane.FmodContext"`, `:23`) via `ExtensionContext.createExtensionContext` (`:284`). |
+| `NullSoundDriver` | `engine/sound/NullSoundDriver.as:9` | A silent stand-in. Every method is a no-op — `init()` just returns `true` (`:74`) and events play nothing. The game runs normally, minus sound. |
+
+**Which driver you get is decided at startup, and it can downgrade silently.** `GameMainAir.as:163` hardcodes `FmodSoundDriver` as the intended driver (`new GameWrapper(0, appInfo, FmodSoundDriver, false)`); that class is threaded through `GameWrapper` (`:89`) into `GameConfig.soundDriverClazz` (`:287`) and handed to `FmodSoundSystem.init` (`engine/sound/config/FmodSoundSystem.as:74`). `init` **tries** to build the FMOD driver and, if anything goes wrong, quietly falls back — the `if (!driver)` branch (`:96–99`) constructs a `NullSoundDriver` instead and carries on. Three things trigger the fallback:
+
+- **Sound is disabled** — `init` skips the FMOD attempt entirely.
+- **The ANE is absent or won't load** — constructing `FmodSoundDriver` throws, and the `catch` nulls the driver.
+- **`driver.init()` returns `false`** — the native side reported failure.
+
+The downgrade is invisible to the rest of the game because everything downstream only talks to the `ISoundDriver` interface. Startup even gates on the sound system being "ready" (`GameConfig.checkReady:724` waits for `fevPreloader.complete`), but `NullSoundDriver`'s preloader reports complete immediately (`NullFevPreloader.complete` is hardcoded `true`, `NullSoundDriver.as:188`), so a silent client still boots.
+
+Both ANEs are **declared** in the descriptor (`META-INF/AIR/application.xml:145–148` — `air.fmod.ane.FmodContext` and `air.steamworks.ane.SteamworksAneContext`), but the `.ane` binaries themselves are not committed to this patch repo. That is why the dev launcher strips them (see "The AIR SDK 33-vs-51 wall" below) and the client runs on `NullSoundDriver` day to day.
+
+### The local two-client hang
+
+This is the one FMOD quirk that will eat an afternoon if you don't know it. **FMOD's ANE initializes only once per machine.** So when `launch-game-2p.ps1` opens two clients on the same PC to test a battle, the *first* gets the real `FmodSoundDriver` and the *second* falls back to `NullSoundDriver`. The two clients then load resources along **different paths**, and that asymmetry wedges the FMOD-side client:
+
+1. The FMOD-side client loads its sound banks (`common/fmod/character_quality_*.fsb`). A side effect of `FmodSoundDefBundle.fsbLoadedHandler` (`air/fmod/ane/FmodSoundDefBundle.as:121`) **leaks an item** in the page's loading tracker (`GamePage.monitor` — the resource monitor from [`asset-loading.md`](./asset-loading.md)).
+2. Because that tracker never empties, `ScenePage.handleLoaded()` never re-fires, so `doInitReady()` (`game/gui/page/ScenePage.as:366`) never runs.
+3. `doInitReady` is what calls `BattleStateInit.setReady()` (`engine/battle/fsm/state/BattleStateInit.as:53`). Without it the client never sends its local `POST services/battle/ready` (`BattleTxnStartSend`), so the battle's init state **hangs forever** waiting to be told it's ready.
+
+A workaround patch is drafted in **Banner-Saga-Factions/BSF-Client#7** (a 15-second timeout in `BattleStateInit` that force-calls `setReady()`), but it is **not applied** — it needs a full SWF rebuild. The practical fix is what `launch-game-2p.ps1` already bakes in: `--versus_start --versus_countdown 0` skips the wait. **This is a same-machine artifact only** — a real 1-v-1 across two separate machines gives both clients real FMOD, so they either both race past it or both dodge it. The authoritative write-up (kept on the server side, since that is where the missing `/battle/ready` is noticed) is `bsf-server/.claude/rules/gotchas.md` ([local](../../bsf-server/.claude/rules/gotchas.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/.claude/rules/gotchas.md)).
+
+## The AIR SDK 33-vs-51 wall
+
+The prerequisites table above lists "HARMAN AIR SDK 33.1+," but the config that actually **runs** the rebuilt client is **SDK 51** — and the gap between those two numbers is a wall with real consequences.
+
+The original SWF was built against **AIR 3.7** (`META-INF/AIR/application.xml:2` declares the `air/application/3.7` namespace; the SWF is version 20, stamped 2013). That 2013-era runtime ships with the Steam install and is what a packaged client would normally run on. But the moment you recompile with a modern SDK, three things bite:
+
+1. **The 2013 captive runtime can't run a modern SWF.** A SWF compiled with SDK 51 links against newer APIs the old runtime lacks, so it fails to load with a silent `VerifyError`. The workaround is `scripts/run-adl.ps1`, which launches the compiled SWF under the **SDK 51 debug runtime** (`adl`) instead of the captive one. To do that it rewrites the descriptor's namespace from `3.7` to `51.0` (`run-adl.ps1:48`) and **strips the `<extensions>` block** (`:49`) — which is exactly why running under `adl` drops you to `NullSoundDriver` (no ANEs declared, so the audio fallback above fires). `build.ps1` compiles with `-swf-version=20` (`:67`) and flags this same runtime mismatch inline (`:62–65`).
+2. **You can't package a real audio build for desktop.** `adt` (the packager) **rejects the FMOD and Steamworks ANEs on desktop targets with error 112** (`build.ps1:11–12`), so there is no signed, double-clickable build that has sound. Today the only way to run the rebuilt client is under `adl` — which has no ANEs anyway.
+3. **The 33→51 jump is *not* the cause of the town crashes.** It is tempting to blame the SDK bump for the gui-SWF crashes, but that was **ruled out** (verified four ways): those crashes are a **symbol-linkage** problem — owned by [`architecture.md`](./architecture.md) → "Resource SWFs and runtime class resolution" — which is version-independent. The gui SWFs ship unchanged as their AIR-33.1 originals; only the app SWF recompiles at 51.
+
+There is an **untested candidate fix** for the packaging wall (points 1–2): rebuild the app SWF with the **original HARMAN AIR SDK 33.1** and package via `adt` with the ANEs, to see whether a same-generation build runs standalone with sound and clears the error-112 rejection. It would **not** touch the town crashes (point 3). The full experiment plan and the four-way SDK-hypothesis verdict are in [`../misc/Plan-Issue-12-Player-vs-AI-Public-Release.md`](../misc/Plan-Issue-12-Player-vs-AI-Public-Release.md).
+
 ## Common JPEXS artifacts and how to fix them
 
 The decompile is ~95 % compilable as-is. The 5 % that fails almost always falls into these buckets:
@@ -191,13 +232,13 @@ The hard-won, reusable parts of the recipe (these cost a session to rediscover t
 In `META-INF/AIR/application.xml`, delete or comment out the `<extensionID>` block referencing `air.steamworks.ane.SteamworksAneContext` for mobile targets. The Steamworks ANE is Windows/Mac-only — `adt` will fail if you leave it in.
 
 - Sign with the standard Android debug key (`adt -certificate -cn debug 2048-RSA android-debug.p12 debug`) for sideloading; production releases need a real Play Store key.
-- The `bsf://` URL scheme registration works on Android via the AIR descriptor's `<android><manifestAdditions>` block.
+- The `bsf://` URL scheme registration **would** be added for Android via an `<android><manifestAdditions>` block — **planned; not yet in the committed descriptor** (`META-INF/AIR/application.xml` has no `<android>` block today).
 
 ### iOS (`-target ipa-app-store`)
 
 - Requires an Apple Developer account, a provisioning profile (`.mobileprovision`), and an `iOS Distribution` `.p12`.
 - Same Steamworks-ANE-removal step as Android.
-- The `bsf://` URL scheme registration is in the AIR descriptor's `<iPhone><InfoAdditions>` block — `CFBundleURLSchemes`.
+- The `bsf://` URL scheme registration **would** go in the `<iPhone><InfoAdditions>` block as `CFBundleURLSchemes` — **planned; not yet in the committed descriptor** (the current `<iPhone>` block declares only `UIDeviceFamily`).
 
 ## "I just want to point the client at my custom server"
 

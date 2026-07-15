@@ -163,7 +163,7 @@ The server currently has a single 200-OK catch-all for `/services/lobby/...` (M3
 
 ## Discord OAuth (BSF-only, outside `/services`)
 
-These routes do **not** flow through `HttpCommunicator` — they are AIR `URLLoader` calls or browser-side links handled by the `bsf://` URL scheme registered in `META-INF/AIR/application.xml`.
+These routes do **not** flow through `HttpCommunicator` — they are AIR `URLLoader` calls or browser-side links handled by the `bsf://` URL scheme that the AIR descriptor (`META-INF/AIR/application.xml`) is **planned** to register — not yet in the committed descriptor.
 
 | Route                               | Used by                                   | Notes                                                     |
 | ----------------------------------- | ----------------------------------------- | --------------------------------------------------------- |
@@ -172,7 +172,7 @@ These routes do **not** flow through `HttpCommunicator` — they are AIR `URLLoa
 | `POST /login/discord/session`       | (BSF-server-only, no client analogue yet) | Exchanges OAuth code for a `session_key` — currently 501. |
 | `bsf://oauth?...`                   | OS deep-link → AIR                        | Delivers the OAuth result back to the running client.     |
 
-This flow is the subject of the parent repo's `bsf-server/misc/Plan-Enable-Mobile-Windows-Crossplay.md` ([local](../../bsf-server/misc/Plan-Enable-Mobile-Windows-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Plan-Enable-Mobile-Windows-Crossplay.md)). The patch surface on the client is just the `bsf://` scheme registration and the `PreAuthState` bypass swap.
+This flow is the subject of the parent repo's `bsf-server/misc/Plan-Enable-Mobile-Windows-Crossplay.md` ([local](../../bsf-server/misc/Plan-Enable-Mobile-Windows-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Plan-Enable-Mobile-Windows-Crossplay.md)). The client-side patch surface will be the `bsf://` scheme registration (planned) and the `PreAuthState` bypass swap.
 
 ## Counting / sanity check
 

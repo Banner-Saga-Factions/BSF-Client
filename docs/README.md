@@ -14,6 +14,8 @@ Architecture, build workflow, wire protocol, and reference material for the patc
 | [`build-workflow.md`](./build-workflow.md)           | How do I go from a stock SWF to a built `.air` / `.apk` / `.ipa`? What are the prerequisites? How do I fix JPEXS decompile artifacts?               |
 | [`wire-protocol.md`](./wire-protocol.md)             | Which AS3 class issues each `/services/*` request? What does the login flow look like end-to-end? How does the long-poll behave on a flaky network? |
 | [`battle-engine.md`](./battle-engine.md)             | How does the battle FSM transition? Where are entity IDs constructed? Where is the per-turn DJB hash computed? What can cause a turn-0 desync?      |
+| [`ui-system.md`](./ui-system.md)                     | The visible client: the two widget roots, the page/screen framework, how a `GameFsm` state becomes a screen, and the battle HUD.                    |
+| [`asset-loading.md`](./asset-loading.md)             | The loader pipeline beneath UI **and** battle/anim/sound: `ResourceManager`, the resource types, the two loaders, and object pools.                 |
 | [`subsystem-index.md`](./subsystem-index.md)         | "Where do I look for X?" — package-by-package map of notable classes with both decompile and 2013-source paths.                                     |
 | [`reference-codebases.md`](./reference-codebases.md) | When do I read `client-2013-as3` vs `client-decompiled-as3`? Which 12 files are stale in the 2013 source?                                           |
 | [`patch-inventory.md`](./patch-inventory.md)         | Exactly what does our fork change? The 33 `src/` overlays grouped by concern, each with what changed and why.                                       |
@@ -26,9 +28,18 @@ Architecture, build workflow, wire protocol, and reference material for the patc
 1. [`client-overview.md`](./client-overview.md) — the whole client in one read; start here.
 2. [`architecture.md`](./architecture.md) — the patch model, runtime stack, boot sequence, and resource-SWF crash model.
 3. [`game-flow.md`](./game-flow.md) — the `GameFsm` spine that everything after the menu runs on.
-4. [`wire-protocol.md`](./wire-protocol.md) — trace a login from `PreAuthState` through the server response.
-5. [`build-workflow.md`](./build-workflow.md) — build it once on your own machine.
-6. [`subsystem-index.md`](./subsystem-index.md) — bookmark this; you'll keep coming back to it.
+4. [`ui-system.md`](./ui-system.md) — what you see: the widget roots, the page framework, and the battle HUD.
+5. [`asset-loading.md`](./asset-loading.md) — how a screen's clip (and every other asset) is loaded.
+6. [`wire-protocol.md`](./wire-protocol.md) — trace a login from `PreAuthState` through the server response.
+7. [`build-workflow.md`](./build-workflow.md) — build it once on your own machine.
+8. [`subsystem-index.md`](./subsystem-index.md) — bookmark this; you'll keep coming back to it.
+
+### "I'm working on the UI / a screen / the battle HUD"
+
+1. [`ui-system.md`](./ui-system.md) — the two widget roots, the page framework, and the `GameFsm` state→screen trace.
+2. [`asset-loading.md`](./asset-loading.md) — how a screen's clip and every other asset is loaded.
+3. [`architecture.md`](./architecture.md) → "Resource SWFs and runtime class resolution" — why a gui class you patched may not run.
+4. [`patch-inventory.md`](./patch-inventory.md) → "Battle HUD & gui compatibility" — the fork's UI repairs.
 
 ### "I'm working on Discord/mobile crossplay"
 

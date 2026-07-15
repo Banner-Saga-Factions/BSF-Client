@@ -15,7 +15,7 @@ bsf-client/
 ├── src/                          ← committed: 33 .as overlays + fonts (see patch-inventory.md)
 │   └── game/session/states/PreAuthState.as
 ├── _decompiled/                  ← gitignored: ~1,272 .as files from JPEXS
-├── META-INF/AIR/application.xml  ← committed: AIR descriptor (adds bsf:// URL scheme)
+├── META-INF/AIR/application.xml  ← committed: AIR descriptor (bsf:// scheme planned)
 ├── scripts/
 │   ├── decompile.ps1             ← JPEXS → _decompiled/
 │   ├── apply-patches.ps1         ← copies src/ over _decompiled/
@@ -42,10 +42,10 @@ The client is an Adobe AIR application — Flash Player runtime packaged with a 
 | -------------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
 | **Adobe AIR (HARMAN SDK 33.1+)** | Hosts the Flash runtime + native OS bridge.            | HARMAN took over from Adobe in 2019 — older Adobe AIR SDKs no longer work for compile + packaging. |
 | **Flash Player 32 VM**           | Executes the compiled AS3 bytecode.                    | Same VM as the dead-on-the-web Flash plugin, but inside AIR it still runs.                         |
-| **Starling (Stage3D)**           | GPU-accelerated 2D rendering — sprites, particles, UI. | Bundled with the original SWF; no separate dependency.                                             |
+| **Starling (Stage3D)**           | A GPU 2D renderer **bundled in the SWF but never started** — `new Starling` appears nowhere and `GameMainAir` declares an `s:Starling` field it never assigns. Rendering is entirely on the **native Flash display list**: menus/HUD via `GuiSprite`/`GuiBase`, the isometric board/scenes via the **`as3isolib`** library. `[Inference]` See [`ui-system.md`](./ui-system.md). | Bundled with the original SWF; `[Inference]` vestigial — not used. |
 | **Steamworks ANE**               | Native extension wrapping the Steam C API.             | Removed for mobile builds; **planned** to be replaced by a `DiscordSteamworks` crossplay driver — not yet in `src/` (see [`patch-inventory.md`](./patch-inventory.md)). |
 
-The AIR descriptor `META-INF/AIR/application.xml` declares the runtime version, app ID, the `bsf://` URL scheme (used by the Discord OAuth callback to deep-link back into the running client), and the platform-specific `<extensionID>` block for Steamworks.
+The AIR descriptor `META-INF/AIR/application.xml` declares the runtime version (AIR 3.7), app ID, the supported profiles (`extendedDesktop` plus the two mobile profiles), and both platform ANEs (FMOD + Steamworks). The `bsf://` URL scheme (for the Discord OAuth deep-link back into the running client) and the mobile Steamworks-ANE removal are **planned — not yet in the committed descriptor** (mirroring the planned `DiscordSteamworks` driver above).
 
 ## Resource SWFs and runtime class resolution
 
@@ -151,7 +151,7 @@ The **crossplay-specific** patches live in `bsf-client/src/` (the full 33-file `
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `src/game/session/states/PreAuthState.as`              | Replaces the Steam ticket fetch with a Discord OAuth token when `overrideSteamId` is set.                                     |
 | `src/engine/steamworks/DiscordSteamworks.as` (planned) | New `ISteamworks` implementation that feeds Discord credentials through the existing Steam auth path. Extends `NullSteamworks` (the original Stoic no-op `ISteamworks`). |
-| `META-INF/AIR/application.xml`                         | Adds `bsf://` URL scheme (Discord OAuth deep-link). Mobile targets also remove the Steamworks `<extensionID>`.                                                           |
+| `META-INF/AIR/application.xml`                         | **Planned** (not yet in the committed descriptor): add the `bsf://` URL scheme (Discord OAuth deep-link) and, for mobile targets, remove the Steamworks `<extensionID>`.                                                           |
 
 The patch surface is small by design — replacing one class plus a config tweak is all the original architecture demands. See `bsf-server/misc/Findings-Client-ActionScript-Crossplay.md` ([local](../../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Findings-Client-ActionScript-Crossplay.md)) Items 2 + 6.
 

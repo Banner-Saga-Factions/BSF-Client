@@ -68,7 +68,7 @@ the **submodule-pointer bump** and the one-line `REFERENCE.md` "Client-side" poi
 
 ## Progress
 
-**Status (2026-07-06): P2 authored on `docs/p2-client-doc-gaps` (cut from `origin/master` `7d63322`); pending review + PR.** P1 merged (PR #15, `7d63322`); P3 not started.
+**Status (2026-07-20): P3 authored on `docs/p3-client-doc-gaps` (cut from `origin/master` `dcc8c80`); pending review + PR.** P1 merged (PR #15, `7d63322`); P2 merged (PR #16, `dcc8c80`). P3 is the **final tier** — once it merges, `docs/doc-gaps.md` is empty.
 
 - **PR 1 (P1) — the on-ramp, the game-flow spine, and scaffolding.** New `docs/client-overview.md`,
   `docs/game-flow.md`, `docs/patch-inventory.md`, `docs/doc-gaps.md`, and this tracker; accuracy fixes
@@ -79,9 +79,13 @@ the **submodule-pointer bump** and the one-line `REFERENCE.md` "Client-side" poi
 - **PR 2 (P2) — the visible client.** New `docs/ui-system.md` + `docs/asset-loading.md`; extend
   `docs/build-workflow.md` ("Audio & the FMOD ANE", "AIR SDK 33-vs-51 wall") and `docs/subsystem-index.md`
   (real `game/gui`/`game/view` rows). Also folds in the deferred `build-workflow.md` file-count fix.
-- **PR 3 (P3) — data model, offline AI, mod tooling.** New `docs/data-model.md` + `docs/offline-ai.md`
-  - `docs/mod-bridge.md`; extend `docs/battle-engine.md` (offline-AI pointer) and `docs/subsystem-index.md`.
-    Empties `docs/doc-gaps.md`.
+- **PR 3 (P3) — data model, offline AI, mod tooling.** New `docs/data-model.md`, `docs/offline-ai.md`,
+  and `docs/mod-bridge.md`; extend `docs/battle-engine.md` (offline-AI pointer + two hash-section
+  accuracy fixes), `docs/subsystem-index.md` (aimodule / `engine/mod` / `engine/resource` rows), and
+  `docs/README.md` (doc-map + reading orders). Empties `docs/doc-gaps.md` to a "no open gaps" shell,
+  sweeps the 8 stale "planned — P3" forward-references across the suite, and fixes the
+  `scripts/run-adl.ps1` `DiscordSteamworks` comment. Full plan:
+  [`Plan-Docs-P3-2026-07-15.md`](./Plan-Docs-P3-2026-07-15.md).
 
 ---
 

@@ -49,6 +49,7 @@ Battle code has the most 12-stale-file exceptions; **read decompile for the file
 | `BattleStateInit` †, `BattleStateDeploy` †                                                                                 | Battle bootstrap + deployment phases.                                                                                                           | `engine/battle/fsm/state/BattleState{Init,Deploy}.as` | (stale)                                                              |
 | `BattleStateNextTurn`                                                                                                      | Computes DJB hash for sync (line 130 — `Hash.DJBHash(hashStr)`).                                                                                | `engine/battle/fsm/state/BattleStateNextTurn.as`      | `lib.engine.core/src/engine/battle/fsm/state/BattleStateNextTurn.as` |
 | `BattleStateTurnLocal` / `Remote` / `Ai` / `Surrender` / `Finish` / `Finished` / `Aborted` / `Error` / `Respawn` / `Start` | The rest of the battle FSM states.                                                                                                              | `engine/battle/fsm/state/BattleState*.as`             | `lib.engine.core/src/engine/battle/fsm/state/BattleState*.as`        |
+| `AiModuleBase` ★ / `AiModuleDredge` / `AiPlan` ★ (driven by `BattleStateTurnAi`) | The built-in offline AI opponent: scores every reachable enemy × basic attack and plays the highest-weight plan. Walkthrough → [`offline-ai.md`](./offline-ai.md). | `engine/battle/fsm/aimodule/` | `lib.engine.core/src/engine/battle/fsm/aimodule/` |
 | `BattleBoard` † ★                                                                                                          | Board model. `addPartyMember()` builds entity IDs as `{account_id}+{count}+{unit_def_id}` (line 456). `DJBHash(battleId)` seeds RNG (line 205). | `engine/battle/board/model/BattleBoard.as`            | (stale — use decompile)                                              |
 | `BattleBoardView` †, `EntityFlyText` †                                                                                     | Board rendering.                                                                                                                                | `engine/battle/board/view/`                           | (stale)                                                              |
 | `BattleEntity`, `BattleParty`, `BattlePartyType`                                                                           | Per-unit, per-party state objects.                                                                                                              | `engine/battle/board/model/`                          | `lib.engine.core/src/engine/battle/board/model/`                     |
@@ -65,6 +66,14 @@ Crossplay's main patch zone.
 | `NullSteamworks`          | Complete no-op `ISteamworks` implementation. Crossplay **plans** to subclass this as `DiscordSteamworks` — not yet created (see [`patch-inventory.md`](./patch-inventory.md)). | `engine/steamworks/NullSteamworks.as`          | (not in 2013) |
 | `SteamworksCallbackEvent` | Event dispatched on Steam-side callbacks.                                                                                  | `engine/steamworks/SteamworksCallbackEvent.as` | (not in 2013) |
 
+## `engine/mod/` — the fork's mod bridge ★
+
+New in the fork; there is no Stoic original.
+
+| Class | Role | Path | 2013 path |
+|---|---|---|---|
+| `ModBridge` ★ | The event bus to an external `mods/host.exe` — newline-delimited JSON, a command registry, a restart/shutdown lifecycle; tapped into HTTP traffic by `HttpAction` ★. Full contract → [`mod-bridge.md`](./mod-bridge.md). | `src/engine/mod/ModBridge.as` (fork-new) | (none) |
+
 ## `engine/entity/`, `engine/def/`, `engine/anim/`, etc. — game-data layer
 
 | Subpackage                                                                                                           | Role                                            | Stale?                    |
@@ -72,6 +81,7 @@ Crossplay's main patch zone.
 | `engine/entity/def/` (`EntityDef`, `EntityClassDefList`)                                                             | Per-unit definitions (rank, abilities, sprite). | **Stale — use decompile** |
 | `engine/entity/` (other)                                                                                             | Entity model.                                   | OK                        |
 | `engine/def/`, `engine/ability/`, `engine/achievement/`                                                              | Other definition layers.                        | OK                        |
+| `engine/resource/` (`ResourceManager`, `DefResource`/`DefWrangler`/`DefWranglerWrangler`, `loader/`) | The loader pipeline **and** the `Def`/`Vars`/`Wrangler` data-file core. → [`asset-loading.md`](./asset-loading.md), [`data-model.md`](./data-model.md). | OK |
 | `engine/anim/`, `engine/landscape/`, `engine/scene/`, `engine/vfx/`, `engine/path/`, `engine/tile/`, `engine/sound/` | Rendering / audio.                              | OK                        |
 | `engine/stat/`, `engine/math/`                                                                                       | Stat math + numeric helpers.                    | OK                        |
 | `engine/tourney/`                                                                                                    | Tournament client-side (server M7+).            | OK                        |
@@ -114,11 +124,11 @@ The visible client. Full narrative in [`ui-system.md`](./ui-system.md) (the two 
 | `game/gui/battle/` (`GuiBattleHud`, `GuiInitiative` ★, popups, fly-text) | The battle HUD widgets (SWF-resident). | [`ui-system.md`](./ui-system.md) |
 | `game/view/` (`GameWrapper`, `GamePageManagerAdapter`) | The on-screen page holder + the concrete FSM-state→page map. | [`ui-system.md`](./ui-system.md) |
 
-Loading mechanics for every clip / bitmap / animation above — the `guiresman` / `ResourceManager` pipeline — are in [`asset-loading.md`](./asset-loading.md). (A structured `engine/resource` row is deferred to P3.)
+Loading mechanics for every clip / bitmap / animation above — the `guiresman` / `ResourceManager` pipeline — are in [`asset-loading.md`](./asset-loading.md). (A structured `engine/resource/` row is in the game-data-layer table above.)
 
 ### `game/entity/`, `game/saga/`
 
-Entity model and saga-mode (campaign) code. Brief for now: the entity `Def`/`Vars`/`Wrangler` data model is planned for `data-model.md` and the offline/saga flow for `offline-ai.md` (both P3 — see [`doc-gaps.md`](./doc-gaps.md)).
+Despite the name, **`game/entity/` does not hold the entity model** — it holds only the `GameStatCosts` trio (`GameStatCosts`/`GameStatCostsVars`/`GameStatCostsWrangler`, the promotion/hire cost tables). The real entity model lives in `engine/entity/` (`def/` templates, `model/` live objects) — see [`data-model.md`](./data-model.md). `game/saga/` is the campaign glue (`GameSaga`, a fork-overlaid subclass of the engine `Saga`); the saga-def loader itself is `engine/saga/SagaDefLoader`, which loads campaign data on demand. The offline battle flow is [`offline-ai.md`](./offline-ai.md).
 
 ## `tbs/srv/` — wire-format DTOs
 

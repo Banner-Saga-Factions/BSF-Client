@@ -164,8 +164,8 @@ and patches a handful of existing states/config so an AI battle loads down the s
 tutorial battle uses — but with no opponent name, so the shared battle FSM computes "offline" and makes
 zero server calls. The patched files (`GameFsm`, `SceneLoadState`, `GameStateDataEnum`, plus the
 `aimodule/` brain and the board/scene setup) are catalogued with their reasons in
-[`patch-inventory.md`](./patch-inventory.md) → "Offline player-vs-AI"; the design write-up is planned
-for `offline-ai.md` (P3 — see [`doc-gaps.md`](./doc-gaps.md)).
+[`patch-inventory.md`](./patch-inventory.md) → "Offline player-vs-AI"; the design write-up is
+[`offline-ai.md`](./offline-ai.md).
 
 ## Related reading
 

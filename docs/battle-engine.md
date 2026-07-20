@@ -120,13 +120,28 @@ private function computeHash() : int
 }
 ```
 
-`computeHashStr()` (line 100ish, walks `battleFsm.order.turnTeams`) concatenates a per-entity string that includes the entity's ID, HP, position, status effects, etc. — one line per entity, newline-separated. The DJB hash over that string is the **lockstep checksum**.
+`computeHashStr()` (line 88, walks the alive participants via `battleFsm.order.getAliveParticipants`) concatenates a per-entity string that includes the entity's ID, HP, position, status effects, etc. — one line per entity, newline-separated. The DJB hash over that string is the **lockstep checksum**.
 
-The hash is sent to the server in the `BattleSyncData` message (`services/battle/sync`, `BattleTxnTurnInitSend`). The server cross-checks both players' hashes for the same turn. **If they don't match, the battle is desync'd** — server-side handling currently logs a warning; the original Stoic implementation also aborted the battle.
+The hash is sent to the server in the `BattleSyncData` message (`services/battle/sync`, `BattleTxnTurnInitSend`) — **online battles only**; offline AI battles skip both the hash and the send (see "Offline battles — the AI path" below). The server cross-checks both players' hashes for the same turn. **If they don't match, the battle is desync'd** — server-side handling currently logs a warning; the original Stoic implementation also aborted the battle.
 
 ### Battle-id-seeded RNG
 
 `BattleBoard.as:205` uses `Hash.DJBHash(battleId)` as the RNG seed for the entire battle. Both clients seed identically, so any random rolls (initial deployment shuffles, ability proc rolls) produce the same numbers on both sides — another lockstep guarantee.
+
+## Offline battles — the AI path
+
+Everything above describes an **online** battle. Our fork also runs this same FSM **offline**, against a
+built-in AI opponent, with exactly two differences:
+
+- **AI turns.** When a side is AI-controlled, `BattleStateNextTurn` routes it to `BattleStateTurnAi`
+  rather than the local/remote turn states (`BattlePartyType.AI` → `BattleStateTurnAi`, gated on
+  `BattleFsmConfig.enableAi`, `BattleStateNextTurn.as:60-69`). This dispatch is original Stoic code.
+- **No per-turn sync.** An offline battle skips the hash-and-send above entirely — `handleEnteredState`
+  gates it on `battleFsm.isOnline` (`:170-180`) and, when offline, goes straight to `nextTurn()`. The
+  battle-id-seeded RNG still applies, so offline battles stay just as reproducible.
+
+The full walkthrough — how the AI picks a move, what it can't do, and the fork's crash fixes — is in
+[`offline-ai.md`](./offline-ai.md).
 
 ## Wire-message correspondence
 

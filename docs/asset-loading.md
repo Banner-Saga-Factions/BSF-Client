@@ -105,8 +105,8 @@ symbol name becomes a class."
 
 `DefResource` is special: it reads a data blob and **auto-pulls the children it references into a
 `ResourceTree`**, so requesting one def transparently loads its whole dependency graph. The broader
-`Def`/`Vars`/`Wrangler` data pattern that builds on this is documented once in `data-model.md` (planned — P3;
-see [`doc-gaps.md`](./doc-gaps.md)); here `DefResource` is simply "the resource type that fans out."
+`Def`/`Vars`/`Wrangler` data pattern that builds on this is documented once in
+[`data-model.md`](./data-model.md); here `DefResource` is simply "the resource type that fans out."
 
 ## The loaders
 

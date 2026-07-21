@@ -39,13 +39,13 @@ compatibility. Each row below says which it is.
 
 | File | What changed | Why |
 |---|---|---|
-| `src/engine/mod/ModBridge.as` | **New file.** A bidirectional bus to an external mod-host process launched via NativeProcess (`mods/host.exe`): one JSON object per newline-terminated line, a command registry, and a restart/shutdown lifecycle. If the host is missing it marks itself failed once and every emit becomes a cheap no-op. | The fork's non-Stoic scripting hook. Full wire protocol is in the file's own doc block; narrative planned for `mod-bridge.md` (P3). |
+| `src/engine/mod/ModBridge.as` | **New file.** A bidirectional bus to an external mod-host process launched via NativeProcess (`mods/host.exe`): one JSON object per newline-terminated line, a command registry, and a restart/shutdown lifecycle. If the host is missing it marks itself failed once and every emit becomes a cheap no-op. | The fork's non-Stoic scripting hook. Full wire protocol is in the file's own doc block; narrative in [`mod-bridge.md`](./mod-bridge.md). |
 | `src/engine/core/http/HttpAction.as` | Taps every outbound request (`doSend`) and raw response (`onResponseReceived`) into `ModBridge`, lazy-starting the host on the first transaction (`:136`, "PATCH begin"). | Lets a mod observe all server traffic without touching each individual action. |
 
 ## Offline player-vs-AI (9)
 
 The self-contained battle against the game's dormant AI. It reuses the same battle FSM + per-turn sync
-hash as multiplayer ([`battle-engine.md`](./battle-engine.md)); design write-up planned for `offline-ai.md` (P3).
+hash as multiplayer ([`battle-engine.md`](./battle-engine.md)); design write-up in [`offline-ai.md`](./offline-ai.md).
 
 | File | What changed | Why |
 |---|---|---|
@@ -111,7 +111,7 @@ All four are **no-behavior-change** repairs of decompiler damage.
 
 | File | What changed | Why |
 |---|---|---|
-| `src/game/saga/GameSaga.as` | Overlaid; `extends` the engine `Saga`, overrides scene-state save/restore, and imports the offline scene states. | `[Inference]` — part of the offline / single-player scene-state plumbing. The exact change is **not** called out in an in-file comment; treat as inferred pending the P3 offline-AI / data-model passes. |
+| `src/game/saga/GameSaga.as` | Overlaid; `extends` the engine `Saga`, overrides scene-state save/restore, and imports the offline scene states. | `[Inference]` — part of the offline / single-player scene-state plumbing (see [`offline-ai.md`](./offline-ai.md)). The exact change is **not** called out in an in-file comment; treat as inferred. |
 
 ## View (1)
 

@@ -43,7 +43,8 @@ New-Item -ItemType Directory -Path $buildDir -Force | Out-Null
 # Build an adl-friendly descriptor from the real one:
 #   1. Bump the AIR namespace 3.7 -> 51.0 so SDK 51's adl accepts it.
 #   2. Strip the <extensions> block so adl does not demand the FMOD/Steamworks ANEs via -extdir; the
-#      code falls back to NullSoundDriver / DiscordSteamworks when those extensions are absent.
+#      code falls back to NullSoundDriver (sound) and NullSteamworks (Steam auth) when those
+#      extensions are absent. (Discord auth lives in PreAuthState, not a Steamworks subclass.)
 $desc = Get-Content -Raw $srcDesc
 $desc = $desc -replace 'air/application/3\.7', 'air/application/51.0'
 $desc = [regex]::Replace($desc, '(?s)\s*<extensions>.*?</extensions>', '')

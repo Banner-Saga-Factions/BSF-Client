@@ -19,6 +19,9 @@ Architecture, build workflow, wire protocol, and reference material for the patc
 | [`subsystem-index.md`](./subsystem-index.md)         | "Where do I look for X?" — package-by-package map of notable classes with both decompile and 2013-source paths.                                     |
 | [`reference-codebases.md`](./reference-codebases.md) | When do I read `client-2013-as3` vs `client-decompiled-as3`? Which 12 files are stale in the 2013 source?                                           |
 | [`patch-inventory.md`](./patch-inventory.md)         | Exactly what does our fork change? The 33 `src/` overlays grouped by concern, each with what changed and why.                                       |
+| [`data-model.md`](./data-model.md)                   | How does a JSON def become a typed object? The `Def`/`Vars`/`Wrangler` triad, the entity model, and why battle stats come from your roster.          |
+| [`offline-ai.md`](./offline-ai.md)                   | How do offline practice battles work? Starting one, how the AI picks its move, what it can't do, and what our fork fixed.                            |
+| [`mod-bridge.md`](./mod-bridge.md)                   | How does the mod bridge talk to `mods/host.exe`? The wire protocol, the command registry, the lifecycle — and the known security gap.               |
 | [`doc-gaps.md`](./doc-gaps.md)                       | What's still undocumented? The tracked, closeable list of remaining client-doc gaps.                                                                |
 
 ## Reading orders
@@ -31,8 +34,9 @@ Architecture, build workflow, wire protocol, and reference material for the patc
 4. [`ui-system.md`](./ui-system.md) — what you see: the widget roots, the page framework, and the battle HUD.
 5. [`asset-loading.md`](./asset-loading.md) — how a screen's clip (and every other asset) is loaded.
 6. [`wire-protocol.md`](./wire-protocol.md) — trace a login from `PreAuthState` through the server response.
-7. [`build-workflow.md`](./build-workflow.md) — build it once on your own machine.
-8. [`subsystem-index.md`](./subsystem-index.md) — bookmark this; you'll keep coming back to it.
+7. [`data-model.md`](./data-model.md) — how the JSON defs behind units, classes, and your roster load.
+8. [`build-workflow.md`](./build-workflow.md) — build it once on your own machine.
+9. [`subsystem-index.md`](./subsystem-index.md) — bookmark this; you'll keep coming back to it.
 
 ### "I'm working on the UI / a screen / the battle HUD"
 
@@ -53,6 +57,14 @@ Architecture, build workflow, wire protocol, and reference material for the patc
 1. [`architecture.md`](./architecture.md) → "What this client expects from the server" — three hard constraints (32-bit `user_id`, entity-ID format, long-poll URL).
 2. [`wire-protocol.md`](./wire-protocol.md) — every `/services/*` route from the client direction, with cross-links to your existing `protocol-cross-reference.md` ([local](../../bsf-server/docs/protocol-cross-reference.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/protocol-cross-reference.md)).
 3. [`battle-engine.md`](./battle-engine.md) — especially "Entity ID format" and "Per-turn DJB hash" before you touch anything that returns an `account_id`.
+4. [`data-model.md`](./data-model.md) — the client-side shape of the account/roster data your `dataStructures.md` describes.
+
+### "I'm working on offline AI battles or the mod bridge"
+
+1. [`offline-ai.md`](./offline-ai.md) — how an offline practice battle runs and how the AI thinks.
+2. [`battle-engine.md`](./battle-engine.md) — the turn FSM the offline battle rides on.
+3. [`mod-bridge.md`](./mod-bridge.md) — drive the game (or watch its traffic) from an external host.
+4. [`patch-inventory.md`](./patch-inventory.md) — the fork surface both features touch.
 
 ## Source material
 

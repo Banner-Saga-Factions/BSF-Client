@@ -83,15 +83,15 @@ A battle is its own finite-state machine (`BattleFsm`, built on the same generic
 in **lockstep** — both players' clients simulate the same battle independently and check a per-turn
 hash to prove they stayed in sync. Entity IDs, the DJB sync hash, and turn flow are already documented
 in [`battle-engine.md`](./battle-engine.md). Our **offline** player-vs-AI battles reuse that exact same
-machine (`offline-ai.md`, planned — P3).
+machine (see [`offline-ai.md`](./offline-ai.md)).
 
 ### 4. Subsystems and the fork's extensions
 
 The narrower pieces: the data model (how unit/entity definitions are loaded from JSON), the offline AI
 brain, and the **mod bridge** (a channel to an external helper process). Three of these are the fork's
 own additions, not Stoic's. Where each of our patches lives and why is the one durable map:
-[`patch-inventory.md`](./patch-inventory.md). **Deep-dives:** `data-model.md`, `offline-ai.md`,
-`mod-bridge.md` (planned — P3).
+[`patch-inventory.md`](./patch-inventory.md). **Deep-dives:** [`data-model.md`](./data-model.md),
+[`offline-ai.md`](./offline-ai.md), [`mod-bridge.md`](./mod-bridge.md).
 
 ## What our fork adds on top of Stoic's game
 
@@ -135,5 +135,6 @@ Class-level pointers are in [`subsystem-index.md`](./subsystem-index.md) ("Where
 8. [`patch-inventory.md`](./patch-inventory.md) — exactly what our fork changed, and why.
 9. [`subsystem-index.md`](./subsystem-index.md) — bookmark it; you'll keep coming back.
 
-The remaining pillars (data model, offline AI, mod bridge) are being written in P3 of the documentation
-track — [`doc-gaps.md`](./doc-gaps.md) tracks what's still missing.
+The remaining pillars each have their own deep-dive now: [`data-model.md`](./data-model.md) (units,
+classes, and the def loader), [`offline-ai.md`](./offline-ai.md) (the offline battle and its AI), and
+[`mod-bridge.md`](./mod-bridge.md) (the external mod host).

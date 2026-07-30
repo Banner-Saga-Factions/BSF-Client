@@ -117,19 +117,22 @@ Server side: `protocol-cross-reference.md` → Versus / queue ([local](../../bsf
 
 Key constants and behaviors:
 
-- **`DEFAULT_POLL_TIME = 3000`** (line 18) — the **client request timeout** (not a sleep). The server may hold the connection for up to 10 s; if the client's 3-s timeout fires first, the request aborts and `fetchHandler` immediately starts a new one.
-- **`fetchHandler` → `checkPoll()`** (lines 143–147 + 119–141) — on any response (success, empty array, error, or timeout) the next request fires immediately. **No back-off.**
+- **`DEFAULT_POLL_TIME = 3000`** (line 18) — a **sleep before the next poll is sent**, not a request timeout. `checkPoll` passes it to `HttpAction.send` as that method's *pre-send delay* argument (`HttpCommunicator.as:135`), and `send` starts a `Timer` and **returns without sending** (`HttpAction.as:106–114`) — the same argument slot a failed request's `resendOnFailDelayMs` uses. So the client waits 3 s, *then* issues the poll.
+- **`fetchHandler` → `checkPoll()`** (lines 143–147 + 119–141) — on any response (success, empty array, error, or timeout) the next poll is queued behind that same 3-s delay. **The gap never grows** — there is no escalating back-off — but it is not zero either.
+- **Consequence for the server side:** the client is *not* racing the server's hold. `bsf-server` holds a poll up to **5 s** (not 10 — see the note below), and a captured battle showed 85% of polls reaching that full 5 s, which is only possible because the client is content to wait. Worst-case latency for a server-pushed message is therefore **the gap** (3 s, or 1 s in battle) — a message pushed while a poll is already open goes out immediately.
 - **Error rules** (`HttpCommunicator.as:43–50`):
   - status `0` (network failure) — notice error, retry.
   - status `>= 401` and `!= 500` — notice error, retry.
   - status `500` — treated as **alive** (server is up but degraded; client does not back off).
 - **`setPollTimeRequirement(id, ms)`** (line 168–172) — any subsystem can register a tighter poll. The minimum across all registrants wins (`resetPollTime`, line 180–193). During a battle, `BattleFsm.startFsm` (`engine/battle/fsm/BattleFsm.as:374`) registers `1000` ms, dropping the poll cadence from 3 s to 1 s.
 
+> **How long does the server hold it?** `bsf-server` holds **5 s** (`bsf-server/src/services/game.ts:98`). An earlier version of this doc said "up to 10 s", inherited from `Findings-Client-ActionScript-Crossplay.md` ([local](../../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Findings-Client-ActionScript-Crossplay.md)) Item 5 — that figure describes the **original 2013 Stoic server**, not ours. Server-side detail: `bsf-server/docs/client-contract.md` ([local](../../bsf-server/docs/client-contract.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/client-contract.md)) → R7–R9.
+
 **What "the server pushes data" actually means:** the server holds an open GET, and when it has data to deliver it writes the response and closes. The client decodes the JSON array, hands each entry to a registered handler keyed on a `type` discriminator (`BattleCreateData`, `MatchCreated`, `BattleFinishedData`, etc. — see `bsf-server/docs/dataStructures.md` ([local](../../bsf-server/docs/dataStructures.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/dataStructures.md))), then immediately fires a new GET. Server side: `pushData()` in `bsf-server/src/services/auth/auth.ts`.
 
 ### Mobile network transitions
 
-When Wi-Fi drops or the device switches to cellular, the in-flight `TxnGet` fails with status `0`. `fetchHandler` fires → `checkPoll()` → new `TxnGet` is issued **instantly with no delay**. The user sees no visible interruption beyond a single missed push.
+When Wi-Fi drops or the device switches to cellular, the in-flight `TxnGet` fails with status `0`. `fetchHandler` fires → `checkPoll()` → a new `TxnGet` is queued behind the usual poll gap (3 s, or 1 s in battle) — **not instantly**, but with no escalating back-off either, so recovery is prompt and the user sees no interruption beyond a missed push or two.
 
 `HttpErrorState` tracks consecutive errors for UI display (the "reconnecting…" banner) but does not insert back-off. See `Findings-Client-ActionScript-Crossplay.md` ([local](../../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Findings-Client-ActionScript-Crossplay.md)) Item 5.
 
@@ -182,7 +185,9 @@ Every `/services/*` route in this doc has a matching row in `bsf-server/docs/pro
 - `account/tutorial` — client has it, server does not (M3a).
 - `tourney/join` — client has it, server does not (M7+).
 
-If any new route is added to the client without a corresponding server entry — or vice versa — that's a wire-protocol break and shows up as a 404 or 501. Verification step #3 in [`bsf-client/docs/README.md`](./README.md) runs the count both ways.
+If any new route is added to the client without a corresponding server entry — or vice versa — that's a wire-protocol break. Verification step #3 in [`bsf-client/docs/README.md`](./README.md) runs the count both ways.
+
+> ⚠ **A missing route does not fail quietly — it fails forever.** Most `*Txn` classes set `resendOnFail = true`, and `HttpAction.canRetry` (`HttpAction.as:346`) retries on response code `0`, `404`, or `>= 500` with **no attempt cap**, every 1–2 s. So a route the client knows and the server answers `404` puts the client in a permanent retry loop for the life of the process. Of the three gaps above, **`tourney/join` does exactly this** — its session key is the last path segment, so it passes the server's session check and then matches no route. `roster/unit/variation` escapes only by accident: its key is the **4th** segment (`…/variation/{key}/{unit}/{variation}/{x}`), so the server rejects it with `403` first, and `403` is not retried. `account/tutorial` is safe because `TutorialCompletedTxn` does not opt into retrying. The server-side rule this implies — never answer a permanent "no" with `404` or `5xx` — is tracked in BSF-Custom-Server #164 and written up in `bsf-server/docs/client-contract.md` ([local](../../bsf-server/docs/client-contract.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/client-contract.md)) → R10.
 
 ## Related reading
 

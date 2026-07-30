@@ -122,7 +122,9 @@ private function computeHash() : int
 
 `computeHashStr()` (line 88, walks the alive participants via `battleFsm.order.getAliveParticipants`) concatenates a per-entity string that includes the entity's ID, HP, position, status effects, etc. — one line per entity, newline-separated. The DJB hash over that string is the **lockstep checksum**.
 
-The hash is sent to the server in the `BattleSyncData` message (`services/battle/sync`, `BattleTxnTurnInitSend`) — **online battles only**; offline AI battles skip both the hash and the send (see "Offline battles — the AI path" below). The server cross-checks both players' hashes for the same turn. **If they don't match, the battle is desync'd** — server-side handling currently logs a warning; the original Stoic implementation also aborted the battle.
+The hash is sent to the server in the `BattleSyncData` message (`services/battle/sync`, `BattleTxnTurnInitSend`) — **online battles only**; offline AI battles skip both the hash and the send (see "Offline battles — the AI path" below). **If the two players' hashes for a turn don't match, the battle is desync'd** — and the original Stoic implementation aborted the battle over it.
+
+> ⚠ **`bsf-server` does not currently compare them.** It stores each player's hash on the turn record and logs it (`bsf-server/src/services/battle/Battle.ts:406-409` ([local](../../bsf-server/src/services/battle/Battle.ts) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/src/services/battle/Battle.ts))) — nothing cross-checks the pair, so a desync goes unnoticed rather than logging a warning. An earlier version of this doc claimed the cross-check happened. Tracked as BSF-Custom-Server #165; see `bsf-server/docs/client-contract.md` ([local](../../bsf-server/docs/client-contract.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/client-contract.md)) → R15. Until it lands, diagnose a suspected desync from the two clients' own `Turn Hash:` log lines using "Common desync patterns" below.
 
 ### Battle-id-seeded RNG
 

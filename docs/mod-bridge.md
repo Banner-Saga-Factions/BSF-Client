@@ -135,7 +135,17 @@ live overlay reads from.
 
 **Gotcha — a retried request is copied more than once.** `doSend` is also the retry path, so a request
 that the client retries emits an `HTTP_REQUEST` each time. A host that records or counts requests must
-**de-duplicate** (the `txn` + `url` are the same across the retries). [Inference]
+**de-duplicate** (the `txn` + `url` are the same across the retries).
+
+How often that happens is worth knowing, because it is more than a rare edge case: `HttpAction.canRetry`
+(`HttpAction.as:346`) retries whenever the response code is `0`, `404`, or `>= 500`, after
+`resendOnFailDelayMs` (1–2 s), **with no attempt cap**. Twenty-three `*Txn` classes opt in via
+`resendOnFail = true` — every renown-spending roster action, every `BattleTxn*` (set on
+`BattleTxn_Base`), all three `Lobby*Txn`, plus `ArrangePartyTxn`, `LeaderboardsTxn`, `GameLocationTxn`,
+`VersusStartMatchTxn`, `UnitVariationTxn`, `TourneyJoinTxn` and `SessionSteamOverlayTxn`. So against a
+server that answers one of those codes for a permanent condition, a host sees the **same** request line
+every couple of seconds indefinitely. The server-side rule this implies is written up in
+`bsf-server/docs/client-contract.md` ([local](../../bsf-server/docs/client-contract.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/client-contract.md)) → R10.
 
 ---
 

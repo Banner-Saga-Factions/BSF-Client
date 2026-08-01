@@ -124,7 +124,33 @@ private function computeHash() : int
 
 The hash is sent to the server in the `BattleSyncData` message (`services/battle/sync`, `BattleTxnTurnInitSend`) — **online battles only**; offline AI battles skip both the hash and the send (see "Offline battles — the AI path" below). **If the two players' hashes for a turn don't match, the battle is desync'd** — and the original Stoic implementation aborted the battle over it.
 
-> ⚠ **`bsf-server` does not currently compare them.** It stores each player's hash on the turn record and logs it (`bsf-server/src/services/battle/Battle.ts:406-409` ([local](../../bsf-server/src/services/battle/Battle.ts) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/src/services/battle/Battle.ts))) — nothing cross-checks the pair, so a desync goes unnoticed rather than logging a warning. An earlier version of this doc claimed the cross-check happened. Tracked as BSF-Custom-Server #165; see `bsf-server/docs/client-contract.md` ([local](../../bsf-server/docs/client-contract.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/client-contract.md)) → R15. Until it lands, diagnose a suspected desync from the two clients' own `Turn Hash:` log lines using "Common desync patterns" below.
+**The comparison happens here, in the client — not on the server.** The server **relays** the message to the opponent; each client then checks the incoming hash against its own. `BattleFsm.handleSync` (`engine/battle/fsm/BattleFsm.as:336–361`):
+
+```actionscript
+var _loc2_:int = param1.turn;
+var _loc4_:int = param1.hash;
+if(turns.length > _loc2_)
+{
+   _loc3_ = turns[_loc2_].hash;
+   if(_loc4_ != _loc3_)
+   {
+      logger.error("BattleSyncData DIVERGENCE detected at turn " + _loc2_);
+      errors.push("BattleSyncData DIVERGENCE detected at turn " + _loc2_);
+      transitionTo(BattleStateError,current.data);   // aborts the battle
+   }
+   ...
+   return true;
+}
+logger.debug("BattleSyncData SYNC WAIT turn " + _loc2_);
+return false;   // opponent is ahead — leave the message queued and retry later
+```
+
+So a divergence is **detected and acted on**: the battle transitions to `BattleStateError`. Two consequences worth knowing:
+
+- **What the server owes us is relay fidelity, nothing more** — forward `turn` and `hash` to the opponent unaltered. `bsf-server` does that (`Battle.ts` `/battle/sync` builds the message and calls `pushData` on the opponent). It does **not** store the hash, and does not need to for detection to work.
+- **The server has no record of *why* a battle ended, though.** It sees the abort but not the divergence, so a desync is invisible in server logs. That is a real observability gap — BSF-Custom-Server #165 — but it is a *logging* improvement, not the missing safety net an earlier version of this note claimed. See `bsf-server/docs/client-contract.md` ([local](../../bsf-server/docs/client-contract.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/client-contract.md)) → R15.
+
+Note the `return false` on the last line: if the opponent's sync arrives for a turn this client hasn't reached, the message is **not consumed** and is re-examined on a later pass. Ordering between the two clients is tolerated by design.
 
 ### Battle-id-seeded RNG
 
@@ -194,6 +220,8 @@ When a battle ends server-side, the server writes the ranking/renown rows then s
 The endgame screen rendering lives under `game/view/...battle...` (UI layer — out of scope for this doc).
 
 ## Common desync patterns
+
+**Where to start:** the client that spots the mismatch logs `BattleSyncData DIVERGENCE detected at turn N` and drops into `BattleStateError` (see "Per-turn DJB hash" above). That line is the entry point — it names the turn, and it appears in the *client* log, not the server's.
 
 When a battle desyncs at turn 0, the cause is almost always one of:
 

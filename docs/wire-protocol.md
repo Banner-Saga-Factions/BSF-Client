@@ -158,11 +158,11 @@ What this means for the server is written up in `bsf-server/docs/client-contract
 
 | Route                                    | Client class                                                                                                                               |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `POST /services/lobby/{action}{urlCred}` | `game/session/actions/LobbyTxn.as` (catch-all — 8 actions: `invite`, `uninvite`, `exit`, `join`, `decline`, `options`, `ready`, `unready`) |
+| `POST /services/lobby/{action}{urlCred}` | `game/session/actions/LobbyTxn.as` — one class, six actions: `uninvite`, `exit`, `join`, `decline`, `ready`, `unready` |
 | `POST /services/lobby/invite{urlCred}`   | `LobbyInviteTxn.as` (specialized)                                                                                                          |
 | `POST /services/lobby/options{urlCred}`  | `LobbyOptionsTxn.as` (specialized)                                                                                                         |
 
-The server currently has a single 200-OK catch-all for `/services/lobby/...` (M3b — see `bsf-server/misc/Plan-Integrate-Original-Stoic-Server.md` ([local](../../bsf-server/misc/Plan-Integrate-Original-Stoic-Server.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Plan-Integrate-Original-Stoic-Server.md)) Blocker #9). The 8 actions are implemented on the client and waiting for server-side support.
+All eight lobby routes are implemented on both sides — server side, `bsf-server/src/services/lobby.ts` ([local](../../bsf-server/src/services/lobby.ts) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/src/services/lobby.ts)). One caveat is worth knowing: joining a lobby the server no longer has is answered `404`, and `404` is a code this client re-sends forever, so a server restart can leave clients quietly hammering a room that is gone. A change to a code the client does not re-send is planned — see `bsf-server/docs/client-contract.md` ([local](../../bsf-server/docs/client-contract.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/client-contract.md)) → R23.
 
 ## Session
 

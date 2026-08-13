@@ -21,7 +21,8 @@ tracked separately.
   kills don't count.
 - **No battle traffic.** No matchmaking, no ranking, no per-turn sync — see §3. The game is not silent
   altogether, though: entering the battle screen still reports which screen you are on, and the
-  background poll keeps running at its usual three-second gap for the whole battle.
+  background poll keeps running throughout, at its usual three-second gap unless something else asks
+  for a faster one (sending a chat message does).
 - A **watch-two-AIs "spectator" mode** is wired at the flag level but not finished (see §7).
 
 ---
@@ -60,7 +61,9 @@ An offline battle is **not** a separate, simpler combat system. It runs the *ide
 machine and the *same* seeded dice as a multiplayer battle — both are documented in
 [`battle-engine.md`](./battle-engine.md), which this doc does not re-explain.
 
-The **only** thing an offline battle skips is the per-turn **checksum-and-sync exchange**. In a
+The **only** thing an offline battle skips in the turn loop is the per-turn **checksum-and-sync
+exchange** (it also skips the two poll speed-ups — see [`wire-protocol.md`](./wire-protocol.md) →
+"Long-poll mechanics"). In a
 multiplayer battle, at the top of every turn each client computes a hash of the board and sends it to
 the server so the two clients can prove they stayed in step (the "lockstep" contract). Offline there is
 no second client to compare against, so that step is pointless — and the original engine already knew

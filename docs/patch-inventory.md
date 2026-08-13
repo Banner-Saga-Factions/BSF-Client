@@ -49,7 +49,7 @@ hash as multiplayer ([`battle-engine.md`](./battle-engine.md)); design write-up 
 
 | File | What changed | Why |
 |---|---|---|
-| `src/game/session/states/AiBattleLoadState.as` | **New file.** Loads an offline battle vs the dormant AI (`extends SceneLoadState`). Sets no opponent name → the battle computes `isOnline=false` → **zero** server calls. Two modes: player-vs-AI and AI-vs-AI spectator. | The entry point for the whole offline feature. |
+| `src/game/session/states/AiBattleLoadState.as` | **New file.** Loads an offline battle vs the dormant AI (`extends SceneLoadState`). Sets no opponent name → the battle computes `isOnline=false` → the battle **engine** makes zero server calls (the session poll and screen report carry on). Two modes: player-vs-AI and AI-vs-AI spectator. | The entry point for the whole offline feature. |
 | `src/engine/battle/fsm/aimodule/AiModuleBase.as` | Guards a null `atkStr`/`atkArm` for a unit that lacks that stat, during AI target scoring (`:46`). | `[Inference]` BSF-Client #12 — an armor-only unit crashed the AI's scoring. |
 | `src/engine/battle/fsm/aimodule/AiPlan.as` | Guards a null ability returned by `getFirstAbilityByTag(ATTACK_STR)` during AI planning (`:235`). | `[Inference]` BSF-Client #12 — same class of null-stat crash on the planning side. |
 | `src/engine/battle/board/model/BattleBoard.as` † | Adds a CPU-controlled party, fully deployed up front (`:483`). | So an offline battle has an opponent with no human deploy step. |

@@ -20,7 +20,7 @@ package game.session.states
     * The session layer is NOT affected: the long poll keeps running at its 3s default (the 1000ms
     * and 700ms battle tightenings are both gated on isOnline), and entering the battle screen still
     * sends a /game/location update -- SceneStateBattleHandler calls updateGameLocation("loc_battle")
-    * unconditionally, and that only checks whether the SESSION is offline, not the battle.
+    * with no online/offline test, and that only checks whether the SESSION is offline, not the battle.
     *
     * Two modes (same setup; the spectator flag only changes what happens downstream):
     *   - Player vs AI: LOCAL_PARTY is the human's current active party; AI_OPPONENT_PARTY is a

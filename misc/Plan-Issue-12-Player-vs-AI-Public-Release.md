@@ -219,7 +219,7 @@ reference this in-repo plan (`misc/Plan-Issue-12-Player-vs-AI-Public-Release.md`
 **Do:** (a) null-guard `DamageFlagOverlay.onRender:74` (`getFirstAbilityByTag(ATTACK_STR).def`), same
 behavior-preserving pattern as the `AiPlan` fix; (b) gate `Ctrl+Shift+A` so it doesn't reach players
 (debug-flag or remove) — `src/game/cfg/GameKeyBinder.as:19`; (c) add source-state validation to
-`GameFsm.startAiBattle` (`:186`) + null `config.legend` / empty-party / non-versus-scene guards in
+`GameFsm.startAiBattle` + null `config.legend` / empty-party / non-versus-scene guards in
 `AiBattleLoadState`; (d) null-guard the `config.legend` derefs in the `GameGuiContext` shims (§3.4).
 > **Kickoff:** "Issue-12 Wave 1 (crash & launch hardening). Per `misc/Plan-Issue-12-Player-vs-AI-Public-Release.md`
 > §3.1/§3.3/§3.4: add a behavior-preserving null guard to

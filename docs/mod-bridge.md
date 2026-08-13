@@ -133,23 +133,24 @@ touching each individual action. `HttpAction` copies every outbound request (`do
 `emitHttpResponse`, `:253`) to the host. This is the firehose a combat log, a replay recorder, or a
 live overlay reads from.
 
-**Gotcha — a retried request is copied more than once.** `doSend` is also the retry path, so a request
-that the client retries emits an `HTTP_REQUEST` each time. A host that records or counts requests must
-**de-duplicate** (the `txn` + `url` are the same across the retries).
+**Gotcha — a re-sent request is copied more than once.** `doSend` is also the re-send path, so a
+request the client re-sends emits an `HTTP_REQUEST` each time. A host that records or counts requests
+must **de-duplicate** (the `txn` + `url` are the same across the re-sends).
 
 How often that happens is worth knowing, because it is more than a rare edge case: `HttpAction.canRetry`
 re-sends whenever the response code is `0`, `404`, or `>= 500` — and never on a maintenance reply —
 after `resendOnFailDelayMs` (1–2 s), **with no attempt cap**.
 
-**Three numbers describe how much re-sends, and they are easy to mix up.** **Twenty-three classes** set
-`resendOnFail = true`; one of them is the shared battle base class, which is never sent on its own.
+**Three numbers describe how much of the traffic re-sends, and they are easy to mix up.** **Twenty-three
+classes** set `resendOnFail = true`; one of them is the shared battle base class — the template the
+individual battle requests are built from, never sent by itself.
 Three further battle classes inherit the flag without setting it, so **twenty-five concrete kinds of
 request** re-send — `/battle/deploy`, `/battle/ready` and `/battle/sync` are the inheritors. And because
 a single lobby class builds six different routes, **thirty distinct routes** re-send; that last figure
 is the one to reach for when asking which routes a host can watch being hammered.
 
-The twenty-three that set it: the renown-spending roster actions (hire, promote, retire, stat purchase,
-barracks-row unlock — but **not** rename), seven `BattleTxn*` classes (`BattleTxn_Base` plus the move,
+The twenty-three that set it: five of the roster actions that move renown (hire, promote, retire, stat
+purchase, barracks-row unlock — but **not** rename or stat reset), seven `BattleTxn*` classes (`BattleTxn_Base` plus the move,
 action, kill, exit, surrender and turn-query sends), all three `Lobby*Txn`, plus `ArrangePartyTxn`,
 `LeaderboardsTxn`, `GameLocationTxn`, `VersusStartMatchTxn`, `UnitVariationTxn`, `TourneyJoinTxn`,
 `SessionSteamOverlayTxn` and `IapInfoTxn` — the last is the in-app-purchase lookup, and the only one of

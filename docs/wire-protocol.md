@@ -71,7 +71,7 @@ All under `services/roster/...{urlCred}`. All POST.
 | `services/roster/unit/retire`                 | `RetireRosterUnitTxn.as`                                   |
 | `services/roster/unit/stats/purchase`         | `PurchaseStatsTxn.as`                                      |
 | `services/roster/unit/stats/reset`            | `ResetStatsTxn.as`                                         |
-| `services/roster/unit/variation{urlCred}/{unit_id}/{variation}/{lobby_id}` | `UnitVariationTxn.as` — **n/a on `bsf-server`** (no route). The session key is **not** last here. The trailing part is the **lobby id**, which the 2013 server used to tell the other player in the room that the unit had changed appearance; `0` means "not in a lobby". |
+| `services/roster/unit/variation{urlCred}/{unit_id}/{variation}/{lobby_id}` | `UnitVariationTxn.as` — **n/a on `bsf-server`** (no route). The session key is **not** last here. The trailing part is the **lobby id**, which the 2013 server used to tell the other player in the room that the unit had changed appearance. A player who is not in a room still sends a real number here — the client falls back to a personal lobby keyed to the player's own id — so do **not** expect `0` for the solo case, even though `0` is what the 2013 server treated as "no room to notify". |
 | `services/roster/unlock`                      | `RosterRowUnlockTxn.as`                                    |
 
 Server side: `protocol-cross-reference.md` → Roster ([local](../../bsf-server/docs/protocol-cross-reference.md#roster) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/protocol-cross-reference.md#roster)).
@@ -123,12 +123,14 @@ Key constants and behaviors:
 - **Two different rules, easy to confuse.** What raises the "reconnecting…" banner and what gets
   re-sent are decided in different places, and they disagree:
   - **Banner** (`HttpCommunicator`, on **every** request, not just the poll): a status of `0`, or
-    anything `401` and above **except exactly `500`**. So a refused poll (`429`) does raise it; a `500`
-    does **not** — a `500` reads as "server alive".
-  - **Re-send** (`HttpAction.canRetry`): only `0`, `404`, or `500` and above, and never a maintenance
-    reply. So `403` and `429` are never re-sent, while `500` always is.
-  - They overlap only partly: `404` does both, `429` shows the banner but is dropped, `500` is re-sent
-    silently.
+    anything `401` and above **except exactly `500`**. So a refused poll (`429`) counts as an error
+    towards it; a `500` does **not** — a `500` reads as "server alive". One error on its own shows
+    nothing, though: see "Mobile network transitions" below for what it takes.
+  - **Re-send** (`HttpAction.canRetry`): only `0`, `404`, or `500` and above — and never a maintenance
+    reply, meaning a `503` whose body says the server is down for maintenance or rebooting. So `403`
+    and `429` are never re-sent, while `500` always is.
+  - They overlap only partly: `404` does both, `429` counts towards the banner but is dropped, and
+    `500` is re-sent silently — for the kinds of request that opt in, which is not all of them.
 - **`setPollTimeRequirement(id, ms)`** — any subsystem can register a tighter poll. The minimum across all registrants wins (`resetPollTime`). During an **online** battle, `BattleFsm.startFsm` registers `1000` ms, dropping the gap from 3 s to 1 s, and each turn boundary registers a tighter `700` ms. Both registrations are skipped when the battle is offline, so an offline practice battle keeps the 3 s default.
 
 > **How long does the server hold it?** `bsf-server` holds **5 s** (`bsf-server/src/services/game.ts:98`). An earlier version of this doc said "up to 10 s", inherited from `Findings-Client-ActionScript-Crossplay.md` ([local](../../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Findings-Client-ActionScript-Crossplay.md)) Item 5 — that figure describes the **original 2013 Stoic server**, not ours. Server-side detail: `bsf-server/docs/client-contract.md` ([local](../../bsf-server/docs/client-contract.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/client-contract.md)) → R7–R9.
@@ -199,7 +201,7 @@ Every `/services/*` route in this doc has a matching row in `bsf-server/docs/pro
 
 If any new route is added to the client without a corresponding server entry — or vice versa — that's a wire-protocol break.
 
-> ⚠ **A missing route does not fail quietly — it fails forever.** **Twenty-five concrete kinds of request, across thirty routes**, set `resendOnFail = true` (the full list is in [`mod-bridge.md`](./mod-bridge.md) → "The HTTP tap"), and `HttpAction.canRetry` re-sends on response code `0`, `404`, or `>= 500` with **no attempt cap**, every 1–2 s. So a route the client knows and the server answers `404` puts the client in a permanent retry loop for the life of the process. Of the three gaps above, **`tourney/join` does exactly this** — its session key is the last path segment, so it passes the server's session check and then matches no route. `roster/unit/variation` escapes only by accident: its session key is the **fourth** segment once the `/services` prefix has been stripped — the form the server's own check sees — and the **fifth** as the client sends it (`/services/roster/unit/variation/{key}/{unit_id}/{variation}/{lobby_id}`). So the server rejects it with `403` first, and `403` is not re-sent. `account/tutorial` is safe because `TutorialCompletedTxn` does not opt into retrying. The server-side rule this implies — never answer a permanent "no" with `404` or `5xx` — is tracked in BSF-Custom-Server #164 and written up in `bsf-server/docs/client-contract.md` ([local](../../bsf-server/docs/client-contract.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/client-contract.md)) → R10.
+> ⚠ **A missing route does not fail quietly — it fails forever.** **Twenty-five concrete kinds of request, across thirty routes**, re-send on failure (the full list is in [`mod-bridge.md`](./mod-bridge.md) → "The HTTP tap"), and `HttpAction.canRetry` re-sends on response code `0`, `404`, or `>= 500` with **no attempt cap**, every 1–2 s. So a route the client knows and the server answers `404` puts the client in a permanent re-send loop for the life of the process. Of the three gaps above, **`tourney/join` does exactly this** — its session key is the last path segment, so it passes the server's session check and then matches no route. `roster/unit/variation` escapes only by accident: its session key is the **fourth** segment once the `/services` prefix has been stripped — the form the server's own check sees — and the **fifth** as the client sends it (`/services/roster/unit/variation/{key}/{unit_id}/{variation}/{lobby_id}`). So the server rejects it with `403` first, and `403` is not re-sent. `account/tutorial` is safe because `TutorialCompletedTxn` does not opt into re-sending. The server-side rule this implies — never answer a permanent "no" with `404` or `5xx` — is tracked in BSF-Custom-Server #164 and written up in `bsf-server/docs/client-contract.md` ([local](../../bsf-server/docs/client-contract.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/client-contract.md)) → R10.
 
 ## Related reading
 

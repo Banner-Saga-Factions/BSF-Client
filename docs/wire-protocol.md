@@ -117,8 +117,8 @@ Server side: `protocol-cross-reference.md` → Versus / queue ([local](../../bsf
 
 Key constants and behaviors:
 
-- **`DEFAULT_POLL_TIME = 3000`** (line 18) — a **sleep before the next poll is sent**, not a request timeout. `checkPoll` passes it to `HttpAction.send` as that method's *pre-send delay* argument (`HttpCommunicator.as:135`), and `send` starts a `Timer` and **returns without sending** (`HttpAction.as:106–114`) — the same argument slot a failed request's `resendOnFailDelayMs` uses. So the client waits 3 s, *then* issues the poll.
-- **`fetchHandler` → `checkPoll()`** (lines 143–147 + 119–141) — on any response (success, empty array, error, or timeout) the next poll is queued behind that same 3-s delay. **The gap never grows** — there is no escalating back-off — but it is not zero either.
+- **`HttpCommunicator.DEFAULT_POLL_TIME = 3000`** — a **sleep before the next poll is sent**, not a request timeout. `checkPoll` passes it to `HttpAction.send` as that method's *pre-send delay* argument, and `send` starts a `Timer` and **returns without sending** — the same argument slot a failed request's `resendOnFailDelayMs` uses. So the client waits 3 s, *then* issues the poll.
+- **`fetchHandler` → `checkPoll()`** — on any response (success, empty array, error, or timeout) the next poll is queued behind that same 3-s delay. **The gap never grows** — there is no escalating back-off — but it is not zero either.
 - **Consequence for the server side:** the client is *not* racing the server's hold. `bsf-server` holds a poll up to **5 s** (not 10 — see the note below), and a captured battle showed 85% of polls reaching that full 5 s, which is only possible because the client is content to wait. Worst-case latency for a server-pushed message is therefore **the gap** (3 s, or 1 s in battle) — a message pushed while a poll is already open goes out immediately.
 - **Two different rules, easy to confuse.** What raises the "reconnecting…" banner and what gets
   re-sent are decided in different places, and they disagree:

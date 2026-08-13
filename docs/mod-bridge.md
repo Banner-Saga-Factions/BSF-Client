@@ -138,13 +138,25 @@ that the client retries emits an `HTTP_REQUEST` each time. A host that records o
 **de-duplicate** (the `txn` + `url` are the same across the retries).
 
 How often that happens is worth knowing, because it is more than a rare edge case: `HttpAction.canRetry`
-(`HttpAction.as:346`) retries whenever the response code is `0`, `404`, or `>= 500`, after
-`resendOnFailDelayMs` (1–2 s), **with no attempt cap**. Twenty-three `*Txn` classes opt in via
-`resendOnFail = true` — every renown-spending roster action, every `BattleTxn*` (set on
-`BattleTxn_Base`), all three `Lobby*Txn`, plus `ArrangePartyTxn`, `LeaderboardsTxn`, `GameLocationTxn`,
-`VersusStartMatchTxn`, `UnitVariationTxn`, `TourneyJoinTxn` and `SessionSteamOverlayTxn`. So against a
-server that answers one of those codes for a permanent condition, a host sees the **same** request line
-every couple of seconds indefinitely. The server-side rule this implies is written up in
+re-sends whenever the response code is `0`, `404`, or `>= 500` — and never on a maintenance reply —
+after `resendOnFailDelayMs` (1–2 s), **with no attempt cap**.
+
+**Three numbers describe how much re-sends, and they are easy to mix up.** **Twenty-three classes** set
+`resendOnFail = true`; one of them is the shared battle base class, which is never sent on its own.
+Three further battle classes inherit the flag without setting it, so **twenty-five concrete kinds of
+request** re-send — `/battle/deploy`, `/battle/ready` and `/battle/sync` are the inheritors. And because
+a single lobby class builds six different routes, **thirty distinct routes** re-send; that last figure
+is the one to reach for when asking which routes a host can watch being hammered.
+
+The twenty-three that set it: the renown-spending roster actions (hire, promote, retire, stat purchase,
+barracks-row unlock — but **not** rename), seven `BattleTxn*` classes (`BattleTxn_Base` plus the move,
+action, kill, exit, surrender and turn-query sends), all three `Lobby*Txn`, plus `ArrangePartyTxn`,
+`LeaderboardsTxn`, `GameLocationTxn`, `VersusStartMatchTxn`, `UnitVariationTxn`, `TourneyJoinTxn`,
+`SessionSteamOverlayTxn` and `IapInfoTxn` — the last is the in-app-purchase lookup, and the only one of
+the three purchase classes that opts in.
+
+So against a server that answers one of those codes for a permanent condition, a host sees the **same**
+request line every couple of seconds indefinitely. The server-side rule this implies is written up in
 `bsf-server/docs/client-contract.md` ([local](../../bsf-server/docs/client-contract.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/client-contract.md)) → R10.
 
 ---

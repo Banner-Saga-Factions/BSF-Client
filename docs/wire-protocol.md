@@ -120,10 +120,15 @@ Key constants and behaviors:
 - **`DEFAULT_POLL_TIME = 3000`** (line 18) — a **sleep before the next poll is sent**, not a request timeout. `checkPoll` passes it to `HttpAction.send` as that method's *pre-send delay* argument (`HttpCommunicator.as:135`), and `send` starts a `Timer` and **returns without sending** (`HttpAction.as:106–114`) — the same argument slot a failed request's `resendOnFailDelayMs` uses. So the client waits 3 s, *then* issues the poll.
 - **`fetchHandler` → `checkPoll()`** (lines 143–147 + 119–141) — on any response (success, empty array, error, or timeout) the next poll is queued behind that same 3-s delay. **The gap never grows** — there is no escalating back-off — but it is not zero either.
 - **Consequence for the server side:** the client is *not* racing the server's hold. `bsf-server` holds a poll up to **5 s** (not 10 — see the note below), and a captured battle showed 85% of polls reaching that full 5 s, which is only possible because the client is content to wait. Worst-case latency for a server-pushed message is therefore **the gap** (3 s, or 1 s in battle) — a message pushed while a poll is already open goes out immediately.
-- **Error rules** (`HttpCommunicator.as:43–50`):
-  - status `0` (network failure) — notice error, retry.
-  - status `>= 401` and `!= 500` — notice error, retry.
-  - status `500` — treated as **alive** (server is up but degraded; client does not back off).
+- **Two different rules, easy to confuse.** What raises the "reconnecting…" banner and what gets
+  re-sent are decided in different places, and they disagree:
+  - **Banner** (`HttpCommunicator`, on **every** request, not just the poll): a status of `0`, or
+    anything `401` and above **except exactly `500`**. So a refused poll (`429`) does raise it; a `500`
+    does **not** — a `500` reads as "server alive".
+  - **Re-send** (`HttpAction.canRetry`): only `0`, `404`, or `500` and above, and never a maintenance
+    reply. So `403` and `429` are never re-sent, while `500` always is.
+  - They overlap only partly: `404` does both, `429` shows the banner but is dropped, `500` is re-sent
+    silently.
 - **`setPollTimeRequirement(id, ms)`** (line 168–172) — any subsystem can register a tighter poll. The minimum across all registrants wins (`resetPollTime`, line 180–193). During a battle, `BattleFsm.startFsm` (`engine/battle/fsm/BattleFsm.as:374`) registers `1000` ms, dropping the poll cadence from 3 s to 1 s.
 
 > **How long does the server hold it?** `bsf-server` holds **5 s** (`bsf-server/src/services/game.ts:98`). An earlier version of this doc said "up to 10 s", inherited from `Findings-Client-ActionScript-Crossplay.md` ([local](../../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Findings-Client-ActionScript-Crossplay.md)) Item 5 — that figure describes the **original 2013 Stoic server**, not ours. Server-side detail: `bsf-server/docs/client-contract.md` ([local](../../bsf-server/docs/client-contract.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/client-contract.md)) → R7–R9.
@@ -134,7 +139,14 @@ Key constants and behaviors:
 
 When Wi-Fi drops or the device switches to cellular, the in-flight `TxnGet` fails with status `0`. `fetchHandler` fires → `checkPoll()` → a new `TxnGet` is queued behind the usual poll gap (3 s, or 1 s in battle) — **not instantly**, but with no escalating back-off either, so recovery is prompt and the user sees no interruption beyond a missed push or two.
 
-`HttpErrorState` tracks consecutive errors for UI display (the "reconnecting…" banner) but does not insert back-off. See `Findings-Client-ActionScript-Crossplay.md` ([local](../../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Findings-Client-ActionScript-Crossplay.md)) Item 5.
+The "reconnecting…" banner is **not** a running count of errors, and it never inserts a back-off. It is a two-stage machine (`HttpErrorState`), both stages timed at five seconds:
+
+- The first error puts the client on **probation**. Nothing is shown.
+- The banner appears only if a further error arrives **more than five seconds after probation started**. A burst of errors inside that window stays on probation, and stays silent.
+- **A single success clears probation immediately**, with no timing test — so an isolated failure followed by any success never reaches the banner at all.
+- Leaving the banner is stricter than reaching it: it needs a success arriving more than five seconds after the *last* error, and every new error pushes that deadline out.
+
+What this means for the server is written up in `bsf-server/docs/client-contract.md` ([local](../../bsf-server/docs/client-contract.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/client-contract.md)) → R21.
 
 ## Chat
 

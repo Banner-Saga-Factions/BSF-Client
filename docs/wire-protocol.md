@@ -109,7 +109,7 @@ Server side: `protocol-cross-reference.md` → Versus / queue ([local](../../bsf
 | ------------------------------------------- | -------------------------- | ------ | ---------------------------------------------------------------------- |
 | `GET /services/game{urlCred}`               | `engine/session/TxnGet.as` | GET    | **The long-poll.** See "Long-poll mechanics" below.                    |
 | `POST /services/game/leaderboards{urlCred}` | `LeaderboardsTxn.as`       | POST   | Server returns static `data/lboard.json` today.                        |
-| `POST /services/game/location{urlCred}`     | `GameLocationTxn.as`       | POST   | Reports the player's current in-game location (saga camp, town, etc.). |
+| `POST /services/game/location{urlCred}`     | `GameLocationTxn.as`       | POST   | Reports which screen the player is on — saga camp, town, and the battle screen, including an offline practice battle. |
 
 ### Long-poll mechanics
 
@@ -129,7 +129,7 @@ Key constants and behaviors:
     reply. So `403` and `429` are never re-sent, while `500` always is.
   - They overlap only partly: `404` does both, `429` shows the banner but is dropped, `500` is re-sent
     silently.
-- **`setPollTimeRequirement(id, ms)`** (line 168–172) — any subsystem can register a tighter poll. The minimum across all registrants wins (`resetPollTime`, line 180–193). During a battle, `BattleFsm.startFsm` (`engine/battle/fsm/BattleFsm.as:374`) registers `1000` ms, dropping the poll cadence from 3 s to 1 s.
+- **`setPollTimeRequirement(id, ms)`** — any subsystem can register a tighter poll. The minimum across all registrants wins (`resetPollTime`). During an **online** battle, `BattleFsm.startFsm` registers `1000` ms, dropping the gap from 3 s to 1 s, and each turn boundary registers a tighter `700` ms. Both registrations are skipped when the battle is offline, so an offline practice battle keeps the 3 s default.
 
 > **How long does the server hold it?** `bsf-server` holds **5 s** (`bsf-server/src/services/game.ts:98`). An earlier version of this doc said "up to 10 s", inherited from `Findings-Client-ActionScript-Crossplay.md` ([local](../../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Findings-Client-ActionScript-Crossplay.md)) Item 5 — that figure describes the **original 2013 Stoic server**, not ours. Server-side detail: `bsf-server/docs/client-contract.md` ([local](../../bsf-server/docs/client-contract.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/client-contract.md)) → R7–R9.
 

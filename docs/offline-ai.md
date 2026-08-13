@@ -3,7 +3,7 @@
 ## Co-Authored-By: Claude <noreply@anthropic.com>
 
 Our fork added something the original game never shipped: a **practice battle against the computer,
-fully offline** — the game never talks to the server during it. This doc explains how to start one,
+fully offline** — the battle itself sends the server nothing. This doc explains how to start one,
 how the computer decides its moves, what it is bad at, and the small fixes we made so it doesn't crash
 against a modern party.
 
@@ -19,7 +19,9 @@ tracked separately.
   it and fights you.
 - **Nothing is farmed.** No renown, no rewards, no promotions — the battle is flagged "friendly", so
   kills don't count.
-- **Zero server traffic during the battle.** No matchmaking, no ranking, no per-turn sync — see §3.
+- **No battle traffic.** No matchmaking, no ranking, no per-turn sync — see §3. The game is not silent
+  altogether, though: entering the battle screen still reports which screen you are on, and the
+  background poll keeps running at its usual three-second gap for the whole battle.
 - A **watch-two-AIs "spectator" mode** is wired at the flag level but not finished (see §7).
 
 ---
@@ -27,7 +29,7 @@ tracked separately.
 ## 2. How to start one
 
 There are two entry points, and both land in the same place — `GameFsm.startAiBattle`
-(`game/session/GameFsm.as:186-196`), which jumps the game to a new state, `AiBattleLoadState`:
+(`game/session/GameFsm.as:187-197`), which jumps the game to a new state, `AiBattleLoadState`:
 
 1. **A hidden keyboard shortcut — `Ctrl+Shift+A`** during play (`game/cfg/GameKeyBinder.as:19-22`). A
    developer trigger; there is no menu button.
@@ -37,11 +39,11 @@ There are two entry points, and both land in the same place — `GameFsm.startAi
 
 The computer's team is a **mirror copy of your own active party.** `AiBattleLoadState`
 (`game/session/states/AiBattleLoadState.as`) reads your party twice into two independent copies — one
-for you, one for the AI opponent (`:67-68`) — and marks the battle `friendly=true` (`:72`), which is
+for you, one for the AI opponent (`:72-73`) — and marks the battle `friendly=true` (`:77`), which is
 what tells the game to skip kill credit and renown. Because it sets up the opponent with **no name**,
 the shared battle engine concludes the battle is offline and makes no server calls at all
 (`:16-18`). The spectator flag is latched here too, from either an explicit request or the mod bridge's
-`ModBridge.spectatorMode` (`:80-81`).
+`ModBridge.spectatorMode` (`:85-86`).
 
 **Setting the record straight — Stoic's leftover "offline" screens are not this.** The original code
 carries a few offline-*looking* states, but none is a working offline battle: `SkirmishState` is an

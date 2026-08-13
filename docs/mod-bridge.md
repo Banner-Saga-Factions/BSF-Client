@@ -165,7 +165,7 @@ request line every couple of seconds indefinitely. The server-side rule this imp
 
 `spectatorMode` is a single on/off switch a host flips with `set_spectator`. Today it is consumed by the
 **offline battle loader**, which latches it to decide between "player vs AI" and the watch-two-AIs mode
-(`AiBattleLoadState.as:80-81`) — see [`offline-ai.md`](./offline-ai.md) → "How to start one". The
+(`AiBattleLoadState.as:85-86`) — see [`offline-ai.md`](./offline-ai.md) → "How to start one". The
 watch-two-AIs mode it feeds is only partly built (planned, not shipped). The flag is deliberately
 public so future input-gating (e.g. suppressing a spectator's battle actions) can consult it too.
 

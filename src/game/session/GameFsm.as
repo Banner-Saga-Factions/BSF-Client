@@ -181,7 +181,8 @@ package game.session
        * Launch an OFFLINE practice/spectate battle vs the dormant single-player AI. Single entry point
        * shared by the ModBridge "start_ai_battle" command and the debug keybind. Builds a fresh
        * StateData (spectate flag + optional scene-URL override) and jumps to AiBattleLoadState, which
-       * sets up the mirrored parties and runs the battle with zero server calls.
+       * sets up the mirrored parties and runs the battle with no /battle/* traffic. The session
+       * long poll keeps running throughout; see AiBattleLoadState's header for what still is sent.
        */
       public function startAiBattle(param1:Boolean, param2:String = null) : void
       {

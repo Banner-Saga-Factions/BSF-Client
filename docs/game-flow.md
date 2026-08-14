@@ -116,7 +116,7 @@ patched or added — see [`patch-inventory.md`](./patch-inventory.md).)
 |---|---|
 | `ProvingGroundsState` ★ | Proving-grounds practice battle. |
 | `SkirmishState` ★ | Skirmish battle entry. |
-| `AiBattleLoadState` ★ | **New (fork):** loads an offline battle vs the dormant AI — `extends SceneLoadState`, sets no opponent name so the battle is fully local (zero server calls). See [`patch-inventory.md`](./patch-inventory.md). |
+| `AiBattleLoadState` ★ | **New (fork):** loads an offline battle vs the dormant AI — `extends SceneLoadState`, sets no opponent name so the **battle engine** makes no server calls (the session layer still polls and still reports which screen the player is on). See [`patch-inventory.md`](./patch-inventory.md). |
 
 Once a battle-entry state finishes loading, control passes to the **battle** FSM (`BattleFsm`),
 documented in [`battle-engine.md`](./battle-engine.md).

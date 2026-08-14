@@ -161,8 +161,8 @@ Constraints the client imposes on any backend that wants to serve it (covered in
 
 - **`user_id` must fit in a 32-bit signed int.** `Credentials.userId` is declared `int` at `Credentials.as:20`. Full 64-bit Steam IDs (≥ 76561197960265728) must be reduced before being sent in the login response.
 - **Entity IDs are constructed client-side as `{account_id}+{count}+{unit_def_id}`** at `BattleBoard.as:456`. Both players' clients must compute the **same** `account_id` for each player, or the per-turn DJB hash diverges at turn 0 and the battle desyncs.
-- **The long-poll always hits `services/game/{sessionKey}`** (`TxnGet.as:13`). `HttpCommunicator.DEFAULT_POLL_TIME = 3000` (line 18) is a **gap between polls, not a request timeout** — it becomes `HttpAction.send`'s pre-send delay, so the client waits 3 s and then polls (1 s during a battle). `bsf-server` holds each poll up to **5 s**. See [`wire-protocol.md`](./wire-protocol.md) → "Long-poll mechanics".
-- **A route the server does not implement must not answer `404`.** The client retries `0` / `404` / `5xx` forever, with no attempt cap — see [`wire-protocol.md`](./wire-protocol.md) → "Counting / sanity check".
+- **The long-poll always hits `services/game/{sessionKey}`** (`TxnGet`). `HttpCommunicator.DEFAULT_POLL_TIME = 3000` is a **gap between polls, not a request timeout** — it becomes `HttpAction.send`'s pre-send delay, so the client waits 3 s and then polls (1 s during an **online** battle; an offline practice battle keeps the 3 s gap). `bsf-server` holds each poll up to **5 s**. See [`wire-protocol.md`](./wire-protocol.md) → "Long-poll mechanics".
+- **A route the server does not implement must not answer `404`.** The client re-sends on `0` / `404` / `5xx` forever, with no attempt cap — see [`wire-protocol.md`](./wire-protocol.md) → "Counting / sanity check".
 - **`POST /services/auth/login/{protocolVersion}`** — the integer at the end is the protocol version (currently `11`), **not** a magic sentinel. The `"11"` hardcode in `bsf-server` is a coincidence: it matches the only protocol version the shipped SWF sends.
 
 ## Related reading

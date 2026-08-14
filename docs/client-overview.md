@@ -99,8 +99,9 @@ Four extensions, all catalogued in [`patch-inventory.md`](./patch-inventory.md):
 
 1. **Crossplay auth** — swap the Steam auth ticket for a Discord OAuth token when a launch option asks
    for it (`PreAuthState.as`). See [`wire-protocol.md`](./wire-protocol.md) → login flow.
-2. **Offline player-vs-AI** — a self-contained battle against the game's dormant AI, making **zero**
-   server calls (`AiBattleLoadState.as` + the `aimodule/` brain).
+2. **Offline player-vs-AI** — a self-contained battle against the game's dormant AI. The battle engine
+   makes **zero** server calls; the session layer around it still polls and still reports which screen
+   the player is on (`AiBattleLoadState.as` + the `aimodule/` brain).
 3. **A mod bridge** — a bidirectional pipe to an external mod-host process over newline-delimited JSON
    (`engine/mod/ModBridge.as`), tapped into every server request (`engine/core/http/HttpAction.as`).
 4. **gui-SWF repairs** — small compatibility shims and guards that keep the older UI code baked into

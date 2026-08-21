@@ -12,6 +12,7 @@ Architecture, build workflow, wire protocol, and reference material for the patc
 | [`game-flow.md`](./game-flow.md)                     | What happens after boot? The `GameFsm` state machine, its ~48 states + 24 server actions, and the generic FSM base.                                 |
 | [`architecture.md`](./architecture.md)               | How does the patch-only repo model work? What does `GameMainAir.as` do at boot? Where does the server URL come from?                                |
 | [`build-workflow.md`](./build-workflow.md)           | How do I go from a stock SWF to a built `.air` / `.apk` / `.ipa`? What are the prerequisites? How do I fix JPEXS decompile artifacts?               |
+| [`driving-the-client.md`](./driving-the-client.md)   | How do I run the game and check a change with my own eyes? Reading the board, keyboard and mouse control, and which log is the real one.            |
 | [`wire-protocol.md`](./wire-protocol.md)             | Which AS3 class issues each `/services/*` request? What does the login flow look like end-to-end? How does the long-poll behave on a flaky network? |
 | [`battle-engine.md`](./battle-engine.md)             | How does the battle FSM transition? Where are entity IDs constructed? Where is the per-turn DJB hash computed? What can cause a turn-0 desync?      |
 | [`ui-system.md`](./ui-system.md)                     | The visible client: the two widget roots, the page/screen framework, how a `GameFsm` state becomes a screen, and the battle HUD.                    |
@@ -62,9 +63,10 @@ Architecture, build workflow, wire protocol, and reference material for the patc
 ### "I'm working on offline AI battles or the mod bridge"
 
 1. [`offline-ai.md`](./offline-ai.md) — how an offline practice battle runs and how the AI thinks.
-2. [`battle-engine.md`](./battle-engine.md) — the turn FSM the offline battle rides on.
-3. [`mod-bridge.md`](./mod-bridge.md) — drive the game (or watch its traffic) from an external host.
-4. [`patch-inventory.md`](./patch-inventory.md) — the fork surface both features touch.
+2. [`driving-the-client.md`](./driving-the-client.md) — start one yourself and watch it; how to read the board and which log to trust.
+3. [`battle-engine.md`](./battle-engine.md) — the turn FSM the offline battle rides on.
+4. [`mod-bridge.md`](./mod-bridge.md) — drive the game (or watch its traffic) from an external host.
+5. [`patch-inventory.md`](./patch-inventory.md) — the fork surface both features touch.
 
 ## Source material
 

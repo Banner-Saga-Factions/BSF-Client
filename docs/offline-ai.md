@@ -167,8 +167,12 @@ The full player-vs-AI public-release picture (all the crash fixes and open items
   read and latched (§2), but the "turn side 0 into a second AI and hide the player's controls" wiring
   is only partly built — planned, not shipped.
 - **Ranked and Tournament stay online-only.** They need matchmaking and the server, by design.
-- **Try it yourself.** In a battle-capable build, press `Ctrl+Shift+A` during a battle screen to drop
-  into an offline practice fight against a mirror of your party.
+- **Try it yourself.** In a battle-capable build, press `Ctrl+Shift+A` to drop into an offline practice
+  fight against a mirror of your party. You do **not** need to be in a battle already — measured
+  2026-08-19, it works from the matchmaking screen, and the key does no checking of where you are. The
+  real constraint runs the other way: press it only **after your party has loaded**, or it fails on a
+  missing reference. (This is our own added key, so it exists in a build made from this repository, not
+  in the shipped Steam copy.)
 
 ---
 

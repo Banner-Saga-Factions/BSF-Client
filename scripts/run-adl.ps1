@@ -73,11 +73,20 @@ $gameArgs = @(
 
 # root-dir = the install dir, so <content>app.game.air.swf</content> and all game assets resolve there.
 Write-Host "Launching under adl (root = $GamePath) ..." -ForegroundColor Green
-Write-Host "In-game: press Ctrl+Shift+A for the player-vs-AI battle. Watch this console for errors." -ForegroundColor DarkGray
-Write-Host "Output is also being written to: $logFile" -ForegroundColor DarkGray
+Write-Host "In-game: press Ctrl+Shift+A for the player-vs-AI battle (only after your party has loaded)." -ForegroundColor DarkGray
+Write-Host "Watch this console for errors." -ForegroundColor DarkGray
+Write-Host ""
+# The Tee-Object below only flushes when the pipeline ends, so while the game is running
+# $logFile still holds the PREVIOUS session - and force-killing the game loses this one
+# entirely. Say so here rather than letting someone read a stale file as today's evidence.
+Write-Host "LOGS - read this before trusting a log file:" -ForegroundColor Yellow
+Write-Host "  While the game is running, $logFile still contains the PREVIOUS run." -ForegroundColor Yellow
+Write-Host "  It is only written when the game exits, and is lost entirely if you force-kill it." -ForegroundColor Yellow
+Write-Host "  The live log is: $env:APPDATA\TheBannerSagaFactions\Local Store\logs\A-0.log.txt" -ForegroundColor Yellow
+Write-Host "  That file is locked while the game runs, so read it after exit." -ForegroundColor Yellow
 Write-Host ""
 
 & $adl -profile extendedDesktop $testDesc $GamePath -- @gameArgs *>&1 | Tee-Object -FilePath $logFile
 
 Write-Host ""
-Write-Host "adl exited. Full output captured in $logFile" -ForegroundColor Yellow
+Write-Host "adl exited. This run's output is now in $logFile" -ForegroundColor Yellow

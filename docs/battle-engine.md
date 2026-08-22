@@ -120,7 +120,7 @@ private function computeHash() : int
 }
 ```
 
-`computeHashStr()` (line 88, walks the alive participants via `battleFsm.order.getAliveParticipants`) concatenates a per-entity string that includes the entity's ID, HP, position, status effects, etc. — one line per entity, newline-separated. The DJB hash over that string is the **lockstep checksum**.
+`computeHashStr()` (walks the alive participants via `battleFsm.order.getAliveParticipants`) concatenates a per-entity string — one line per entity, newline-separated. Each line carries the entity's ID, the tile it stands on, and then a fixed list of twelve stats named in `SYNC_STATS`, **strength and armour first**, followed by willpower, armour break, exertion and the attack/resist modifiers. The DJB hash over that string is the **lockstep checksum**. Worth knowing which stats are in there: it is why two players who start from different numbers for the same unit are caught at the very first turn boundary rather than drifting silently — see `bsf-server/docs/client-contract.md` → R13 ([local](../../bsf-server/docs/client-contract.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/client-contract.md)).
 
 The hash is sent to the server in the `BattleSyncData` message (`services/battle/sync`, `BattleTxnTurnInitSend`) — **online battles only**; offline AI battles skip both the hash and the send (see "Offline battles — the AI path" below). **If the two players' hashes for a turn don't match, the battle is desync'd** — and the original Stoic implementation aborted the battle over it.
 

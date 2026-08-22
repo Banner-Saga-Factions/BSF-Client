@@ -117,12 +117,22 @@ When you log in, the server's account answer is parsed by `AccountInfoDefVars`
 The exact wire fields are in [`wire-protocol.md`](./wire-protocol.md) → "Account" and, on the server
 side, `bsf-server/docs/dataStructures.md` ([local](../../bsf-server/docs/dataStructures.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/dataStructures.md)).
 
-**The rule that keeps resurfacing in debugging:** in battle, a unit fights with **its own roster
-numbers**. The class definition only ever set the *allowed min/max* (§3) and clamped the roster values
-once (§4) — it is **not** consulted again during combat. So editing a class's stat ranges, or editing
-the stats inside a server-sent battle party, changes nothing about how strong a unit hits; only the
-roster `EntityDef` matters. (This is why the server sending a short or unresolved party shows up as a
-power mismatch — see the matchmaking gotchas in `bsf-server`.)
+**The rule that keeps resurfacing in debugging — and it is the opposite of what this document used to
+say.** In a battle against another player, a unit fights with the numbers the **server sent with that
+battle**, and so does the opponent's copy of it. Both parties on both screens are built from that one
+message. Your roster still matters — the server builds the party from it, and it decides who is in the
+party and the order they act in — but it is not what the units fight with. The class definition fills
+in only stats the message leaves out and pulls out-of-range values back inside the allowed band (§3,
+§4); it also recomputes the first-ability slot and the injury fields from rank whatever arrives.
+
+Measured on 2026-08-21: a unit whose strength and armour were changed on the way over — and only there
+— showed the changed numbers on **both** players' screens, while the roster on file kept its real ones.
+So editing the stats inside a server-sent battle party does not do nothing; it silently changes the
+battle for both players. An offline practice battle is different: it builds both sides from your own
+roster. Server side, with the full method: `bsf-server/docs/client-contract.md` → R13 ([local](../../bsf-server/docs/client-contract.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/client-contract.md)).
+
+Separately, and still true: the server sending a short or unresolved party shows up as a power
+mismatch — see the matchmaking gotchas in `bsf-server`.
 
 ---
 

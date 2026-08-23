@@ -70,6 +70,11 @@ function record(line) {
 //   [ {"afterMs": 500, "cmd": "battle_state"},
 //     {"afterMs": 1000, "cmd": "battle_end_turn"} ]
 // afterMs is the wait before that step, counted from the step before it.
+//
+// MIND THE FIRST DELAY. The clock starts when the game first talks to the
+// server, which is the login — well before your roster has loaded. Starting a
+// battle before that crashes on a missing party. Leave a generous wait before
+// the first start_ai_battle; script.example.json allows 28 seconds.
 // ---------------------------------------------------------------------------
 
 function runScript() {

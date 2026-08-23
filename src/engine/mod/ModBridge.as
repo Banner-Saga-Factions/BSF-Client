@@ -43,6 +43,11 @@ package engine.mod
     * added later cannot forget to opt in. Fails closed on a body that names a
     * secret but will not parse.
     *
+    * LIMIT: this redacts a FIELD, not a secret. {"password":"x"} is caught;
+    * {"note":"the password is x"} is not, because no field is named. If a route
+    * ever writes a credential into a message string, add its field name here
+    * rather than trusting the text to be spotted.
+    *
     * FAILURE MODE: if NativeProcess is unsupported or host.exe is absent, the
     * bridge marks itself failed once and every emit becomes a cheap no-op.
     * The game must never depend on the host being present.

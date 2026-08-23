@@ -3,16 +3,16 @@
 ## Co-Authored-By: Claude <noreply@anthropic.com>
 
 Our fork lets an outside helper program — a **"mod host"** — watch and steer the game without patching
-the game file over and over. The client launches `mods/host.exe` and the two talk over plain text:
-**one small JSON message per line**, in both directions. This doc is the contract a mod-host author
-needs.
+the game file over and over. The client launches that program from its own `mods/` folder, and the two
+talk over plain text: **one small JSON message per line**, in both directions. This doc is the contract
+a mod-host author needs.
 
 > **Secrets no longer reach the host.** The bridge used to forward your login message and session key
-> to whatever `mods/host.exe` was present. It now strips those values from every line in both
-> directions. See §8 for what is stripped and what a host can still see — a host remains a program
+> to whatever helper was present. It now strips those values from every line in both directions. See §8
+> for what is stripped, where that stops, and what a host can still see — a host remains a program
 > running on your machine, so "not leaking your password" is not the same as "safe to run".
 
-The in-code source of truth is the doc block at the top of `src/engine/mod/ModBridge.as:14-38`; this
+The in-code source of truth is the doc block at the top of `src/engine/mod/ModBridge.as:17-54`; this
 doc narrates it. Jargon glossed on first use: **NativeProcess** = Adobe AIR's way to launch and talk to
 a separate program; **stdin/stdout/stderr** = the program's input / output / error text channels;
 **EOF** = "end of input", the signal a channel has closed.
@@ -58,11 +58,11 @@ directions.
 ```
 
 **Keeping every message on one line.** A server response can be large or contain newlines, which would
-break the one-object-per-line rule. `spliceBody` (`ModBridge.as:477-499`) handles this: a body that is
+break the one-object-per-line rule. `spliceBody` (`ModBridge.as:482-504`) handles this: a body that is
 already single-line JSON is spliced in **verbatim** (so the host sees exactly what the server sent);
 anything multi-line or non-JSON is re-encoded as a quoted JSON string. On the receiving side the host
 must read one line at a time. The bridge itself reassembles the host's output across arbitrary chunk
-boundaries and only acts on complete lines (`drainStdout`, `:508-559`).
+boundaries and only acts on complete lines (`drainStdout`, `:513-564`).
 
 **One exception to "verbatim": secrets are removed.** A body carrying a password, a Steam ticket or a
 session key is re-encoded with those values replaced by `[redacted]` (§8). Every other body is passed
@@ -74,7 +74,7 @@ what the server actually sent.
 1. **Keep stdout for protocol only** — every stdout line must be a valid command object; stray prints
    corrupt the stream.
 2. **Log to stderr** — the bridge forwards the host's stderr into the game log, prefixed `[modhost]`
-   (`onStderr`, `:561-571`).
+   (`onStderr`, `:566-576`).
 3. **Quit when stdin reaches EOF** — AIR can't always kill the host, so the host must exit on its own
    when its input closes (see §4).
 
@@ -87,21 +87,21 @@ Each is a **cheap no-op when no host is present**, so hook sites stay one-liners
 
 | Call                                                  | What it does                                                                   |
 | ----------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `ensureStarted(logger)` (`:129`)                      | Start the host on first call; idempotent and cheap afterward.                   |
-| `running` (getter, `:239`)                            | Is the host process alive right now?                                            |
-| `emit(name, data)` (`:245`)                           | Send a generic `{"event":name,"data":data}` line.                               |
-| `emitHttpRequest(txn, url, body)` (`:295`)            | Copy an outbound server request to the host.                                    |
-| `emitHttpResponse(txn, url, status, ok, rawBody)` (`:270`) | Copy a raw server response to the host.                                    |
-| `registerCommand(name, handler)` (`:339`)             | Expose a named command a host can call (see §5).                                |
+| `ensureStarted(logger)` (`:134`)                      | Start the host on first call; idempotent and cheap afterward.                   |
+| `running` (getter, `:244`)                            | Is the host process alive right now?                                            |
+| `emit(name, data)` (`:250`)                           | Send a generic `{"event":name,"data":data}` line.                               |
+| `emitHttpRequest(txn, url, body)` (`:300`)            | Copy an outbound server request to the host.                                    |
+| `emitHttpResponse(txn, url, status, ok, rawBody)` (`:275`) | Copy a raw server response to the host.                                    |
+| `registerCommand(name, handler)` (`:344`)             | Expose a named command a host can call (see §5).                                |
 
-Plus one public flag, `spectatorMode` (`:100`), set by the built-in `set_spectator` command (see §7).
+Plus one public flag, `spectatorMode` (`:105`), set by the built-in `set_spectator` command (see §7).
 
 ---
 
 ## 4. The host's life
 
 - **Where it lives.** In `<applicationDirectory>/mods/`, launched with that folder as its working
-  directory (`resolveHost`, `:168-225`; `start`, `:348-377`). There are two ways to name it:
+  directory (`resolveHost`, `:173-230`; `start`, `:353-382`). There are two ways to name it:
   - **`mods/host.json`**, if present, names the program and its arguments —
     `{"program":"node.exe","args":["host.js"]}`. `program` is taken relative to `mods/` unless it is an
     absolute path. This is what lets a host be a **script**, which needs an interpreter to start it.
@@ -115,17 +115,17 @@ Plus one public flag, `spectatorMode` (`:100`), set by the built-in `set_spectat
   claimed.
 - **When it starts.** Lazily, **the first time the game talks to the server** — the HTTP tap calls
   `ensureStarted` on the first transaction (`HttpAction.as:140`). No server traffic, no host.
-- **If it crashes.** The bridge restarts it, up to **three times** (`MAX_RESTARTS = 3`, `:68`;
-  `onExit`, `:662-695`); after that it gives up and goes quiet. A host that stayed up for a minute
+- **If it crashes.** The bridge restarts it, up to **three times** (`MAX_RESTARTS = 3`, `:73`;
+  `onExit`, `:667-700`); after that it gives up and goes quiet. A host that stayed up for a minute
   counts as a clean run and **resets that budget**, so three unrelated blips hours apart no longer
   retire the bridge for the rest of the session.
 - **When the game exits.** The bridge emits a final `SHUTDOWN`, closes the host's stdin (delivering EOF,
   the host's cue to exit), **reads anything the host has already written**, then force-kills it so a
-  misbehaving host can't outlive the game as an orphan (`onAppExiting`, `:702-724`). That last read is
+  misbehaving host can't outlive the game as an orphan (`onAppExiting`, `:707-729`). That last read is
   why a host's closing summary now survives.
 - **If anything is missing.** No NativeProcess support, no `host.exe`, or a `host.json` that will not
   parse or names a program that isn't there? The bridge **marks itself failed once and every call
-  becomes a no-op** (`ensureStarted`, `:129-166`) — the game runs completely normally. (The bridge needs
+  becomes a no-op** (`ensureStarted`, `:134-171`) — the game runs completely normally. (The bridge needs
   AIR's `extendedDesktop` profile, which `META-INF/AIR/application.xml:117` already declares. No `mods/`
   folder ships with the game.)
 
@@ -133,12 +133,12 @@ Plus one public flag, `spectatorMode` (`:100`), set by the built-in `set_spectat
 
 ## 5. Commands — how the host steers the game
 
-A host drives the game by writing a `{"cmd":…}` line. The bridge parses it (`processLine`, `:573-601`),
-looks the name up in a static registry, and runs the handler (`executeCommand`, `:603-633`). If the
+A host drives the game by writing a `{"cmd":…}` line. The bridge parses it (`processLine`, `:578-606`),
+looks the name up in a static registry, and runs the handler (`executeCommand`, `:608-638`). If the
 command carried an `id`, the handler's return value is sent back as a `RESULT` (or an `ERROR` if it
 threw or the name is unknown) — that `id` is how a host **matches a reply to its request**.
 
-Two commands are built in (`createBuiltins`, `:647-660`):
+Two commands are built in (`createBuiltins`, `:652-665`):
 
 - **`ping`** → replies `"pong"`.
 - **`set_spectator`** → sets the `spectatorMode` flag (see §7).
@@ -262,6 +262,13 @@ Three details matter if you are relying on this:
   whole rather than passed through. Losing a line beats leaking a password on a body we could not read.
 - **The cost is near zero.** Every body is scanned for those four names — a plain substring search — and
   only a body that hits one is parsed and rewritten.
+
+**Where it stops, stated plainly:** it redacts a **field**, not a secret. `{"password":"hunter2"}`
+becomes `[redacted]`; `{"note":"my password is hunter2"}` does **not**, because no field is named
+`password` — the secret is loose inside ordinary text under an innocent key. Nothing the client sends
+looks like that, and no server reply we know of does either, but a future route that writes a credential
+into a message string would slip through. If you add one, add its field to `SECRET_FIELDS`
+(`ModBridge.as:81`) — don't rely on the text being noticed.
 
 *Correction to an earlier version of this doc:* it named a **Discord OAuth token** among the leaked
 fields. There is no Discord token in the client — the whole source tree has no mention of Discord, and

@@ -1,4 +1,4 @@
-# patch-gui-swf.ps1 — Surgical JPEXS P-code patch for the Ranked-match crash (issue #1006).
+﻿# patch-gui-swf.ps1 — Surgical JPEXS P-code patch for the Ranked-match crash (issue #1006).
 #
 #   *** SHELF PATCH — produces a patched COPY; it does NOT install anything. ***
 #

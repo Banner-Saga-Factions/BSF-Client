@@ -1,4 +1,4 @@
-# run-adl.ps1 — Run the freshly-compiled client under the AIR SDK 51 debug launcher (adl).
+﻿# run-adl.ps1 — Run the freshly-compiled client under the AIR SDK 51 debug launcher (adl).
 #
 # WHY: the Steam install ships a 2013 AIR runtime (AIR 3.7 / SWF v20) that cannot run a SWF compiled
 # with AIR SDK 51. adl uses the modern SDK runtime, so the APIs our compiled code links against are
@@ -89,7 +89,7 @@ if ($nameCount -ne $idCount) {
     exit 1
 }
 if ($nameCount -gt 1) {
-    Write-Host "Two-player mode: $nameCount views in one window, left to right — $Username" -ForegroundColor Cyan
+    Write-Host "Two-player mode: $nameCount views in one window, left to right - $Username" -ForegroundColor Cyan
 }
 
 # Build an adl-friendly descriptor from the real one:
@@ -107,7 +107,7 @@ Write-Host "Wrote adl descriptor: $testDesc  (namespace 51.0, <extensions> strip
 # The client boots through login -> camp, so the server must be up.
 $serverUp = Test-NetConnection -ComputerName localhost -Port 8082 -InformationLevel Quiet -WarningAction SilentlyContinue
 if (-not $serverUp) {
-    Write-Host "WARNING: nothing is listening on localhost:8082 — start ..\bsf-server\start-server.bat first." -ForegroundColor Yellow
+    Write-Host "WARNING: nothing is listening on localhost:8082 - start ..\bsf-server\start-server.bat first." -ForegroundColor Yellow
 }
 
 # Same arguments launch-game-1p.ps1 passes to the captive .exe.

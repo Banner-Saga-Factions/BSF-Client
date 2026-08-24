@@ -1,4 +1,4 @@
-# install-mod-host.ps1 — put the test helper program where the game will find it.
+﻿# install-mod-host.ps1 — put the test helper program where the game will find it.
 #
 # WHAT THIS DOES: the game looks for a helper ("mod host") in a mods\ folder inside its own
 # install directory. This copies our helper there and writes the small descriptor that tells the
@@ -39,7 +39,7 @@ if ($Remove) {
         Write-Host "Removed $modsDir" -ForegroundColor Green
         Write-Host "The game will now log 'ModBridge disabled: no mods/host.exe' and run normally." -ForegroundColor DarkGray
     } else {
-        Write-Host "Nothing to remove — $modsDir does not exist." -ForegroundColor Yellow
+        Write-Host "Nothing to remove - $modsDir does not exist." -ForegroundColor Yellow
     }
     exit 0
 }

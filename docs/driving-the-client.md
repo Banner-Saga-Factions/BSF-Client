@@ -59,8 +59,15 @@ comma-separated form:
 ```
 
 Pass one id per name; the launcher stops you if the counts differ, because otherwise the later views
-quietly share the first id and log in as each other. This matters for more than convenience — two-player
-testing was the main reason to reach for the shipped build, and it is not a reason any more.
+quietly share the first id and log in as each other.
+
+> ⚠ **Measured 2026-08-23: this launches, matches and deploys, but the battle does not start.** Both
+> halves logged in, found each other, and agreed on one battle (a single `battleId` across both). Both
+> reported themselves ready. Neither ever saw the other as ready — `remotesReady=false` throughout — so
+> the battle sat at its opening state. A separate fault appeared alongside it: a `#1034` type-coercion
+> error killed the initiative bar, in the known resource-SWF class-resolution blind spot (§8). The
+> shipped Steam build does complete two-player battles, so **for now two-player testing still belongs on
+> the shipped build.** Tracked as its own piece of work; do not read the paragraph above as "this works".
 
 That is the single most useful fact here for two-player testing: **one screenshot captures both
 players at once**, so there is no window to hunt for, nothing to alt-tab between, and no chance of the
@@ -319,19 +326,33 @@ shipped Steam copy is not. That sounds like a serious objection and mostly is no
 redistribute, and the game is delisted from Steam. So the shipped copy is the legacy artefact, not the
 target. Work spent making our build testable is work spent on the build players will eventually have.
 
-**The capability gap is narrower than it looks.** Two-player side-by-side — the main thing the shipped
-copy was used for — is game code we compile, and our launcher now does it (§1). What genuinely still
-differs is the runtime (modern AIR rather than the shipped 2013 one) and the missing extensions: no
-sound, no Steam. That is the same gap the public release has to close anyway.
+**The capability gap is narrower than it looks — but it is not closed.** Two-player side-by-side is game
+code we compile, and our launcher now drives it (§1). Measured, it gets as far as both halves matching
+into one battle and both declaring themselves ready, and no further: neither sees the other as ready, and
+the initiative bar dies on the way with a type-coercion error in the resource-SWF blind spot below. The
+shipped copy still completes two-player battles. Beyond that, our build differs in runtime (modern AIR
+rather than the shipped 2013 one) and in the missing extensions: no sound, no Steam.
 
-So: **run both channels against our build.** Keep the shipped copy for one purpose — asking "does the old
-artefact still behave the same?" — and expect that need to shrink as the release work lands.
+So: **run the bridge and single-client screen work against our build, and keep two-player on the shipped
+copy until the fault above is fixed.** The long-run direction is unchanged — our build is where this is
+heading — but the handover is not done, and writing it down as done would have cost somebody a day.
 
 ### What the bridge can do today
 
 `ping`, `start_ai_battle`, `battle_state` and `battle_end_turn`. That is enough to start a practice
 battle, read the board — every unit's side, place, and current-versus-base numbers — and step the turns
 along deterministically instead of waiting on the countdown ring.
+
+**Measured working 2026-08-23**, in the real game rather than a test harness. The game log for that run
+shows the whole path: the helper starting (`ModBridge started host: …node.exe host.js`, so the
+descriptor works), its own lines coming back tagged `[modhost]`, `ping` answered `"pong"`, and
+`battle_state` answering `{"inBattle":false}` from outside a battle. A separate practice battle ran to
+nine turns.
+
+One thing that run also showed: **`Error #3218` while writing to the helper's input** appears
+occasionally — once mid-session and once at shutdown. It is caught and logged, traffic continues after
+it, and the shutdown one is expected (the helper has already quit on end-of-input by then). Treat a
+single one as noise; a burst of them means the helper has stopped reading.
 
 **It cannot yet issue a move or an attack.** The machinery is there and proven (it is the same path the
 online game uses to apply an opponent's move), but tile coordinates and target validation are their own

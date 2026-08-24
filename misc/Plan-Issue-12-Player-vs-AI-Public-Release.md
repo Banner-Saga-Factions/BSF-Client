@@ -157,6 +157,37 @@ server calls), and the AI party deploys + takes turns correctly. The defects are
 which `Legend` subclass is live at runtime (it may override `hireRosterUnit` to send a server txn). Identify
 the runtime `Legend` subclass before asserting the hire silently no-ops — defer to the Wave-5 roster work.
 
+### 3.5b [MEASURED 2026-08-23] HIGH — the reroute breaks the versus battle HUD (`#1034`)
+Running two clients against each other on our build (`run-adl.ps1 -Username "a,b" -SteamId "1,2"`) throws:
+
+```
+TypeError: Error #1034: Type Coercion failed: cannot convert gui::battle_initiative@… to
+game.gui.battle.initiative.GuiInitiative
+  at game.gui.battle::GuiBattleHud/set initiative()
+  at game.gui.page::BattleHudPageLoadHelper/initiativeLoadedHandler()
+```
+
+**Why it happens.** `gui::battle_initiative` (the symbol in `battle_initiative.swf`) is declared
+`extends GuiInitiative`. `GuiBattleHud` exists **only in the app SWF**, so its `set initiative` parameter
+is the **app's** `GuiInitiative`. The §3.5 reroute's own note already recorded the deciding fact:
+*"the gui-SWF GuiInitiative SYMBOL still binds to its own copy"*. Two different class objects with the
+same name, so the assignment cannot coerce. The reroute was validated on ~4 **offline** battles, which do
+not take this path — `AiBattleLoadState` preloads the battle gui SWFs as one group, giving a load order
+the versus path does not have. This is exactly the "load-order-dependent invariant" §3.5 warned about,
+now observed failing.
+
+**Not caused by the bridge work** — the reroute dates from 2026-06-23; the two-player launcher merely made
+this path reachable on our build.
+
+**Also measured in the same run, and possibly a consequence:** both halves matched into a single battle
+(one `battleId`) and both reached `BattleStateInit.setReady` with `localReady=true`, but `remotesReady`
+never became true, so the battle never started. Whether the dead HUD causes the stalled handshake or the
+two faults are independent is **not established** — establish it before fixing either.
+
+**Where to start:** the reroute comment offers `allowCodeImport=false` as the escalation, which would force
+the app's `GuiInitiative` to win and should resolve the coercion. Test that against **both** paths — the
+offline battle it was originally added to fix, and the versus battle it currently breaks.
+
 ### 3.5 [single-pass] MEDIUM — domain-reroute blast radius
 Routing `battle_initiative.swf` into `currentDomain` pulls **471 bundled classes** into the app domain
 (incl. stale copies of `ModBridge`/`HttpAction`/`DisplayResourceLoader`); safe only because AS3 keeps the

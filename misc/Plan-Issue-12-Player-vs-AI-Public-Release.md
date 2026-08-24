@@ -184,9 +184,42 @@ this path reachable on our build.
 never became true, so the battle never started. Whether the dead HUD causes the stalled handshake or the
 two faults are independent is **not established** — establish it before fixing either.
 
-**Where to start:** the reroute comment offers `allowCodeImport=false` as the escalation, which would force
-the app's `GuiInitiative` to win and should resolve the coercion. Test that against **both** paths — the
-offline battle it was originally added to fix, and the versus battle it currently breaks.
+### Both domain-level escalations tested and rejected (2026-08-24)
+
+The reroute comment offered `allowCodeImport=false` as the escalation. **It cannot work, and neither can
+the obvious alternative.** Both were built and run against the offline battle:
+
+| Attempt | Result |
+| --- | --- |
+| `allowCodeImport = false` (scoped to the one URL) | **Worse.** `SecurityError #3226: Cannot import a SWF file when LoaderContext.allowCodeImport is false` — the flag refuses *any* code-bearing SWF, which is exactly what this is. `BattleHudPageLoadHelper FAILED`, no initiative bar at all, battle stalls in Deploy. |
+| `new ApplicationDomain(ApplicationDomain.currentDomain)` (a **child** of the app domain) | **Worse.** Crash A returns: `#1009` in `GuiUtil.updateDisplayList` via `GuiInitiative.setInitiativeEntities`, on the deploy path, killing the run. |
+| Original `ApplicationDomain.currentDomain` (unchanged) | Offline battle runs: Init → Deploy → Start → 9 turns. |
+
+**Why the child domain fails, which is the reusable lesson.** A child application domain resolves a name
+it defines *itself* locally, and walks up to its parent **only for names it does not have**. Since the SWF
+carries its own `GuiUtil`, the child uses that one — the app's guarded copy never gets a look in. Loading
+*into* `currentDomain` works for the opposite reason: a duplicate definition is **discarded** in favour of
+the one already there, so the app's copy wins. Anyone reasoning "a child inherits the parent's classes, so
+the app's will win" has it backwards; that assumption cost a build-and-run cycle here.
+
+**Where to start instead — and it is not a domain change.** The coercion fails against the app's own
+`GuiBattleHud`, which is **app code we compile and can patch**:
+
+```
+private var _initiative:GuiInitiative;                       // concrete class
+public function set initiative(param1:IGuiInitiative):void   // interface
+{ ... _initiative = param1 as GuiInitiative; ... }           // the narrowing point
+```
+
+The interface (`IGuiBattleHud`) and the setter parameter are both `IGuiInitiative`; only the **field** is
+narrowed to the concrete class, and `addChild`/`removeChild` need a `DisplayObject`, not the interface.
+Holding the interface plus a separate `DisplayObject` reference would let the HUD accept *either*
+`GuiInitiative` class. That is a contained, app-side change with no domain games — try it before touching
+the loader again.
+
+*(Note the decompiled line reads `as`, which returns null rather than throwing. Since a `#1034` is
+observed, the real bytecode narrows harder than the decompile suggests — confirm against the bytecode
+before assuming the source is faithful.)*
 
 ### 3.5 [single-pass] MEDIUM — domain-reroute blast radius
 Routing `battle_initiative.swf` into `currentDomain` pulls **471 bundled classes** into the app domain

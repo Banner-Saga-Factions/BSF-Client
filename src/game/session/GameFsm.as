@@ -2,6 +2,7 @@ package game.session
 {
    import engine.core.fsm.Fsm;
    import engine.core.fsm.StateData;
+   import engine.mod.ModBattleControl;
    import engine.mod.ModBridge;
    import engine.core.http.HttpAction;
    import engine.core.http.HttpCommunicator;
@@ -175,6 +176,11 @@ package game.session
             return "ok";
          });
          logger.info("ModBridge command registered: start_ai_battle");
+
+         // Reading a battle and ending a turn from the bridge. Kept in its own
+         // class so this stays a registration site; ModBattleControl explains why
+         // it reaches down to the battle through one untyped hop.
+         ModBattleControl.register(this,logger);
       }
 
       /**

@@ -1,4 +1,4 @@
-# Exports all ActionScript source from the original BSF SWF using JPEXS.
+﻿# Exports all ActionScript source from the original BSF SWF using JPEXS.
 # Output goes to _decompiled/ in the repo root (gitignored).
 #
 # Usage:

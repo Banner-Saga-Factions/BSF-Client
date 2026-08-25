@@ -12,11 +12,11 @@ buried in a plan.
 
 | What | Count | Notes |
 |---|---|---|
-| Patched/added `.as` overlays | **33** | The behavior + repair surface below. |
+| Patched/added `.as` overlays | **34** | The behavior + repair surface below. |
 | Embedded font glyph data | 3 `.cff` | `src/_assets/*.cff` — the outlines the three font wrappers re-embed. |
 | AIR descriptor | 1 | `META-INF/AIR/application.xml` — **outside `src/`**; declares the `extendedDesktop` profile (needed by the mod bridge's NativeProcess) and lists the platform ANEs (Adobe Native Extensions — bundled native-code plugins, e.g. Steamworks and FMOD). Adding the `bsf://` URL scheme is **planned — not yet in the committed descriptor**. |
 
-**Two kinds of patch.** Roughly a third of the 33 overlays change **no behavior at all** — they are
+**Two kinds of patch.** Roughly a third of the 34 overlays change **no behavior at all** — they are
 faithful repairs of code the JPEXS decompiler mangled (illegal class names, lost imports, raw
 bytecode opcodes). The rest are real fork changes: crossplay, offline AI, the mod bridge, and gui
 compatibility. Each row below says which it is.
@@ -35,11 +35,12 @@ compatibility. Each row below says which it is.
 | `src/GameMainAir.as` | The AIR entry point and top of the boot spine (see [`client-overview.md`](./client-overview.md)). | Overlaid so the boot path can wire the fork's additions. `[Inference]` — there is no in-file patch comment; its role is confirmed by its imports (`FmodSoundDriver`/`NullSoundDriver`, `SteamworksAne`, `GameWrapper`, `GameConfig`). |
 | `src/game/session/states/PreAuthState.as` | When `overrideSteamId` is set, replaces the Steam auth-ticket fetch with the crossplay bypass token (`:31–33`, sets `steamAuthTicket = "override-authticket"`). | The documented crossplay auth patch point — trace it in [`wire-protocol.md`](./wire-protocol.md) → login flow. |
 
-## Mod bridge (2)
+## Mod bridge (3)
 
 | File | What changed | Why |
 |---|---|---|
-| `src/engine/mod/ModBridge.as` | **New file.** A bidirectional bus to an external mod-host process launched via NativeProcess (`mods/host.exe`): one JSON object per newline-terminated line, a command registry, and a restart/shutdown lifecycle. If the host is missing it marks itself failed once and every emit becomes a cheap no-op. | The fork's non-Stoic scripting hook. Full wire protocol is in the file's own doc block; narrative in [`mod-bridge.md`](./mod-bridge.md). |
+| `src/engine/mod/ModBridge.as` | **New file.** A bidirectional bus to an external mod-host process launched via NativeProcess: one JSON object per newline-terminated line, a command registry, and a restart/shutdown lifecycle. If the host is missing it marks itself failed once and every emit becomes a cheap no-op. Starts either `mods/host.exe` or whatever `mods/host.json` names, so a host can be a script. Strips secret values (`password`, `steam_auth_ticket`, `session_key`, `steamCredentials`) from every line in both directions. | The fork's non-Stoic scripting hook, and the control channel for testing. Full wire protocol is in the file's own doc block; narrative in [`mod-bridge.md`](./mod-bridge.md). |
+| `src/engine/mod/ModBattleControl.as` | **New file.** The `battle_state` and `battle_end_turn` bridge commands: read the live battle (units, sides, tiles, current-versus-base stats) and end the turn in progress. Registered from `GameFsm`. Reaches the battle through one untyped hop so an engine-layer class need not depend on game-layer `SceneState`. | Lets a test drive and check a battle without synthesising mouse clicks — see [`driving-the-client.md`](./driving-the-client.md) → "Two channels". |
 | `src/engine/core/http/HttpAction.as` | Taps every outbound request (`doSend`) and raw response (`onResponseReceived`) into `ModBridge`, lazy-starting the host on the first transaction (`:136`, "PATCH begin"). | Lets a mod observe all server traffic without touching each individual action. |
 
 ## Offline player-vs-AI (9)
@@ -123,7 +124,7 @@ All four are **no-behavior-change** repairs of decompiler damage.
 
 ## Count reconciliation
 
-33 `.as` overlays = 2 (crossplay/startup) + 2 (mod bridge) + 9 (offline AI) + 7 (gui) + 2 (resource) +
+34 `.as` overlays = 2 (crossplay/startup) + 3 (mod bridge) + 9 (offline AI) + 7 (gui) + 2 (resource) +
 4 (board/landscape) + 4 (fonts) + 1 (audio) + 1 (saga) + 1 (view). Of these, **~11 are pure
 decompiler-artifact repairs** with no behavior change (`ResourceTree`, the four
 board/landscape repairs, the four font repairs, `NullSoundDriver`, and `TutorialTooltip`) — the honest "real

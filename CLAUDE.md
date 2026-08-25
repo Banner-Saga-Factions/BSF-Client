@@ -13,13 +13,14 @@ The full ~1,272-file AS3 source lives in `_decompiled/` (gitignored, generated b
 | `scripts/apply-patches.ps1` | Copies `src/` onto `_decompiled/` |
 | `scripts/build.ps1` | Compiles with `amxmlc`, packages with `adt` |
 
-Key patch files (a representative subset — the full 33-file inventory is [`docs/patch-inventory.md`](./docs/patch-inventory.md)):
+Key patch files (a representative subset — the full 34-file inventory is [`docs/patch-inventory.md`](./docs/patch-inventory.md)):
 
 | File | Change |
 |------|--------|
 | `src/game/session/states/PreAuthState.as` | Replace Steam ticket fetch with Discord OAuth token |
 | `src/engine/steamworks/DiscordSteamworks.as` | **Planned — not yet created.** Intended `ISteamworks` stub feeding Discord credentials through the existing Steam auth path; crossplay currently lives entirely in `PreAuthState.as` |
-| `src/engine/mod/ModBridge.as` | New — NativeProcess event bus to external mod host (`mods/host.exe`); newline-delimited JSON over stdin/stdout, command registry, restart/shutdown lifecycle |
+| `src/engine/mod/ModBridge.as` | New — NativeProcess event bus to an external mod host (`mods/host.json` names it, or `mods/host.exe`); newline-delimited JSON over stdin/stdout, command registry, restart/shutdown lifecycle, secret-field redaction |
+| `src/engine/mod/ModBattleControl.as` | New — the `battle_state` / `battle_end_turn` bridge commands; the control channel for testing the client ([`docs/driving-the-client.md`](./docs/driving-the-client.md) → "Two channels") |
 | `src/engine/core/http/HttpAction.as` | Patched decompile — taps every outbound request (`doSend`) and raw response (`onResponseReceived`) into `ModBridge`; lazy-starts the host on first txn |
 | `META-INF/AIR/application.xml` | **Planned — not yet applied.** Add the `bsf://` URL scheme and remove the Steamworks ANE for mobile targets |
 

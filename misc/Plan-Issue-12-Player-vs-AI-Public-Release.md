@@ -35,9 +35,10 @@ reviewer, not yet cross-checked.
   enumerable.
 - **Verdict: KEEP decompile/recompile** (it's high-fidelity *and* the only way to add app code), in a
   **hybrid** with JPEXS bytecode-patches for the few unshimmable gui-SWF cases. Don't switch approaches.
-- **Public release is still blocked** by concrete, findable things: a player-facing crash (§3.1), a
-  credential leak (§3.2), launch-safety gaps incl. an unimplemented spectator mode documented as working
-  (§3.3), the packaging/runtime wall + no audio (§5), and no regression/repro guard (§5).
+- **Public release is still blocked** by concrete, findable things: a player-facing crash (§3.1),
+  launch-safety gaps incl. an unimplemented spectator mode documented as working (§3.3), the
+  packaging/runtime wall + no audio (§5), and no regression/repro guard (§5). The credential leak (§3.2)
+  is **fixed**, and the regression guard now has a working channel to be built on — see Wave 2.
 
 ---
 
@@ -122,11 +123,18 @@ forward-decompiled app no longer matches — but this doesn't change any conclus
 party reliably crashes the damage-preview overlay on the player's own turn. Fix: same null-safe guard
 pattern as `AiPlan`.
 
-### 3.2 [verified] CRITICAL — ModBridge credential leak
-`HttpAction`'s tap emits the **verbatim `AuthTxn` request body** (username/password / Discord-OAuth token)
-**and** response (`session_key`) over stdout to any local `mods/host.exe`. Redact/disable the auth-txn tap
-before any shared build. (Lower, [single-pass]: unbounded stdout buffer, restart counter never resets,
-final stdout lines dropped on exit.)
+### 3.2 [FIXED 2026-08-23] CRITICAL — ModBridge credential leak
+`HttpAction`'s tap emitted the **verbatim `AuthTxn` request body** and response over stdout to any local
+`mods/host.exe`. **Fixed in Wave 2** — `ModBridge` now strips `password`, `steam_auth_ticket`,
+`session_key` and `steamCredentials` from every line in both directions, matched by field name rather
+than by transaction so a hook site added later cannot forget to opt in, and failing closed on a body that
+names a secret but will not parse. The three smaller siblings are fixed too: the stdout buffer is
+bounded, the restart counter resets after a clean run, and the host's pending output is read before the
+force-kill.
+
+*Correction:* this finding originally listed a **Discord OAuth token** among the leaked fields. There is
+no such field — the client source has no mention of Discord anywhere, and Discord identity is resolved
+server-side. What actually left the game is the four fields named above.
 
 ### 3.3 [verified] HIGH — launch-boundary safety gaps (the AI-wiring release-blockers)
 The battle-engine plumbing itself is **sound** [verified by trace]: independent stat copies (combat never
@@ -149,6 +157,70 @@ server calls), and the AI party deploys + takes turns correctly. The defects are
 which `Legend` subclass is live at runtime (it may override `hireRosterUnit` to send a server txn). Identify
 the runtime `Legend` subclass before asserting the hire silently no-ops — defer to the Wave-5 roster work.
 
+### 3.5b [MEASURED 2026-08-23] HIGH — the reroute breaks the versus battle HUD (`#1034`)
+Running two clients against each other on our build (`run-adl.ps1 -Username "a,b" -SteamId "1,2"`) throws:
+
+```
+TypeError: Error #1034: Type Coercion failed: cannot convert gui::battle_initiative@… to
+game.gui.battle.initiative.GuiInitiative
+  at game.gui.battle::GuiBattleHud/set initiative()
+  at game.gui.page::BattleHudPageLoadHelper/initiativeLoadedHandler()
+```
+
+**Why it happens.** `gui::battle_initiative` (the symbol in `battle_initiative.swf`) is declared
+`extends GuiInitiative`. `GuiBattleHud` exists **only in the app SWF**, so its `set initiative` parameter
+is the **app's** `GuiInitiative`. The §3.5 reroute's own note already recorded the deciding fact:
+*"the gui-SWF GuiInitiative SYMBOL still binds to its own copy"*. Two different class objects with the
+same name, so the assignment cannot coerce. The reroute was validated on ~4 **offline** battles, which do
+not take this path — `AiBattleLoadState` preloads the battle gui SWFs as one group, giving a load order
+the versus path does not have. This is exactly the "load-order-dependent invariant" §3.5 warned about,
+now observed failing.
+
+**Not caused by the bridge work** — the reroute dates from 2026-06-23; the two-player launcher merely made
+this path reachable on our build.
+
+**Also measured in the same run, and possibly a consequence:** both halves matched into a single battle
+(one `battleId`) and both reached `BattleStateInit.setReady` with `localReady=true`, but `remotesReady`
+never became true, so the battle never started. Whether the dead HUD causes the stalled handshake or the
+two faults are independent is **not established** — establish it before fixing either.
+
+### Both domain-level escalations tested and rejected (2026-08-24)
+
+The reroute comment offered `allowCodeImport=false` as the escalation. **It cannot work, and neither can
+the obvious alternative.** Both were built and run against the offline battle:
+
+| Attempt | Result |
+| --- | --- |
+| `allowCodeImport = false` (scoped to the one URL) | **Worse.** `SecurityError #3226: Cannot import a SWF file when LoaderContext.allowCodeImport is false` — the flag refuses *any* code-bearing SWF, which is exactly what this is. `BattleHudPageLoadHelper FAILED`, no initiative bar at all, battle stalls in Deploy. |
+| `new ApplicationDomain(ApplicationDomain.currentDomain)` (a **child** of the app domain) | **Worse.** Crash A returns: `#1009` in `GuiUtil.updateDisplayList` via `GuiInitiative.setInitiativeEntities`, on the deploy path, killing the run. |
+| Original `ApplicationDomain.currentDomain` (unchanged) | Offline battle runs: Init → Deploy → Start → 9 turns. |
+
+**Why the child domain fails, which is the reusable lesson.** A child application domain resolves a name
+it defines *itself* locally, and walks up to its parent **only for names it does not have**. Since the SWF
+carries its own `GuiUtil`, the child uses that one — the app's guarded copy never gets a look in. Loading
+*into* `currentDomain` works for the opposite reason: a duplicate definition is **discarded** in favour of
+the one already there, so the app's copy wins. Anyone reasoning "a child inherits the parent's classes, so
+the app's will win" has it backwards; that assumption cost a build-and-run cycle here.
+
+**Where to start instead — and it is not a domain change.** The coercion fails against the app's own
+`GuiBattleHud`, which is **app code we compile and can patch**:
+
+```
+private var _initiative:GuiInitiative;                       // concrete class
+public function set initiative(param1:IGuiInitiative):void   // interface
+{ ... _initiative = param1 as GuiInitiative; ... }           // the narrowing point
+```
+
+The interface (`IGuiBattleHud`) and the setter parameter are both `IGuiInitiative`; only the **field** is
+narrowed to the concrete class, and `addChild`/`removeChild` need a `DisplayObject`, not the interface.
+Holding the interface plus a separate `DisplayObject` reference would let the HUD accept *either*
+`GuiInitiative` class. That is a contained, app-side change with no domain games — try it before touching
+the loader again.
+
+*(Note the decompiled line reads `as`, which returns null rather than throwing. Since a `#1034` is
+observed, the real bytecode narrows harder than the decompile suggests — confirm against the bytecode
+before assuming the source is faithful.)*
+
 ### 3.5 [single-pass] MEDIUM — domain-reroute blast radius
 Routing `battle_initiative.swf` into `currentDomain` pulls **471 bundled classes** into the app domain
 (incl. stale copies of `ModBridge`/`HttpAction`/`DisplayResourceLoader`); safe only because AS3 keeps the
@@ -160,6 +232,15 @@ The dormant AI works on **live in-sim objects**; the only serialized move-inject
 (`BattleStateTurnRemote`) is on the **online** path this feature disables. ModBridge can *orchestrate*
 (start/spectate/telemetry) but the AI **must stay in-SWF and be patched**. An external brain is not an
 escape from app-SWF surgery.
+
+> **Scope clarification (2026-08-23) — this does not forbid bridge-driven testing.** The finding is about
+> hosting a *decision-maker*, which needs the live in-battle objects afresh every turn. A **test driver**
+> is a different thing: it replays known steps and checks the result. That is now built and working
+> (`battle_state` / `battle_end_turn`, `ModBattleControl.as`), and the move-injection path it will
+> eventually use is the very `BattleStateTurnRemote` machinery named above — reachable in-SWF, because
+> the command handler is in-SWF and only its *trigger* comes from outside. Read this finding as "the AI
+> stays in the SWF", not as "the bridge cannot drive a battle". See
+> [`../docs/driving-the-client.md`](../docs/driving-the-client.md) → "Two channels".
 
 ## 4. The decision + approach tradeoffs
 
@@ -180,7 +261,7 @@ wall).
 ## 5. Public-release gap list (prioritized)
 
 - **MUST** — player-facing crash `DamageFlagOverlay:74` (§3.1).
-- **MUST** — ModBridge credential leak (§3.2).
+- ~~**MUST** — ModBridge credential leak (§3.2).~~ ✅ Done 2026-08-23 (Wave 2).
 - **MUST** — packaging/runtime wall: only `adl` (SDK-51) runs the build today; packaged `adt` builds
   **reject the FMOD/Steamworks ANEs on desktop (error 112)** → no runnable player build and **no audio**.
   The SDK-33.1 experiment targets exactly this.
@@ -231,16 +312,21 @@ behavior-preserving pattern as the `AiPlan` fix; (b) gate `Ctrl+Shift+A` so it d
 > keep each diff minimal vs the decompile. Then build + verify a Ctrl+Shift+A battle with an armor-only
 > unit (e.g. Shieldbanger) in the party."
 
-### Wave 2 — ModBridge credential-leak fix (P0, small)
-**Goal:** stop leaking auth credentials to `mods/host.exe`.
-**Do:** redact/suppress the `AuthTxn` request body (username/password/Discord token) **and** the
-`session_key` in the `HttpAction` tap (`doSend`/`onResponseReceived`); bound the stdout buffer; reset the
-restart counter on a clean run; flush the final stdout line on exit.
-> **Kickoff:** "Issue-12 Wave 2 (ModBridge security). Per the public-release plan §3.2: the `HttpAction`
-> tap (`src/engine/core/http/HttpAction.as`) emits the verbatim AuthTxn request body and the `session_key`
-> response to `mods/host.exe`. Redact auth/secret fields before emitting (allowlist or skip AuthTxn
-> entirely); also bound `ModBridge.m_stdoutBuf`, reset the restart counter on success, and flush the final
-> line on exit. Verify the bridge still works for non-auth txns."
+### Wave 2 — ModBridge credential-leak fix (P0, small) — ✅ **DONE 2026-08-23**
+**Goal:** stop leaking auth credentials to a mod host.
+**Done:** all four items, in `src/engine/mod/ModBridge.as`. Secret values are stripped from every line in
+both directions; the stdout buffer is capped; a host that ran cleanly for a minute resets the restart
+budget; the host's pending output is read before the force-kill.
+
+**One deliberate change from the original plan.** The redaction was going to sit in the `HttpAction` tap,
+keyed on the transaction being `AuthTxn`. It went into `ModBridge` instead, keyed on **field name**. The
+tap is not the only way to reach the bridge — `emit` is public and any future hook site can call it — so
+a control placed at the caller can be bypassed by forgetting, while one at the choke point cannot. It
+also means a route that starts echoing a session key is covered the day it does, rather than the day
+someone notices. `HttpAction.as` was left untouched.
+
+Landed alongside the bridge-as-control-channel work; see
+[`../docs/driving-the-client.md`](../docs/driving-the-client.md) → "Two channels".
 
 ### Wave 3 — Dormant-AI crash-tail audit (P1, medium/investigative)
 **Goal:** surface the FULL latent-crash tail systematically instead of one-by-one.

@@ -1,4 +1,4 @@
-# Copies patch files from src/ onto the JPEXS decompile output in _decompiled/.
+﻿# Copies patch files from src/ onto the JPEXS decompile output in _decompiled/.
 # Run this after decompile.ps1 and before build.ps1.
 #
 # JPEXS exports to _decompiled/scripts/. (Older versions double-nested as

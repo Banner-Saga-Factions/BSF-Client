@@ -66,10 +66,22 @@ package engine.resource.loader
             // URL so town/map/popups keep their isolated-domain behavior). allowCodeImport stays true.
             // OBSERVED (2026-06-23 logs, ~4 battles, 0 #1009): the gui-SWF GuiInitiative SYMBOL still
             // binds to its own copy (it still logs), but GuiUtil -- referenced BY NAME -- resolves to our
-            // guarded app.game.air.swf copy and absorbs the null child, which is what stops Crash A. If a
-            // residual #1009 ever appears (e.g. the gui-SWF GuiInitiative's own unguarded frameleft
-            // deref), switch to allowCodeImport=false to force the app GuiInitiative (frameleft-guarded)
-            // to win too. See ~/.claude/plans/review-bsf-client-misc-plan-fix-issue-12-clever-storm.md.
+            // guarded app.game.air.swf copy and absorbs the null child, which is what stops Crash A.
+            // See ~/.claude/plans/review-bsf-client-misc-plan-fix-issue-12-clever-storm.md.
+            //
+            // DO NOT "escalate to allowCodeImport=false" -- an earlier version of this note suggested
+            // it; MEASURED 2026-08-24, it cannot work. allowCodeImport=false makes loadBytes REFUSE any
+            // SWF containing code (SecurityError #3226), and a code-bearing SWF is precisely what this
+            // is: the initiative bar then never loads at all (BattleHudPageLoadHelper FAILED) and the
+            // battle stalls in Deploy. Also measured and also worse: loading into a CHILD of
+            // currentDomain (new ApplicationDomain(currentDomain)) brings Crash A straight back, because
+            // a child resolves a name it defines ITSELF locally and only walks up to the parent for
+            // names it lacks -- so the SWF's own stale GuiUtil wins again. Loading INTO currentDomain
+            // works precisely because duplicate definitions are discarded in favour of the app's.
+            //
+            // The cost of that choice is the versus-path #1034 (see Plan-Issue-12 3.5b): the initiative
+            // symbol still arrives as a class the app-side GuiBattleHud's concrete-typed field will not
+            // accept. Fix that in GuiBattleHud (app code, ours to patch), NOT by changing the domain.
             _loc5_ = url.indexOf("battle_initiative.swf") != -1 ? ApplicationDomain.currentDomain : null;
             _loc4_ = null;
             _loc2_ = new LoaderContext(false,_loc5_,_loc4_);

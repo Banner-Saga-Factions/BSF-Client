@@ -1,4 +1,4 @@
-# Compiles patched AS3 source with amxmlc and packages the AIR app with adt.
+﻿# Compiles patched AS3 source with amxmlc and packages the AIR app with adt.
 # Run decompile.ps1 and apply-patches.ps1 first.
 #
 # Usage:

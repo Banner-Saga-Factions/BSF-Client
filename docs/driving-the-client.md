@@ -8,7 +8,9 @@ other kind of checking: **start the real game, look at it, click it, and see.**
 
 It covers how to launch it, how to read what you are looking at, how to drive it — including from an
 automated agent that can only take still screenshots — and the traps that waste an afternoon if nobody
-wrote them down. For _why_ the launcher works the way it does (the runtime mismatch, the missing audio
+wrote them down. **Clicking is no longer the only way to drive it: §8 explains which half of the job
+belongs to the mod bridge instead, and that is the section to read first if you are automating
+anything.** For _why_ the launcher works the way it does (the runtime mismatch, the missing audio
 extension), see [`build-workflow.md`](./build-workflow.md) → "The AIR SDK 33-vs-51 wall". For how the
 offline computer opponent actually thinks, see [`offline-ai.md`](./offline-ai.md).
 
@@ -39,13 +41,33 @@ The launcher's default arguments include `--versus_start`, which **puts you stra
 rather than at camp. On a single-player test machine that search never finds anyone, which is harmless
 — but don't read the "Searching for a match" screen as a hang.
 
-### Two players at once — one window, not two (shipped client)
+### Two players at once — one window, not two (both builds)
 
 `bsf-server\launch-game-2p.ps1` starts the Steam build with two usernames, and the result is not what
 the name suggests. Passing `--username a,b` makes the game build **one game view per name and lay them
 side by side inside a single window** — left is the first name, right is the second. Each half is a
 fully separate game: its own login, its own connection, its own battle state. They simply share a
 window.
+
+**This is game code, not launcher code, so our build does it too.** The splitting happens in
+`GameMainAir.parseArguments` → `initWrappers`, with `--steam_id` and `--child` applied per view — all of
+it inside the SWF we compile. `run-adl.ps1` simply used to hardcode one name. It now takes the same
+comma-separated form:
+
+```powershell
+.\scripts\run-adl.ps1 -Username "test,Pieloaf" -SteamId "123456,293850"
+```
+
+Pass one id per name; the launcher stops you if the counts differ, because otherwise the later views
+quietly share the first id and log in as each other.
+
+> ⚠ **Measured 2026-08-23: this launches, matches and deploys, but the battle does not start.** Both
+> halves logged in, found each other, and agreed on one battle (a single `battleId` across both). Both
+> reported themselves ready. Neither ever saw the other as ready — `remotesReady=false` throughout — so
+> the battle sat at its opening state. A separate fault appeared alongside it: a `#1034` type-coercion
+> error killed the initiative bar, in the known resource-SWF class-resolution blind spot (§8). The
+> shipped Steam build does complete two-player battles, so **for now two-player testing still belongs on
+> the shipped build.** Tracked as its own piece of work; do not read the paragraph above as "this works".
 
 That is the single most useful fact here for two-player testing: **one screenshot captures both
 players at once**, so there is no window to hunt for, nothing to alt-tab between, and no chance of the
@@ -275,8 +297,101 @@ crashes on a null reference.
 
 ---
 
+## 8. Two channels — what to drive with clicks, and what to drive with the bridge
+
+Everything above describes driving the game by synthesising input. That works, and it settled a real
+question. But it is slow, it breaks when a layout moves, and it needs a real desktop with a real screen.
+The client also carries a purpose-built remote-control channel — the **mod bridge**, one small JSON
+message per line between the game and a helper program ([`mod-bridge.md`](./mod-bridge.md)). This section
+records which of the two owns which job, so the choice is made deliberately rather than by habit.
+
+### The rule
+
+| Channel | Owns | Why |
+| ------- | ---- | --- |
+| **Mod bridge** | Our fork's own behaviour, reproducing and hunting crashes, measuring what the computer opponent does, and **setting up** any state worth looking at | Deterministic, scriptable, needs no screen |
+| **Screen** | Layout, rendering, animation, and final confirmation of anything a player sees | No JSON protocol will ever answer these |
+
+**They are not rivals.** The expensive part of screen testing is not the looking — it is the twenty
+clicks needed to reach the state worth looking at. Drive the setup over the bridge, then take the
+screenshot. That is the whole reason to have both.
+
+### Why both aim at our own build
+
+The bridge exists only in our rebuilt copy of the game, so choosing it means testing something the
+shipped Steam copy is not. That sounds like a serious objection and mostly is not, for two reasons.
+
+**Our build is meant to become what players run.** The public release
+(`misc/Plan-Issue-12-Player-vs-AI-Public-Release.md`) is the destination; Stoic has given permission to
+redistribute, and the game is delisted from Steam. So the shipped copy is the legacy artefact, not the
+target. Work spent making our build testable is work spent on the build players will eventually have.
+
+**The capability gap is narrower than it looks — but it is not closed.** Two-player side-by-side is game
+code we compile, and our launcher now drives it (§1). Measured, it gets as far as both halves matching
+into one battle and both declaring themselves ready, and no further: neither sees the other as ready, and
+the initiative bar dies on the way with a type-coercion error in the resource-SWF blind spot below. The
+shipped copy still completes two-player battles. Beyond that, our build differs in runtime (modern AIR
+rather than the shipped 2013 one) and in the missing extensions: no sound, no Steam.
+
+So: **run the bridge and single-client screen work against our build, and keep two-player on the shipped
+copy until the fault above is fixed.** The long-run direction is unchanged — our build is where this is
+heading — but the handover is not done, and writing it down as done would have cost somebody a day.
+
+### What the bridge can do today
+
+`ping`, `start_ai_battle`, `battle_state` and `battle_end_turn`. That is enough to start a practice
+battle, read the board — every unit's side, place, and current-versus-base numbers — and step the turns
+along deterministically instead of waiting on the countdown ring.
+
+**Measured working 2026-08-23**, in the real game rather than a test harness. The game log for that run
+shows the whole path: the helper starting (`ModBridge started host: …node.exe host.js`, so the
+descriptor works), its own lines coming back tagged `[modhost]`, `ping` answered `"pong"`, and
+`battle_state` answering `{"inBattle":false}` from outside a battle. A separate practice battle ran to
+nine turns.
+
+One thing that run also showed: **`Error #3218` while writing to the helper's input** appears
+occasionally — once mid-session and once at shutdown. It is caught and logged, traffic continues after
+it, and the shutdown one is expected (the helper has already quit on end-of-input by then). Treat a
+single one as noise; a burst of them means the helper has stopped reading.
+
+**It cannot yet issue a move or an attack.** The machinery is there and proven (it is the same path the
+online game uses to apply an opponent's move), but tile coordinates and target validation are their own
+piece of work.
+
+> **A note worth keeping, because the plan document reads more strictly than it means.**
+> `Plan-Issue-12` §3.6 says the bridge "cannot host the AI". That is true and refers to a decision-maker,
+> which needs the live in-battle objects afresh every turn. It does **not** rule out driving a scripted
+> test, which replays known steps and checks the result. Different requirement, different answer.
+
+### Setting it up
+
+```powershell
+.\scripts\install-mod-host.ps1              # put the helper in the game's mods\ folder
+.\scripts\install-mod-host.ps1 -Remove      # take it out again
+```
+
+The helper writes everything the game sent to `mods\transcript.jsonl`, and if a `mods\script.json` is
+present it sends those commands in order (`scripts\mod-host\script.example.json` shows the shape). Its
+own logging comes back tagged `[modhost]` in the game log.
+
+### The trap this replaces: which build am I actually running?
+
+`run-adl.ps1` used to check only that *a* game file was installed, not that it was ours. Launching the
+shipped file under the modern runtime works and looks completely normal — but there is no bridge and no
+`Ctrl+Shift+A`, and nothing on screen says so. That was a genuine afternoon-sized trap; the install
+directory holds the shipped file by default.
+
+Two things now close it. The launcher compares the installed file against the one we last built and
+refuses to start on a mismatch (pass `-AllowUnpatched` to override deliberately). And one line in the
+game log — `[modhost] bridge ready` — answers the question outright, because the shipped build cannot
+produce it.
+
+---
+
 ## Related reading
 
+- [`mod-bridge.md`](./mod-bridge.md) — the message contract, the commands, and what a helper program can
+  and cannot see.
 - [`build-workflow.md`](./build-workflow.md) — building the SWF, and why the client must run under the
   modern debug runtime with no audio extension.
 - [`offline-ai.md`](./offline-ai.md) — what the computer opponent does on its turn, and what it can't do.

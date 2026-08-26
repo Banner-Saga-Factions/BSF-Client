@@ -101,7 +101,8 @@ And one briefed to *disprove*:
 ```
 Agent({ subagent_type: "general-purpose", description: "Adversarial review",
   prompt: "Your job is to DISPROVE, not to verify. For each claim below, try to build a case
-  where it is false, and default to 'refuted' when you cannot settle it. Claims: <list them>.
+  where it is false. Answer 'refuted' only when you have a concrete counter-case, and
+  'unresolved' when you cannot settle it either way. Claims: <list them>.
   Report each as refuted / survived / unresolved, with file:line evidence." })
 ```
 
@@ -111,6 +112,8 @@ Agent({ subagent_type: "general-purpose", description: "Adversarial review",
 - **"Stoic wrote it this way"** — the 2013 mirror is stale for twelve files
 - **"this class is never loaded"** — and negative claims generally
 - **any runtime prediction** derived from reading AS3 statically instead of watching the client run
+
+**That last one has an answer the others do not: start the real game and look.** Reach for it whenever a review would otherwise report *unresolved*, and whenever the premise is "this patch reaches the running game" — one line in the game log, `[modhost] bridge ready`, settles which build is actually running, because the shipped copy cannot produce it. [`docs/driving-the-client.md`](./docs/driving-the-client.md) → "Two channels" divides the work: the **mod bridge** owns setting up state, reading a battle, and stepping turns (scriptable, deterministic, needs no screen), and a **screenshot** owns layout, rendering, and anything a player sees. Drive the setup over the bridge and spend screenshots only on the last step — the expensive part of screen testing is the twenty clicks needed to reach the state worth photographing, not the looking.
 
 **Verify the refuter's findings yourself before acting on them.** It is confidently wrong often enough to matter — one pass declared a data structure "never sent" on the strength of an unused constant, while a shipped JSON file contained it. When two reviewers disagree, that disagreement *is* the finding: settle it at the source.
 

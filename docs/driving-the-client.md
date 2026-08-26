@@ -431,6 +431,95 @@ produce it.
 
 ---
 
+## 9. The first automated test — and the two things it found
+
+Everything above is a person driving the game. `tests/first-battle.test.js` is that same journey with
+nobody at the keyboard: it starts the game, watches it log in, starts a practice battle, checks the
+board, steps three of the player's turns, and closes the game again. Twenty-seven seconds, and it is
+the client's first automated test of any kind.
+
+```powershell
+node --test                                # every client test
+node --test tests\first-battle.test.js     # only this one
+$env:BSF_TEST_VERBOSE=1; node --test       # and watch it work
+```
+
+Name the file, or name nothing at all — but **do not name the folder**. `node --test tests\` looks
+right and is not: Node runs the folder as though it were a single file and reports a baffling "cannot
+find module". It needs the same three things §1 needs, for the same reasons — the local server up,
+`AIR_HOME` set, and our own build installed.
+
+**It is a test of our build by definition**, since the channel it drives and the practice battle it
+starts exist only in the copy we compile. That is the deliberate trade §8 sets out, not an oversight —
+but it does mean a failure here can never be blamed on the original game.
+
+### Getting a conversation with a game you started
+
+The game starts its helper program, so a test cannot simply start the game and then talk to it: the
+helper is downstream of the game, not upstream of it. Three small files turn that round.
+
+| File | Job |
+| ---- | --- |
+| `tests/relay.js` | Installed as the game's helper. Calls back to the test already waiting on a numbered door, then copies bytes between the two, changing nothing. |
+| `tests/lib/game-session.js` | Starts the game, holds the conversation, closes it down. Everything a test should own — timeouts, failures, shutdown — lives here rather than in the game's helper. |
+| `tests/first-battle.test.js` | The checks themselves. |
+
+The test picks a free port, writes `mods/host.json` naming the relay and that port, starts the game and
+waits; whatever `host.json` held before is put back at the end. The descriptor names the file **in this
+repository** rather than copying it into the game folder, so there is only ever one copy to edit — the
+installed `host.js` had already drifted behind the repository's by the time this was written, which is
+exactly the drift that arrangement prevents.
+
+Two details worth keeping. The relay **holds on to anything the game says before the test is on the
+line**: the message announcing the channel is open arrives the instant the helper starts, a fraction
+before the connection completes, and losing it would cost the test its clearest evidence that the right
+build is running. And it copies **raw bytes, never text** — unit names contain characters like ð and ö
+that take more than one byte, and a chunk can split one down the middle.
+
+### Wait for the game to say it is ready; do not count seconds
+
+A fixed wait before `start_ai_battle` is what the example script does, and it is a guess. The game says
+when it is ready, in three messages the tap already carries: the login being answered, the account and
+roster arriving, and then a `services/game/location` request — the player landing somewhere. That last
+one is the useful one, because the game only sends it once its configuration is loaded **and** the
+account has been read, which is everything a battle needs in order to exist.
+
+This is not a tidiness point. A draft of this test started the battle as soon as the roster arrived,
+skipping the landing message, and **the battle silently never started** — `battle_state` answered
+`{"inBattle":false}` for two solid minutes with no error anywhere. Waiting for the right message turned
+that into a battle on the board in nine seconds.
+
+With the launch arguments `run-adl.ps1` passes, the place the player lands is `loc_versus` — the ranked
+match search, not camp (`--versus_start`; see `FactionsState`). Starting the practice battle cancels the
+search, which is why a run's traffic shows a `/vs/start` followed by a `/vs/cancel`.
+
+### Closing the game while a unit is walking hangs it
+
+**This is a real fault in the game, found by the test on its first run.** Closing the window mid-battle
+starts the game's own exit path, which tears the board down; tearing down a unit that is *still walking*
+interrupts the walk, and the interruption sets off a chain that asks the sprite pool for a target
+indicator after that pool has been emptied and set to nothing:
+
+```
+GameMainAir/exitingHandler -> GameConfig/cleanup -> Fsm/stopFsm -> SceneState/handleCleanup
+  -> Scene/cleanup -> BattleBoard/cleanup -> BattleEntity/cleanup
+  -> BattleEntityMobility/cleanup -> WalkTilesBehavior/interrupt -> ... -> BattleMove/setExecuted
+  -> BattleFsm/turnInRangeHandler -> TargetIndicatorSprite/set url
+  -> AnimClipSpritePool/pop -> addPool   ->  TypeError #1009
+```
+
+`AnimClipSpritePool.cleanup` sets `pools`, `acrs`, `poolAcrs`, `popped` and `resman` all to nothing, so
+the `pools[...]` read inside `addPool` is a read off nothing. The exit never finishes and the game sits
+there until it is forced.
+
+Measured both ways in one afternoon: closing while the computer's unit was walking **never** completed
+in twenty seconds, and closing with the board still completed in **1.7 seconds**. The test therefore
+waits for control to come back to the player before it closes — which is a fair thing to check anyway,
+since a turn has to come back from the computer rather than merely leave the player. Anyone driving the
+game by hand can avoid it the same way: do not close mid-move.
+
+---
+
 ## Related reading
 
 - [`mod-bridge.md`](./mod-bridge.md) — the message contract, the commands, and what a helper program can

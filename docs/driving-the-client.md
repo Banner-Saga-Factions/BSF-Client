@@ -339,24 +339,67 @@ heading — but the handover is not done, and writing it down as done would have
 
 ### What the bridge can do today
 
-`ping`, `start_ai_battle`, `battle_state` and `battle_end_turn`. That is enough to start a practice
-battle, read the board — every unit's side, place, and current-versus-base numbers — and step the turns
-along deterministically instead of waiting on the countdown ring.
+`ping`, `start_ai_battle`, `battle_state`, `battle_deploy_ready`, `battle_end_turn`, `battle_move` and
+`battle_attack`. That is enough to **play a whole battle without a mouse**: start it, get past the deploy
+screen, read the board — every unit's side, place, and current-versus-base numbers — walk a unit to a
+named tile, have it swing at another unit, and step the turns along deterministically instead of waiting
+on the countdown ring. A tile the player could not have clicked, or an attack the game would not have
+allowed, comes back refused with a reason rather than half-happening.
 
-**Measured working 2026-08-23**, in the real game rather than a test harness. The game log for that run
-shows the whole path: the helper starting (`ModBridge started host: …node.exe host.js`, so the
-descriptor works), its own lines coming back tagged `[modhost]`, `ping` answered `"pong"`, and
-`battle_state` answering `{"inBattle":false}` from outside a battle. A separate practice battle ran to
-nine turns.
+**The first four were measured working 2026-08-23**, in the real game rather than a test harness. The
+game log for that run shows the whole path: the helper starting
+(`ModBridge started host: …node.exe host.js`, so the descriptor works), its own lines coming back tagged
+`[modhost]`, `ping` answered `"pong"`, and `battle_state` answering `{"inBattle":false}` from outside a
+battle. A separate practice battle ran to nine turns.
+
+**Playing a battle was measured working 2026-08-26**, in one offline practice battle driven entirely from
+a helper program with nobody touching the keyboard:
+
+```
+battle_deploy_ready          -> ok, state BattleStateTurnLocal
+turn 0  warhawk   (0,8) -> (6,8)   6 steps, landed exactly there
+turn 2  raider    (0,7) -> (5,8)   6 steps, landed exactly there
+turn 4  axeman    (0,6) -> (4,8)   6 steps, landed exactly there
+turn 6  archer    (0,10)-> (3,8)   5 steps, then attacked from the new tile
+        abl_bow_str level 1 on the computer's warhawk: strength 16 -> 15
+        turn 6 -> 7, state BattleStateTurnAi   (the attack ended the turn)
+```
+
+Two things in there are worth pulling out. **The attack picked `abl_bow_str` by itself** — the archer's
+own strength attack — from a request that named only a target, which is the point of the plain-word
+default. And **moving and attacking in the same turn works**, with the walk sequenced ahead of the swing
+by the engine rather than by the host waiting and guessing.
+
+**All eleven deliberately-illegal requests were refused with a sentence**, not an error: off the board, no
+coordinates, null coordinates, onto its own tile, a friendly target, an unknown unit, an unknown ability,
+a tile-aimed ability, an ability hitting several units at once (`abl_tempest`, `targetCount: 2`), a level
+the ability does not have, and readying a deployment that had already started.
+
+**One thing two runs disagreed about, which is the finding.** Ending the *computer's* turn was refused in
+the first run (`"this turn is already committed"`) and succeeded in the second
+(`{"ok":true,"turn":1,"next":2}`), with the battle carrying on normally afterwards. There is a real
+window — the computer commits its turn only half a second after its walk finishes — and which side of it
+you land on is not something a host controls. Handle both replies; do not build a test on either.
+
+> **The gate that made all of this impossible until now.** An offline battle **never leaves the deploy
+> phase on its own**: the engine zeroes the deploy countdown when a battle is not online
+> (`BattleFsm.as:113-115`) and a zero countdown means no timer is ever created (`BaseBattleState.as:84`),
+> so the phase's own force-deploy can never fire. Measured before the fix: four readings spanning
+> thirty-five seconds, all `BattleStateDeploy`, `turn: null`. That is thirty-five seconds of evidence, not
+> a proof about eternity — but every exit traced in the code runs through a flag only the Ready button
+> sets offline, so the reading and the watching agree. The nine-turn run in §6 had a human present, which
+> is the likeliest explanation for how it got past deploy, though nothing recorded says so.
+> `battle_deploy_ready` calls the same public method that button calls, and is what makes a scripted
+> battle possible at all.
 
 One thing that run also showed: **`Error #3218` while writing to the helper's input** appears
 occasionally — once mid-session and once at shutdown. It is caught and logged, traffic continues after
 it, and the shutdown one is expected (the helper has already quit on end-of-input by then). Treat a
 single one as noise; a burst of them means the helper has stopped reading.
 
-**It cannot yet issue a move or an attack.** The machinery is there and proven (it is the same path the
-online game uses to apply an opponent's move), but tile coordinates and target validation are their own
-piece of work.
+**What it still cannot aim is an ability at a tile** (Rain of Arrows and its kin) **or one that hits
+several units at once** (Tempest and its kin). Both are refused with a reason. Anything aimed at exactly
+one unit works.
 
 > **A note worth keeping, because the plan document reads more strictly than it means.**
 > `Plan-Issue-12` §3.6 says the bridge "cannot host the AI". That is true and refers to a decision-maker,

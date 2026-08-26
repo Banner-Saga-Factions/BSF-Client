@@ -235,12 +235,20 @@ escape from app-SWF surgery.
 
 > **Scope clarification (2026-08-23) — this does not forbid bridge-driven testing.** The finding is about
 > hosting a *decision-maker*, which needs the live in-battle objects afresh every turn. A **test driver**
-> is a different thing: it replays known steps and checks the result. That is now built and working
-> (`battle_state` / `battle_end_turn`, `ModBattleControl.as`), and the move-injection path it will
-> eventually use is the very `BattleStateTurnRemote` machinery named above — reachable in-SWF, because
-> the command handler is in-SWF and only its *trigger* comes from outside. Read this finding as "the AI
-> stays in the SWF", not as "the bridge cannot drive a battle". See
+> is a different thing: it replays known steps and checks the result. That is now built and working —
+> `battle_state`, `battle_deploy_ready`, `battle_end_turn`, `battle_move` and `battle_attack` in
+> `ModBattleControl.as`, measured playing a whole offline battle with no mouse on 2026-08-26. Read this
+> finding as "the AI stays in the SWF", not as "the bridge cannot drive a battle". See
 > [`../docs/driving-the-client.md`](../docs/driving-the-client.md) → "Two channels".
+>
+> **One prediction in this note was wrong, and is corrected here.** It said the move-injection path a test
+> driver would use is the `BattleStateTurnRemote` machinery named above. It is not. That path applies an
+> **online opponent's** move; on a turn this player controls, `BattleStateTurnLocal` is already listening
+> for the move being committed and queues the movement command itself, so feeding it a second one by hand
+> would run the move twice — and its command queue rejects a hand-numbered ordinal outright. The commands
+> as built take the *local* path instead: the same calls a click on a tile and a press of the execute
+> button make. The finding's own conclusion is untouched — this is about which in-SWF path, not about
+> whether the bridge can reach one.
 
 ## 4. The decision + approach tradeoffs
 

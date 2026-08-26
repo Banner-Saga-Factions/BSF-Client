@@ -1,7 +1,8 @@
 [
   { "afterMs": 3000, "cmd": "battle_state" },
-  { "afterMs": 25000, "cmd": "start_ai_battle" },
-  { "afterMs": 20000, "cmd": "battle_state" },
+  { "afterMs": 27000, "cmd": "start_ai_battle" },
+  { "afterMs": 20000, "cmd": "battle_deploy_ready" },
+  { "afterMs": 3000, "cmd": "battle_state" },
   { "afterMs": 2000, "cmd": "battle_end_turn" },
-  { "afterMs": 5000, "cmd": "battle_state" }
+  { "afterMs": 8000, "cmd": "battle_state" }
 ]

@@ -46,6 +46,17 @@ the shared battle engine concludes the battle is offline and makes no server cal
 (`:16-18`). The spectator flag is latched here too, from either an explicit request or the mod bridge's
 `ModBridge.spectatorMode` (`:85-86`).
 
+**Starting one is not the same as getting it going.** An offline battle stops at the deploy screen and
+**waits there** until something says ready. The engine zeroes the deploy countdown whenever a battle is
+not online (`engine/battle/fsm/BattleFsm.as:113-115`), and a countdown of zero means the timer that would
+force the deployment through is never created at all (`engine/battle/fsm/state/BaseBattleState.as:84`).
+Your units are already standing on their tiles by then — only the confirmation is missing. Two things
+supply it: the **Ready button** on screen (`BattleHudPage.guiBattleHudDeployReady`), or the mod bridge's
+**`battle_deploy_ready`**, which calls the same public method that button calls. Measured 2026-08-26:
+without either, four readings spanning thirty-five seconds all showed the battle still in
+`BattleStateDeploy` with no turn started. Anyone scripting a battle needs to know this, because nothing
+on the client's side ever times out and complains.
+
 **Setting the record straight — Stoic's leftover "offline" screens are not this.** The original code
 carries a few offline-*looking* states, but none is a working offline battle: `SkirmishState` is an
 empty stub (a constructor and nothing else), `OfflineState` just sets up an offline account and tears

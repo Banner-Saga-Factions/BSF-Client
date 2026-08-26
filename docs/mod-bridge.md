@@ -143,34 +143,71 @@ Two commands are built in (`createBuiltins`, `:652-665`):
 - **`ping`** → replies `"pong"`.
 - **`set_spectator`** → sets the `spectatorMode` flag (see §7).
 
-The registry is static and additive, so **more commands can be registered at runtime**, and three are —
+The registry is static and additive, so **more commands can be registered at runtime**, and six are —
 all when the top-level game state is built (`GameFsm.as:171` and `:183`):
 
 | Command | What it does | Replies with |
 | ------- | ------------ | ------------ |
 | **`start_ai_battle`** | Launches an offline practice battle. Takes an optional `spectate` flag and `scene` override. | `"ok"` |
 | **`battle_state`** | Describes the battle running now — see below. | An object |
+| **`battle_deploy_ready`** | Says "ready" on the deploy screen, which is what starts the fighting. | `{"ok":…}` |
 | **`battle_end_turn`** | Ends the turn in progress. | `{"ok":…}` |
+| **`battle_move`** | Walks the unit whose turn it is to a tile. | `{"ok":…}` |
+| **`battle_attack`** | Has that unit swing at another one. Ends its turn. | `{"ok":…}` |
+
+Together they are enough to play a battle from start to finish without a mouse:
+`start_ai_battle` → `battle_deploy_ready` → (`battle_move`, `battle_attack` or `battle_end_turn`) per turn.
 
 The offline battle `start_ai_battle` launches is documented in [`offline-ai.md`](./offline-ai.md). A host
 author registers their own commands the same way, via `registerCommand`.
 
-### Reading and advancing a battle
+### Reading and playing a battle
 
-Both battle commands live in `ModBattleControl.as`, kept apart from the bridge itself so `GameFsm` stays
-a plain registration site. **Neither reaches the server**: reading touches getters only, and ending a
-turn calls the same public `skip()` the on-screen countdown ring already calls when a turn runs out. The
-one thing they add is *determinism* — the turn ends when you say so instead of when a timer says so.
+All five battle commands live in `ModBattleControl.as`, kept apart from the bridge itself so `GameFsm`
+stays a plain registration site.
+
+**They add no behaviour the game did not already have.** Reading touches getters only, and each of the
+four that change something goes through a path the game already drives from code rather than from the
+mouse: readying the deployment calls the same public `autoDeployLocal()` the Ready button calls; ending a
+turn calls the same public `skip()` the on-screen countdown ring calls when a turn runs out; moving does
+what two clicks on a tile do; attacking does what the execute button does. What they add is
+*determinism* — things happen when you say so instead of when a timer or a mouse says so.
+
+**In an offline battle nothing reaches the server — and the word "offline" is doing real work there.**
+The move and action commands the engine queues send only when the unit is player-controlled **and** the
+battle is online (`BattleTurnCmdMove.as:25`, `BattleTurnCmdAction.as:28,36`), and the deployment send is
+gated the same way (`BattleStateDeploy.as:139`). A practice battle is not online, so an injected move,
+attack or ready plays out locally and sends nothing at all. Measured across the whole verification run:
+the server logged only its keep-alive poll, and not one battle route.
+
+> **But these commands are not confined to offline battles, and the docs used to imply they were.** A
+> local party's turn in an *online* battle runs in the very same `BattleStateTurnLocal`
+> (`BattleStateNextTurn.as:54-55`), which is what the commands test for. Point a host at a live match and
+> `battle_move` sends `BattleTxnMoveSend`, `battle_attack` sends `BattleTxnActionSend`, `battle_end_turn`
+> sends one too by way of its `abl_end` terminator, and `battle_deploy_ready` sends `BattleTxnDeploySend`
+> — exactly what the mouse would send, which is also exactly what makes scripting a ranked match
+> cheating. The safety property belongs to the offline battle, not to these commands.
+
+**No battle command ever throws at the host.** A fault comes back as a described refusal rather than an
+`ERROR` line. The reply shapes differ, though: the four commands that *do* something answer
+`{"ok":true,…}` or `{"ok":false,"reason":"…"}`, while `battle_state` answers a description with no `ok`
+field at all.
 
 **`battle_state`** answers `{"inBattle":false}` when the game is not in a battle. Otherwise:
 
 ```
 {"inBattle":true,"battleId":"…","online":false,"finished":false,"state":"BattleStateTurnLocal",
- "turn":{"number":7,"entityId":"…","playerControlled":true,"committed":false,"complete":false},
+ "turn":{"number":7,"entityId":"…","playerControlled":true,"committed":false,"complete":false,
+         "moved":false,"ability":null},
  "units":[{"id":"…","name":"…","team":"…","playerControlled":true,"alive":true,
            "tile":{"x":4,"y":2},
            "stats":{"strength":{"current":9,"base":12},"armor":{"current":11,"base":9}, …}}]}
 ```
+
+`moved` and `ability` are there to make a refusal make sense: without them, "this unit has already moved"
+comes out of nowhere. Read `moved` precisely — it means **the unit's move has been confirmed**, not that
+it went anywhere. Attacking confirms the move whether or not the unit left its tile (the on-screen
+execute button does the same), so a unit that stood still and swung reports `"moved":true`.
 
 Three things about the unit list are worth knowing before you write assertions against it:
 
@@ -183,15 +220,164 @@ Three things about the unit list are worth knowing before you write assertions a
   second being what the unit was built with before buffs and damage. `state` is the battle's state-machine
   name, matching what the game log prints.
 
-**`battle_end_turn`** ends only a *local* turn — the computer's turns end themselves and there is nothing
-sensible to do to one from outside. It says why instead of failing quietly:
-`{"ok":false,"reason":"not a local turn","state":"BattleStateTurnAi"}`, `"not in a battle"`, or
-`"this turn was already ended"`. On success: `{"ok":true,"turn":7}`.
+**`battle_deploy_ready`** says "ready" on the deploy screen. **A scripted battle cannot get anywhere
+without it**, for a reason worth knowing:
 
-**Not yet available: issuing a move or an attack.** The machinery exists — it is the same path the online
-game uses for an opponent's move (`BattleStateTurnRemote.handleMessage` parses a `BattleMoveData` and
-queues a `BattleTurnCmdMove`) — but tile coordinates and target validation are a piece of work in their
-own right. See [`driving-the-client.md`](./driving-the-client.md) → "Two channels".
+> **An offline practice battle never leaves the deploy phase on its own.** The engine sets the deploy
+> countdown to zero for any battle that is not online (`BattleFsm.as:113-115`), and a countdown of zero
+> means no timer is ever created (`BaseBattleState.as:84`) — so the phase's own force-deploy can never
+> fire. Every other exit runs through the same `isLocalDeployed` flag, which only a local party being
+> marked deployed can set, and offline the only thing that marks it is the Ready button. Measured
+> 2026-08-26: four `battle_state` readings spanning thirty-five seconds all answered `BattleStateDeploy`
+> with `turn: null`, every unit already standing on its tile.
+
+Entering the phase already places your units, so this changes where nothing — it only supplies the
+confirmation. On success: `{"ok":true,"state":"BattleStateTurnLocal"}`, the state the battle moved to.
+Refusals: `"not in a battle"`, `"not in the deploy phase"` (with `state`), or
+`"this side has already said ready"` (which an offline battle never produces — see the table below).
+
+**`battle_end_turn`** ends the turn in progress. On success:
+`{"ok":true,"turn":6,"next":7,"state":"BattleStateTurnAi"}`. Mind those three: **`turn` is the turn you
+just ended**, `next` is the one now starting, and `state`, like the one above, is the state the battle
+**moved to**. An earlier version reported only `turn`, and reported the *next* number under that name —
+a host asserting on it got the wrong turn. Refusals: `"not in a battle"`,
+`"this turn cannot be ended from outside"` (with `state`), `"this turn was already ended"`, or
+`"this turn is already committed"` — that last one when the turn is already ending, where calling `skip()`
+again would make the engine log a re-termination error the host did nothing wrong to cause.
+
+> *Correction to an earlier version of this doc, in two parts.*
+>
+> It said this command "ends only a local turn" and gave
+> `{"ok":false,"reason":"not a local turn","state":"BattleStateTurnAi"}` as an example refusal. **That
+> refusal cannot happen.** In the engine's own words a computer turn *is* a local turn —
+> `BattleStateTurnAi` extends the same `BattleStateTurnLocalBase` the check tests for — so the command has
+> always accepted the computer's turn as far as that check goes.
+>
+> **And it really does end a computer turn — sometimes.** Two runs on 2026-08-26 disagreed, which is the
+> whole story. The first answered `{"ok":false,"reason":"this turn is already committed"}`; the second
+> answered `{"ok":true,"turn":1,"next":2,"state":"BattleStateTurnLocal"}` and the battle carried on
+> normally for three more turns afterwards. Both are correct, because there is a **window**: the computer
+> commits its turn only when `performAction` runs, which is scheduled half a second after its walk
+> *finishes* (`BattleStateTurnAi.as:39-43`). Ask early and you take the turn away from it; ask late and
+> you get the refusal. A host cannot easily control which, so **do not build a test on either outcome** —
+> handle both replies.
+>
+> One narrow hazard if you do use it: the computer's planning timer is not stopped by the same `skipped`
+> flag its other two entry points check (`AiModuleDredge.as:72-94` versus `:42` and `:134`), so in
+> principle it can still reach a second commit on an already-committed move. Not seen in either run.
+
+### Issuing a move and an attack
+
+> **Measured working 2026-08-26**, in the real game. Four moves in one battle each landed exactly on the
+> tile asked for, `turn.moved` turning true each time; then an archer moved *and* attacked in the same
+> turn — `abl_bow_str` at level 1, chosen for it automatically — taking the target from 16 strength to 15
+> and handing the turn straight to the computer. All nine deliberately-illegal requests came back as
+> `{"ok":false,"reason":…}` rather than as errors. Details in
+> [`driving-the-client.md`](./driving-the-client.md) → "What the bridge can do today".
+
+Both act on **the unit whose turn it is**. There is no "make that other unit move" — only the active unit
+can act, exactly as on screen. Both need a turn this player controls, so both refuse during the
+computer's turn (that is the one place they are stricter than `battle_end_turn`).
+
+**`battle_move`** walks that unit to a tile:
+
+```
+{"cmd":"battle_move","id":11,"x":4,"y":2}
+→ {"ok":true,"entityId":"…","from":{"x":3,"y":2},"to":{"x":4,"y":2},"steps":1,"turn":7}
+```
+
+`x` and `y` are the same coordinates `battle_state` reports for every unit. **You name a destination, not
+a route** — the game's own pathfinder works out the steps, exactly as it does for a click. A tile the
+player could not have clicked is refused, because the check asks the very same reach map the highlighted
+tiles on screen are drawn from.
+
+Moving does **not** end the turn, so what follows it is either `battle_attack` or `battle_end_turn`.
+
+**`battle_attack`** has that unit swing at another one:
+
+```
+{"cmd":"battle_attack","id":12,"target":"<unit id>"}                     ← basic strength attack
+{"cmd":"battle_attack","id":12,"target":"<unit id>","ability":"armor"}   ← basic armor attack
+{"cmd":"battle_attack","id":12,"target":"<unit id>","ability":"abl_malice","level":2}
+→ {"ok":true,"entityId":"…","ability":"abl_melee_str","level":1,"target":"…","turn":7}
+```
+
+`ability` takes either of two plain words — **`"strength"`** or **`"armor"`** — so a test does not have to
+know that a Raider swings `abl_melee_str` while an Archer looses `abl_bow_str`. Anything else is read as a
+literal ability id, and `level` picks which level of it (default 1). Left out altogether it means the
+strength attack, falling back to the armor one for a unit that has no strength attack — a Shieldbanger
+has only the armor kind, the same asymmetry behind crash `#1009`.
+
+**An attack ends the turn**, because that is what it does on screen: the execute button commits the turn,
+and the engine treats the ability as the turn's last act. If a move is still pending it is committed
+first, so the unit walks and then swings, in that order.
+
+A host may send the attack while the unit is still walking rather than waiting and guessing — but know
+what that does: the engine does not queue the swing politely behind the walk, it **cuts the walk short**
+(`BattleTurnCmdAction.as:19-22` calls `fastForwardMove`). The unit still ends up on the right tile. Only
+the animation is skipped, which matters solely if you were about to photograph it. This has not been
+exercised in a run; the verification run waited between the two.
+
+**What works is any ability aimed at exactly one unit.** Two kinds are refused with a reason rather than
+half-done, and both are the next small piece of work:
+
+- **Aimed at a tile** — Rain of Arrows and its kin. There is no way to name the tile yet.
+- **Hitting several units at once** — Tempest and its kin, anything taking more than one target. On
+  screen these are aimed by sweeping up neighbours until the ability has as many as it takes
+  (`BattleBoardController.handleAbilityAdjacentClick`); naming one target here would quietly hit one unit
+  instead of all of them, which is worse than refusing.
+
+**Every refusal, and when it happens.** Three of the first four — `not in a battle`,
+`this turn was already ended` and `this turn is already committed` — are shared with `battle_end_turn`.
+The fourth is not: `battle_end_turn` accepts turns these two refuse, and says
+`this turn cannot be ended from outside` instead. Rows marked **†** are guards no input has been shown to
+reach; they are listed because the code can still emit them, not because you should expect one.
+
+| Reason | When |
+| ------ | ---- |
+| `not in a battle` | no battle running |
+| `not a player-controlled turn` (+ `state`) | it is the computer's turn, or a deploy/finish moment |
+| `this turn cannot be ended from outside` (+ `state`) | `battle_end_turn` during the other player's turn, or between turns |
+| `this turn was already ended` | `battle_end_turn` came first |
+| `this turn is already committed` | an attack was already issued |
+| `this unit has already moved` | `battle_move` only |
+| `this unit has already acted` † | `battle_attack` only — the row above catches this first in practice |
+| `no turn is running` † | a turn state holding no turn |
+| `this turn has no move to make` † | a turn whose move object is missing |
+| `no unit is taking this turn` † | a turn with no unit |
+| `a move needs a whole-number x and y` | missing or unusable coordinates |
+| `no tile at 4,2` | off the board |
+| `already standing there` | the destination is where the unit is |
+| `4,2 is out of reach this turn` | outside the movement range |
+| `no path to 4,2` † | reachable on paper, no route in practice |
+| `an attack needs a target` | no `target` for an ability that needs one |
+| `no unit with id X` | unknown target |
+| `this unit has no strength attack` / `…no armor attack` / `…no basic attack` | this unit lacks that attack |
+| `unknown ability: X` | not in the ability table |
+| `ability X has no level N` | level outside what the ability has |
+| `level must be a whole number` | unusable `level` |
+| `this ability aims at a tile, which the bridge cannot do yet` | tile-aimed ability |
+| `this ability hits several units at once, which the bridge cannot aim yet` (+ `targetCount`) | an ability taking more than one target |
+| `that ability is not one a unit can be told to use here` † | the id names something that is not a battle ability |
+| `this unit has no attacks` † / `this unit's … attack is not a battle ability` † | malformed unit definition |
+| `the game rejected that attack` (+ `validation`) | the engine's own verdict — `OUT_OF_RANGE`, `INVALID_TARGET`, `INSUFFICIENT_TILE`, `INSUFFICIENT_STARS`, `MOVED`, `INAPPROPRIATE_TAGS` |
+| `this unit cannot pay for that ability` | not enough willpower, exertion or horn |
+| `not in the deploy phase` (+ `state`) | `battle_deploy_ready` after the fighting has started |
+| `this side has already said ready` † | `battle_deploy_ready` twice — see below |
+| `the game refused to start the battle` (+ `error`) | anything unforeseen while readying |
+
+**Why "already said ready" never fires offline.** Readying finishes the deploy phase *there and then* —
+`autoDeployLocal` runs straight through `checkDeploymentComplete` to `finishDeployment`
+(`BattleStateDeploy.as:129-153, 246-250`), because with one local party and one computer party there is
+no remote side to wait for. So a second `battle_deploy_ready` finds the battle already past deploy and
+answers `not in the deploy phase`. The guard only earns its place in an online battle, where the phase
+waits on the other player. The verification run showed exactly this.
+
+Anything unforeseen comes back as `the game refused the move` / `…the attack` with the error text
+attached and a `committed` flag. That flag matters: **`"committed":true` means the request had already
+been accepted and the fault came afterwards**, while the unit was walking or the ability was playing out —
+so the board may have changed even though the reply says no. `"committed":false` means nothing happened,
+and a half-built move is put back where it started, so the turn is exactly as it was found.
 
 ---
 

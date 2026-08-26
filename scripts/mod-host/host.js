@@ -10,7 +10,8 @@
 //   2. Answers the game's readiness message with a ping, so one line in the game
 //      log tells you the channel is alive AND that the patched build is running.
 //   3. If a script.json sits beside it, sends those commands in order, and prints
-//      each reply. That is how a test drives a battle without touching the mouse.
+//      each reply — with a short read of the board whenever it asks for one. That
+//      is how a test drives a battle without touching the mouse.
 //
 // THE THREE RULES A HOST MUST FOLLOW (see docs/mod-bridge.md):
 //   - Standard output carries protocol lines only. Anything else corrupts it.
@@ -74,7 +75,17 @@ function record(line) {
 // MIND THE FIRST DELAY. The clock starts when the game first talks to the
 // server, which is the login — well before your roster has loaded. Starting a
 // battle before that crashes on a missing party. Leave a generous wait before
-// the first start_ai_battle; script.example.json allows 28 seconds.
+// the first start_ai_battle; script.example.json allows 30 seconds.
+//
+// AND SEND battle_deploy_ready. A practice battle stops on the deploy screen
+// and waits there for ever — nothing times out — so a script that goes straight
+// from start_ai_battle to a turn command never gets a turn to command.
+//
+// WHAT A FIXED SCRIPT CANNOT DO. battle_move and battle_attack need a tile and
+// a unit id that are only knowable from a battle_state reply, so a list of
+// timed steps cannot use them. A host that reads the replies and decides what
+// to send next can; that is the difference between this example and a real test
+// driver.
 // ---------------------------------------------------------------------------
 
 function runScript() {
@@ -118,6 +129,69 @@ function runScript() {
 }
 
 // ---------------------------------------------------------------------------
+// Making a battle_state reply readable.
+//
+// The reply is a wall of JSON, and what you almost always want out of it is
+// three things: whose turn it is, where that unit is standing, and who it could
+// hit. Those are exactly the values battle_move and battle_attack need, so
+// printing them as a few short lines is what lets you write the next script
+// without picking through raw JSON. The whole reply is logged above this and
+// kept in the transcript regardless.
+// ---------------------------------------------------------------------------
+
+function whereIs(unit) {
+  return unit.tile ? unit.tile.x + ',' + unit.tile.y : 'off the board';
+}
+
+function strengthAndArmor(unit) {
+  const stats = unit.stats || {};
+  const strength = stats.strength ? stats.strength.current : '?';
+  const armor = stats.armor ? stats.armor.current : '?';
+  return strength + '/' + armor;
+}
+
+function summariseBattle(state) {
+  if (!state || !state.inBattle) {
+    return ['not in a battle'];
+  }
+  const turn = state.turn || {};
+  const units = state.units || [];
+  let acting = null;
+  for (const unit of units) {
+    if (unit.id === turn.entityId) {
+      acting = unit;
+    }
+  }
+  const notes =
+    (turn.moved ? ' (already moved)' : '') +
+    (turn.committed ? ' (turn committed)' : '') +
+    (turn.ability ? ' (holding ' + turn.ability + ')' : '');
+  const lines = [
+    state.state + ', turn ' + turn.number + ': ' +
+      (acting
+        ? acting.name + ' [' + acting.id + '] at ' + whereIs(acting)
+        : String(turn.entityId)) +
+      notes,
+  ];
+  for (const unit of units) {
+    if (!unit.alive || unit.id === turn.entityId) {
+      continue;
+    }
+    // With no acting unit to compare against, say so rather than calling
+    // everything an ally — a wrong label is worse than an honest question mark.
+    let side = '?    ';
+    if (acting) {
+      side = unit.team !== acting.team ? 'enemy' : 'ally ';
+    }
+    lines.push(
+      '    ' + side + ' ' + unit.name + ' [' + unit.id + '] at ' + whereIs(unit) +
+        ' str/armor ' + strengthAndArmor(unit)
+    );
+  }
+  return lines;
+}
+
+// ---------------------------------------------------------------------------
 // Reading the game's messages: one JSON object per line.
 // ---------------------------------------------------------------------------
 
@@ -148,6 +222,9 @@ function handle(line) {
       log('<- ' + which + ' failed: ' + message.message);
     } else {
       log('<- ' + which + ' answered: ' + JSON.stringify(message.result));
+      if (which === 'battle_state') {
+        summariseBattle(message.result).forEach(log);
+      }
     }
     return;
   }

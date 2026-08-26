@@ -35,8 +35,10 @@ Enable dynamic, non-destructive modding of the Factions client — Discord Rich 
 |------|--------|
 | `src/engine/mod/ModBridge.as` | New — the bridge described above |
 | `src/engine/core/http/HttpAction.as` | Patched decompile — emits `HTTP_REQUEST` in `doSend()` and `HTTP_RESPONSE` (verbatim wire string) in `onResponseReceived()`; lazy-starts the host on the first txn (AuthTxn at startup) |
+| `src/engine/mod/ModBattleControl.as` | New — the battle commands: read a battle, get past the deploy screen, end a turn, walk a unit to a tile, have it attack. Enough to play a whole offline battle with no mouse (measured 2026-08-26). Contract in [`../docs/mod-bridge.md`](../docs/mod-bridge.md) → "Commands" |
 
-Not yet compiled — needs a local `apply-patches.ps1; build.ps1 -Target windows` run.
+The bridge and the HTTP tap are built and have been run against the real game; the battle commands are
+built the same way — `apply-patches.ps1; build.ps1 -Target windows`.
 
 ## Open decision: host runtime
 

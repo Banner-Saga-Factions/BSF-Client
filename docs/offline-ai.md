@@ -161,6 +161,14 @@ The full player-vs-AI public-release picture (all the crash fixes and open items
 
 ## 7. Known gaps
 
+- **It cannot see any special ability.** Planning a turn, it only ever considers a unit's basic
+  strength attack and its basic armour-breaking attack (§4, step 2) — every signature and special
+  ability a unit carries is invisible to it, so the interesting half of each kit is never used.
+- **It never looks ahead.** Each option is scored against the board exactly as it stands, one unit at
+  a time, with no attempt to imagine the reply (§4, step 3). A kill earns a large fixed bonus while
+  standing somewhere dangerous costs very little, so it will walk a unit into a place where it dies
+  for nothing. Both gaps, and a three-tier plan for closing them, are tracked in issue #31 and
+  written up in [`../misc/Plan-Improve-Battle-AI.md`](../misc/Plan-Improve-Battle-AI.md).
 - **Portraits.** A known display issue with unit portraits in the offline flow — tracked in the
   public-release plan above.
 - **Spectator (watch two AIs) is not finished.** The `SPECTATE` / `ModBridge.spectatorMode` flag is

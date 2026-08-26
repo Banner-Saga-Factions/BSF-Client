@@ -81,6 +81,39 @@ powershell ./scripts/build.ps1 -Target windows   # or: android, ios
 2. **Search/Replace:** Use SEARCH/REPLACE blocks with file paths relative to repo root.
 3. **Check boundaries:** Verify any new request fields or OAuth parameters match what `../bsf-server` expects.
 
+## Code Review
+
+After a patch or at the end of a work stream, ask whether to spawn review subagents over the files changed in that session. **Offer it *before* the pull request opens** — the instinct is to review after pushing, but by then any mistake is public and fixing it costs an extra commit plus a second review pass.
+
+Offer two kinds, and run them together whenever the change rests on factual claims.
+
+An ordinary checker:
+
+```
+Agent({ subagent_type: "general-purpose", description: "Code review",
+  prompt: "Review the changes in <files> for correctness, AS3 typing, and edge cases..." })
+```
+
+Look for: missing `override` keywords and type mismatches left behind by the decompiler, calls to functions not defined in the same class, listeners added without a matching removal, patched files that drifted from their `_decompiled/` original in ways the change did not intend, and request fields that no longer match what `../bsf-server` expects.
+
+And one briefed to *disprove*:
+
+```
+Agent({ subagent_type: "general-purpose", description: "Adversarial review",
+  prompt: "Your job is to DISPROVE, not to verify. For each claim below, try to build a case
+  where it is false, and default to 'refuted' when you cannot settle it. Claims: <list them>.
+  Report each as refuted / survived / unresolved, with file:line evidence." })
+```
+
+**Why the second one.** A reviewer asked "is this supported?" finds support; it never asks whether the situation the patch is built on can happen at all. On the server side that pass overturned a premise six sentences deep that had survived four earlier review rounds. In this repo the premises most worth attacking are:
+
+- **"this patch reaches the running game"** — the class may be symbol-linked into a resource gui SWF that a `src/` rebuild cannot touch (see 🚨 Critical Architectural Rules above)
+- **"Stoic wrote it this way"** — the 2013 mirror is stale for twelve files
+- **"this class is never loaded"** — and negative claims generally
+- **any runtime prediction** derived from reading AS3 statically instead of watching the client run
+
+**Verify the refuter's findings yourself before acting on them.** It is confidently wrong often enough to matter — one pass declared a data structure "never sent" on the strength of an unused constant, while a shipped JSON file contained it. When two reviewers disagree, that disagreement *is* the finding: settle it at the source.
+
 ## Start-of-Session interview
 
 At the **start of every new plan chat**, before doing other work, interview user in-deph using askuserquestion tool and focus on pulling out and clarifying any ambiguities.

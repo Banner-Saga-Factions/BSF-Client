@@ -109,6 +109,12 @@ Plus one public flag, `spectatorMode` (`:105`), set by the built-in `set_spectat
 
   Either way the resolved program and its arguments are **written to the game log on every start**, and
   the descriptor is re-read on each restart, so editing it takes effect without restarting the game.
+
+  **Something else may be writing this file.** The automated test
+  ([`driving-the-client.md`](./driving-the-client.md) → "The first automated test") replaces
+  `mods/host.json` with its own go-between for the length of a run and restores yours afterwards. It
+  takes a lock so two runs cannot overlap, but a run killed outright can still leave its own setting
+  behind — so if a host stops being started, read that file before suspecting the bridge.
 - **What trusting `mods/host.json` means.** It names something the game will run. That is no more
   dangerous than an executable sitting in the same folder — but it is less obvious, which is why the
   launch is logged. Treat the file as you would the program itself. There is no sandbox and none is

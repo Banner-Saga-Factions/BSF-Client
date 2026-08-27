@@ -529,6 +529,34 @@ test matching on the request alone can match far too early — check the place, 
 an offline session never sends one at all, because the game only reports a location when it has a
 session key and is not offline.
 
+### Writing the second one — what it will cost, and what to move first
+
+The driver gives a test **transport**: start the game, send a command, wait for a message, poll until
+something is true, shut down. What it does not yet give is **steps**. Everything between "the game
+launched" and "it is my turn" currently lives inside `first-battle.test.js` as test body — the three
+login waits, `start_ai_battle` and the poll for the deploy screen, saying ready, and waiting for a turn
+the player controls and has not yet committed.
+
+That is around sixty lines, and the second test starts by copying them. **Including the one wait that
+carries a "do not drop this" warning** — the one guarding against the discarded battle above. A warning
+that only survives if whoever copies it copies carefully is not much of a warning, which is the argument
+for moving those steps onto the driver (`waitUntilReady`, `startPracticeBattle`, `waitForOurTurn`) before
+there are two copies of them rather than after. It is a move, not new code.
+
+Three more gaps, named here so the next author meets them on paper rather than at the keyboard. None are
+worth building before a second test actually needs them:
+
+- **Nothing reads the board.** "The unit whose turn it is" and "an enemy standing next to this tile" will
+  be written by every battle test. They belong next to the driver, not in it.
+- **`send` has no "this must have worked" form.** Each acting command needs two checks — that the reply
+  came, and that it says `ok` — so a `session.act(...)` that throws with the game's own refusal attached
+  would halve the noise. Refusals arrive as ordinary replies with `{ok: false, reason}`, not as errors,
+  so the roughly twenty-five documented refusals in [`mod-bridge.md`](./mod-bridge.md) §5 can all be
+  tested with no new machinery at all.
+- **The driver cannot tell whether the board is moving.** `waitForOurTurn` is also the "safe to close"
+  signal, for the reason in the next section — and a test that moves and attacks is far likelier to be
+  mid-walk at shutdown than this one is, because an attack ends the turn and hands it to the computer.
+
 ### Closing the game while a unit is walking hangs it
 
 **This is a real fault in the game, found by the test on its first run** — tracked as

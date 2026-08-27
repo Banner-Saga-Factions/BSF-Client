@@ -16,8 +16,9 @@
 //   - Our own build of the game installed — scripts\build.ps1, then copy
 //     _build\app.game.air.swf over the installed one
 //
-// It takes a minute or two, opens a real game window, and is deliberately not
-// part of any automatic check-in run. From the bsf-client folder, start it with:
+// It takes half a minute on a quiet machine and twice that on a busy one, opens
+// a real game window, and is deliberately not part of any automatic check-in
+// run. From the bsf-client folder:
 //
 //   node --test                                   # every client test
 //   node --test tests\first-battle.test.js        # only this one
@@ -26,6 +27,15 @@
 // Name the file, or nothing at all — but do not name the folder. `node --test
 // tests\` looks like it should work and does not: Node runs the folder as though
 // it were a single file and reports a confusing "cannot find module" instead.
+//
+// ONE AT A TIME. There is one installed game and every run rewrites the setting
+// that names its helper program, so two runs at once would spoil each other.
+// `node --test` runs test FILES side by side, so this matters as soon as a
+// second test file exists. The driver takes a lock and makes the second run
+// wait its turn; `--test-concurrency=1` avoids the wait altogether.
+//
+// If the game, the server or the login live somewhere else, say so rather than
+// editing anything: BSF_GAME_PATH, BSF_SERVER_URL, BSF_USERNAME, BSF_STEAM_ID.
 //
 // IT IS A TEST OF OUR BUILD, BY DEFINITION. The channel it drives, and the
 // practice battle it starts, exist only in the copy we compile — the shipped
@@ -71,7 +81,10 @@ test('a helper program can drive a practice battle from start to finish', async 
   });
 
   await t.test('the channel opened, so this is our build', async () => {
-    session = await GameSession.start({ name: 'first-battle' });
+    // Built first and started second, so the tidy-up above is holding it even if
+    // starting is the thing that fails.
+    session = new GameSession({ name: 'first-battle' });
+    await session.start();
     const reply = await session.send('ping');
     assert.equal(reply, 'pong', 'the game should answer a ping with a pong');
   });
@@ -91,16 +104,32 @@ test('a helper program can drive a practice battle from start to finish', async 
     );
     assert.equal(account.success, true, `the server would not send the account (status ${account.status})`);
 
-    // Landing somewhere is the game's own signal that it has finished setting
-    // itself up: it is only sent once the config is loaded and the account has
-    // been read, which is everything a battle needs to exist.
+    // DO NOT DROP THIS as one wait too many, and do not settle for waiting on
+    // the roster instead. A draft that started the battle as soon as the roster
+    // arrived got no battle at all: `battle_state` answered "not in a battle"
+    // for two solid minutes, and nothing anywhere reported an error.
     //
-    // DO NOT DROP THIS as one wait too many. A draft that started the battle as
-    // soon as the roster arrived got no battle at all — `battle_state` answered
-    // "not in a battle" for two solid minutes, with no error raised anywhere.
+    // The reason is not that the roster was missing. It is that the game had not
+    // finished deciding where the player goes. The state that loads the factions
+    // asks to be told when that load finishes and then never cancels the
+    // request, so when it finishes the game jumps to the ranked match search —
+    // wherever it has got to in the meantime, throwing away a battle started in
+    // between. Waiting for the player to land means that jump has already
+    // happened and there is nothing left to throw the battle away.
+    //
+    // The fingerprint of getting this wrong, if it ever comes back: a request to
+    // start a versus match with no matching cancel after it. A healthy run
+    // cancels, because starting the practice battle is what cancels it.
+    //
+    // The landing place is checked, not just the request: another state sends
+    // the same request with a different place while the player is still queuing
+    // to log in, and matching that one would put us right back where we started.
+    // `loc_versus` is where run-adl.ps1's arguments land — see the note above.
     const landed = await session.waitFor(
-      'the player to land somewhere',
-      m => m.event === 'HTTP_REQUEST' && String(m.url || '').includes('services/game/location'),
+      'the player to land in the versus screen',
+      m => m.event === 'HTTP_REQUEST' &&
+        String(m.url || '').includes('services/game/location') &&
+        m.body === 'loc_versus',
       { timeoutMs: PATIENCE.login }
     );
     console.log(`      logged in, and the player landed in: ${landed.body}`);
@@ -150,11 +179,21 @@ test('a helper program can drive a practice battle from start to finish', async 
     // The practice battle mirrors the player's own party into the opposite
     // deployment area, so the two sides should match fighter for fighter. If
     // this ever fails, the opponent is being built from something else.
+    // Compared by identifier rather than by name. The identifier carries the
+    // fighter's class and its place in the party — `123456+2+axeman_start_1`
+    // against `ai+2+axeman_start_1` — where the name is only what the character
+    // is called. Two different line-ups sharing the same six names would walk
+    // straight past a check on names.
+    const withoutSide = unit => unit.id.startsWith(unit.team + '+')
+      ? unit.id.slice(unit.team.length + 1)
+      : unit.id;
+    const lineUpOf = side => side.map(withoutSide).sort();
     const namesOf = side => side.map(u => u.name).sort();
+
     assert.equal(mine.length, theirs.length,
       `the two sides should be the same size: ${mine.length} against ${theirs.length}`);
-    assert.deepEqual(namesOf(theirs), namesOf(mine),
-      'the computer\'s side should be a copy of the player\'s party');
+    assert.deepEqual(lineUpOf(theirs), lineUpOf(mine),
+      'the computer\'s side should be a copy of the player\'s party, fighter for fighter');
 
     for (const unit of units) {
       const who = `${unit.name} [${unit.id}]`;
@@ -222,6 +261,7 @@ test('a helper program can drive a practice battle from start to finish', async 
       'control to come back from the computer one last time',
       async () => {
         const state = await session.send('battle_state');
+        assert.equal(state.finished, false, 'the battle ended before control came back');
         return state.turn && state.turn.playerControlled && !state.turn.committed ? state : null;
       },
       { timeoutMs: PATIENCE.turnComesRound, everyMs: 1000 }
@@ -233,17 +273,21 @@ test('a helper program can drive a practice battle from start to finish', async 
   });
 
   await t.test('the game closed when asked, without being forced', async () => {
-    // CLOSE WHEN NOTHING IS MOVING. This run found that closing the game while a
-    // unit is walking hangs it: the game starts its own exit, tears the board
-    // down, and interrupting the walk sets off a chain that asks the sprite pool
-    // for a target indicator after that pool has already been emptied and set to
-    // nothing — Error #1009 inside AnimClipSpritePool.addPool. The exit never
-    // finishes and the game has to be forced. The step above therefore leaves the
-    // board still before this one closes it. The hang is a real fault in the
-    // game, written up in docs/driving-the-client.md; when it is fixed this
-    // ordering stops mattering, and until then it is not what this test is for.
+    // CLOSE WHEN NOTHING IS MOVING. Closing the game mid-move wedges it, which
+    // this test found on its first run. Tearing the board down empties the
+    // stores of reusable sprites, but the on-board markers that draw from those
+    // stores are never unhooked from the battle first — so anything that still
+    // raises a battle event afterwards reaches for a store that is now nothing.
+    // Interrupting a unit's walk is the one thing that still does, which is why
+    // "is anything walking" decides it. The game then stops half-way out and has
+    // to be forced. The step above leaves the board still, so this one closes
+    // into quiet. Written up in docs/driving-the-client.md; it is a real fault in
+    // the game rather than in this test, and not what this test is here to find.
     const { closedPolitely } = await session.stop();
     assert.equal(closedPolitely, true,
-      'the game should close on request; forcing it loses its log, which a failed run needs most');
+      'the game would not close when asked. First thing to check: was a unit still ' +
+      'walking? Closing mid-move wedges the game on the way out (issue #36) — see ' +
+      'docs/driving-the-client.md, "Closing the game while a unit is walking hangs it". ' +
+      'Forcing it also loses the game\'s own log, which a failed run needs most.');
   });
 });

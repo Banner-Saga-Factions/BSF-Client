@@ -43,6 +43,16 @@ const RELAY_PATH = path.join(REPO_ROOT, 'tests', 'relay.js');
 const LAUNCHER_PATH = path.join(REPO_ROOT, 'scripts', 'run-adl.ps1');
 const OUTPUT_DIR = path.join(REPO_ROOT, '_build', 'tests');
 
+// ONE RUN AT A TIME, and this file is how a second one finds out.
+//
+// There is one game installed, with one slot naming its helper program, and
+// every run rewrites that slot. Two runs at once would hand each other the wrong
+// port and then put each other's settings back — which does not look like a
+// clash, it looks like a flaky game. Worth knowing: `node --test` runs test
+// FILES side by side, so the day a second test file exists this stops being
+// hypothetical. Hence a lock rather than a warning in the documentation.
+const LOCK_PATH = path.join(OUTPUT_DIR, 'one-run-at-a-time.lock');
+
 // The same defaults scripts/run-adl.ps1 uses. Each can be overridden from the
 // environment, so a machine with the game somewhere else needs no code change.
 const DEFAULTS = {
@@ -60,9 +70,20 @@ const TIMEOUTS = {
   channelOpens: 90000,   // launch, log in, and the helper calling back
   reply: 15000,          // one command and its answer
   gameCloses: 20000,     // the window closing after we ask it to
+  lock: 180000,          // another run of this test finishing and letting go
 };
 
 const POLL_EVERY_MS = 500;
+
+/** Write to a log only while it is still open. */
+function writeIfOpen(stream, text) {
+  // Closing a log while something is still writing to it raises an error that
+  // nothing is listening for, which would end the run — after every check had
+  // already passed, which is the worst possible moment to be confusing.
+  if (stream && !stream.writableEnded && !stream.destroyed) {
+    stream.write(text);
+  }
+}
 
 function nowStamp() {
   return new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').slice(0, 19);
@@ -72,10 +93,13 @@ function nowStamp() {
 function withTimeout(promise, ms, what) {
   let timer;
   const bell = new Promise((_, reject) => {
-    timer = setTimeout(
-      () => reject(new Error(`gave up after ${(ms / 1000).toFixed(0)}s waiting for ${what}`)),
-      ms
-    );
+    timer = setTimeout(() => {
+      const err = new Error(`gave up after ${(ms / 1000).toFixed(0)}s waiting for ${what}`);
+      // Marked so a poll can tell "this answer was slow" from "this check
+      // failed". Swallowing both would turn a real failure into a timeout.
+      err.timedOut = true;
+      reject(err);
+    }, ms);
   });
   return Promise.race([promise, bell]).finally(() => clearTimeout(timer));
 }
@@ -101,45 +125,52 @@ class GameSession {
     this.previousHostJson = null;    // so we can put the developer's own back
     this.hostJsonPath = null;
     this.stopped = false;
+    this.closedPolitely = false;
+    this.lockHeld = false;
+    this.safetyNet = null;           // puts the game folder back if we are killed
   }
 
   // ---------------------------------------------------------------------
   // Starting up
   // ---------------------------------------------------------------------
 
-  static async start(options = {}) {
-    const session = new GameSession(options);
-    await session._start();
-    return session;
-  }
-
-  async _start() {
+  /**
+   * Start the game and wait until it will talk to us.
+   *
+   * Construct the session first and call this second, so that whoever holds the
+   * session can always shut it down — including when starting is what failed.
+   */
+  async start() {
     fs.mkdirSync(OUTPUT_DIR, { recursive: true });
     const stem = path.join(OUTPUT_DIR, `${nowStamp()}-${this.name}`);
     this.transcriptPath = `${stem}-transcript.jsonl`;
     this.runLogPath = `${stem}-run.log`;
     this.transcript = fs.createWriteStream(this.transcriptPath);
     this.runLog = fs.createWriteStream(this.runLogPath);
+    // A log that cannot be written must never end the run. Say so and carry on.
+    this.transcript.on('error', err =>
+      process.stderr.write(`could not write the transcript: ${err.message}\n`));
+    this.runLog.on('error', err =>
+      process.stderr.write(`could not write the run log: ${err.message}\n`));
 
-    this._checkTheGroundIsClear();
-
-    const port = await this._listen();
-    this.note(`listening on port ${port}`);
-    this._installRelayAsHelper(port);
-
-    this._launchTheGame();
-
-    // The helper calls back the moment the game first talks to the server, which
-    // is the login. Until that happens there is nothing to talk to.
+    // Everything from here on can leave something behind — a listening socket, a
+    // rewritten setting in the game folder, a running game — so all of it is
+    // covered, not just the wait at the end.
     try {
-      await withTimeout(
-        this._untilChannelOpens(),
-        TIMEOUTS.channelOpens,
-        'the game to start and its channel to open'
-      );
+      await this._checkTheGroundIsClear();
+      await this._takeTheLock();
+
+      const port = await this._listen();
+      this.note(`listening on port ${port}`);
+      this._installRelayAsHelper(port);
+      this._launchTheGame();
+
+      // The helper calls back the moment the game first talks to the server,
+      // which is the login. Until then there is nothing to talk to.
+      await this._untilChannelOpens();
     } catch (err) {
-      // Never leave a game running behind a failed start, and always say what
-      // the launcher had to say — on this path it is usually the whole answer.
+      // Never leave a game running, a socket listening, or the game folder
+      // rewritten behind a failed start.
       await this.stop();
       throw new Error(
         `${err.message}\n\n` +
@@ -152,8 +183,120 @@ class GameSession {
     }
   }
 
-  /** Refuse to start on the two conditions that produce baffling failures. */
-  _checkTheGroundIsClear() {
+  // ---------------------------------------------------------------------
+  // One run at a time
+  // ---------------------------------------------------------------------
+
+  /** Wait for any other run to finish, then claim the game install. */
+  async _takeTheLock() {
+    const deadline = Date.now() + TIMEOUTS.lock;
+    for (;;) {
+      try {
+        // "wx" means create it, and fail if somebody else already has.
+        const handle = fs.openSync(LOCK_PATH, 'wx');
+        fs.writeSync(handle, String(process.pid));
+        fs.closeSync(handle);
+        this.lockHeld = true;
+        this._armTheSafetyNet();
+        return;
+      } catch (err) {
+        if (err.code !== 'EEXIST') {
+          throw err;
+        }
+        if (this._clearedAbandonedLock()) {
+          continue;
+        }
+        if (Date.now() >= deadline) {
+          throw new Error(
+            `another run of this test has been holding ${LOCK_PATH} for ` +
+            `${(TIMEOUTS.lock / 1000).toFixed(0)}s. Only one run at a time can ` +
+            'drive the one installed game. If you are sure nothing else is ' +
+            'running, delete that file.'
+          );
+        }
+        this.note('another run holds the game; waiting for it to finish');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
+  }
+
+  /** True if the lock belonged to a run that has since died, and we removed it. */
+  _clearedAbandonedLock() {
+    let owner;
+    try {
+      owner = Number(fs.readFileSync(LOCK_PATH, 'utf8').trim());
+    } catch (err) {
+      return false;
+    }
+    if (Number.isInteger(owner) && owner > 0) {
+      try {
+        // Signal 0 asks "is this still alive?" without disturbing it.
+        process.kill(owner, 0);
+        return false;
+      } catch (err) {
+        if (err.code === 'EPERM') {
+          return false;   // alive, just not ours to signal
+        }
+      }
+    }
+    try {
+      fs.rmSync(LOCK_PATH, { force: true });
+      this.note(`cleared a lock left behind by run ${owner}, which is no longer running`);
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  _releaseLock() {
+    if (!this.lockHeld) {
+      return;
+    }
+    this.lockHeld = false;
+    try {
+      fs.rmSync(LOCK_PATH, { force: true });
+    } catch (err) {
+      // Nothing useful to do; the next run will see it is abandoned.
+    }
+  }
+
+  /**
+   * Put the game folder back even if this process is killed outright.
+   *
+   * Without this, a Ctrl+C in the wrong second leaves the game pointing at a
+   * relay that will never answer — and, worse, the NEXT run would read that as
+   * "the developer's own setting" and faithfully restore it, making a temporary
+   * mess permanent.
+   */
+  _armTheSafetyNet() {
+    if (this.safetyNet) {
+      return;
+    }
+    this.safetyNet = () => {
+      this._restoreHostJson();
+      this._releaseLock();
+    };
+    this.onInterrupt = () => {
+      this.safetyNet();
+      process.exit(130);
+    };
+    process.on('exit', this.safetyNet);
+    process.on('SIGINT', this.onInterrupt);
+    process.on('SIGBREAK', this.onInterrupt);
+  }
+
+  _disarmTheSafetyNet() {
+    if (!this.safetyNet) {
+      return;
+    }
+    process.off('exit', this.safetyNet);
+    process.off('SIGINT', this.onInterrupt);
+    process.off('SIGBREAK', this.onInterrupt);
+    this.safetyNet = null;
+  }
+
+  /** Refuse to start on the conditions that otherwise produce baffling failures. */
+  async _checkTheGroundIsClear() {
     if (!fs.existsSync(this.options.gamePath)) {
       throw new Error(
         `No game installed at ${this.options.gamePath}. ` +
@@ -163,6 +306,33 @@ class GameSession {
     if (!fs.existsSync(LAUNCHER_PATH)) {
       throw new Error(`Missing the launcher script at ${LAUNCHER_PATH}`);
     }
+    await this._checkTheServerIsUp();
+  }
+
+  /**
+   * The game cannot get past its login without the server, and the failure that
+   * produces is a poor one to debug: the run spends half a minute starting a
+   * game, then reports that the login came back with status 0, which says
+   * nothing about why. Ask first, and say the useful sentence instead.
+   */
+  _checkTheServerIsUp() {
+    const url = new URL(this.options.serverUrl);
+    const port = Number(url.port) || (url.protocol === 'https:' ? 443 : 80);
+    return new Promise((resolve, reject) => {
+      const probe = net.createConnection({ host: url.hostname, port: port });
+      const giveUp = message => {
+        probe.destroy();
+        reject(new Error(
+          `Nothing is answering at ${this.options.serverUrl} (${message}). The game ` +
+          'cannot get past its login without it — start bsf-server\\start-server.bat, ' +
+          'or set BSF_SERVER_URL if yours is somewhere else.'
+        ));
+      };
+      probe.setTimeout(3000);
+      probe.on('connect', () => { probe.destroy(); resolve(); });
+      probe.on('timeout', () => giveUp('it did not answer in time'));
+      probe.on('error', err => giveUp(err.message));
+    });
   }
 
   _listen() {
@@ -187,9 +357,19 @@ class GameSession {
     const modsDir = path.join(this.options.gamePath, 'mods');
     fs.mkdirSync(modsDir, { recursive: true });
     this.hostJsonPath = path.join(modsDir, 'host.json');
-    this.previousHostJson = fs.existsSync(this.hostJsonPath)
+
+    // What is there now is usually the developer's own setting, to be handed
+    // back untouched at the end. But if a previous run was killed before it
+    // could tidy up, what is there is OUR setting from that run — and treating
+    // that as "theirs" would write it back at the end and make the loss
+    // permanent. So: recognise our own handwriting and keep nothing.
+    const existing = fs.existsSync(this.hostJsonPath)
       ? fs.readFileSync(this.hostJsonPath)
       : null;
+    this.previousHostJson = this._isOurOwnDescriptor(existing) ? null : existing;
+    if (existing && this.previousHostJson === null) {
+      this.note('the game was still pointing at a previous run of this test; not keeping that');
+    }
 
     const descriptor = {
       program: process.execPath,             // the same Node running this test
@@ -197,6 +377,21 @@ class GameSession {
     };
     fs.writeFileSync(this.hostJsonPath, JSON.stringify(descriptor, null, 2));
     this.note(`the game's helper is now: ${descriptor.program} ${descriptor.args.join(' ')}`);
+  }
+
+  /** Did this test write the setting sitting in the game folder? */
+  _isOurOwnDescriptor(contents) {
+    if (!contents) {
+      return false;
+    }
+    try {
+      const parsed = JSON.parse(contents.toString('utf8'));
+      return Array.isArray(parsed.args) &&
+        parsed.args.some(arg => String(arg) === RELAY_PATH);
+    } catch (err) {
+      // Unreadable, so certainly not ours. Leave it alone and put it back.
+      return false;
+    }
   }
 
   _launchTheGame() {
@@ -213,7 +408,7 @@ class GameSession {
     const keep = chunk => {
       const text = chunk.toString();
       this.launcherOutput.push(text);
-      this.runLog.write(text);
+      writeIfOpen(this.runLog, text);
       if (process.env.BSF_TEST_VERBOSE === '1') {
         process.stderr.write(text);
       }
@@ -271,7 +466,24 @@ class GameSession {
       }
     });
     socket.on('error', err => this.note(`the line to the game broke: ${err.message}`));
-    socket.on('close', () => this.note('the game closed the line'));
+    socket.on('close', () => {
+      if (this.socket !== socket) {
+        return;
+      }
+      // Forget the dead line. Without this, later commands are written into
+      // nothing and simply time out one by one, and a replacement helper — the
+      // game starts up to three — would be turned away as "a second helper",
+      // silencing the channel for good with nothing to show why.
+      this.socket = null;
+      this.note('the game closed the line');
+      if (!this.stopped) {
+        this._abandonEveryone(new Error(
+          'the game closed the channel while the test was still using it — its ' +
+          'helper may have crashed.\n' +
+          `Transcript so far: ${this.transcriptPath}`
+        ));
+      }
+    });
   }
 
   // ---------------------------------------------------------------------
@@ -281,7 +493,7 @@ class GameSession {
   _onLine(line) {
     // Written down one line at a time and flushed as it arrives, so a run that
     // dies mid-battle still leaves behind everything it had heard.
-    this.transcript.write(line + '\n');
+    writeIfOpen(this.transcript, line + '\n');
 
     let message;
     try {
@@ -346,16 +558,30 @@ class GameSession {
    */
   async until(what, check, { timeoutMs = 60000, everyMs = POLL_EVERY_MS } = {}) {
     const deadline = Date.now() + timeoutMs;
-    let last;
+    let slowAnswer = null;
     for (;;) {
-      last = await check();
-      if (last) {
-        return last;
+      try {
+        const got = await check();
+        if (got) {
+          return got;
+        }
+        slowAnswer = null;
+      } catch (err) {
+        // A slow answer is not a failure. The game is single-threaded, and
+        // loading a battle can block it for longer than one reply is allowed —
+        // so keep asking until OUR deadline rather than failing at the first
+        // reply's much shorter one. Anything else (a failed check inside the
+        // poll, say) is a real failure and goes straight up.
+        if (!err.timedOut) {
+          throw err;
+        }
+        slowAnswer = err.message;
       }
       if (Date.now() >= deadline) {
         throw new Error(
           `gave up after ${(timeoutMs / 1000).toFixed(0)}s waiting for ${what}` +
-          (last === undefined ? '' : ` (last look: ${JSON.stringify(last)})`)
+          (slowAnswer ? `; the game also stopped answering (${slowAnswer})` : '') +
+          `\nWhat the game said is in ${this.transcriptPath}`
         );
       }
       await new Promise(resolve => setTimeout(resolve, everyMs));
@@ -372,7 +598,10 @@ class GameSession {
       return Promise.reject(new Error(`cannot send "${cmd}": no line to the game`));
     }
     const id = this.nextId++;
-    const line = JSON.stringify(Object.assign({ cmd: cmd, id: id }, args));
+    // The command and its number go on LAST, so a command's own arguments can
+    // never overwrite the number a reply is matched by. `battle_move` and
+    // `battle_attack` will be the first commands to carry arguments at all.
+    const line = JSON.stringify(Object.assign({}, args, { cmd: cmd, id: id }));
 
     const answer = new Promise((resolve, reject) => {
       this.awaitingReply.set(id, { resolve, reject, cmd });
@@ -406,7 +635,7 @@ class GameSession {
    */
   async stop() {
     if (this.stopped) {
-      return { closedPolitely: this.closedPolitely === true };
+      return { closedPolitely: this.closedPolitely };
     }
     this.stopped = true;
 
@@ -436,6 +665,18 @@ class GameSession {
       this.server = null;
     }
     this._restoreHostJson();
+    this._releaseLock();
+    this._disarmTheSafetyNet();
+
+    // Stop listening to the game's output BEFORE closing the log it is written
+    // to. The launcher prints its last couple of lines as it goes, and Node
+    // delivers a child's "it exited" before its final output — so a chunk can
+    // still arrive here. Writing it into a closed log raises an error nobody is
+    // catching, which would end the run after every check had already passed.
+    if (this.launcher) {
+      this.launcher.stdout.removeAllListeners('data');
+      this.launcher.stderr.removeAllListeners('data');
+    }
 
     await Promise.all([
       new Promise(resolve => this.transcript.end(resolve)),
@@ -557,9 +798,7 @@ class GameSession {
   /** A line for the run log — never for the game, which only reads commands. */
   note(message) {
     const line = `[${new Date().toISOString().slice(11, 23)}] ${message}\n`;
-    if (this.runLog && !this.runLog.destroyed) {
-      this.runLog.write(line);
-    }
+    writeIfOpen(this.runLog, line);
     if (process.env.BSF_TEST_VERBOSE === '1') {
       process.stderr.write(line);
     }

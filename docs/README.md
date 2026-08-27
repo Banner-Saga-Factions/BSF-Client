@@ -63,11 +63,10 @@ Architecture, build workflow, wire protocol, and reference material for the patc
 ### "I'm working on offline AI battles or the mod bridge"
 
 1. [`offline-ai.md`](./offline-ai.md) — how an offline practice battle runs and how the AI thinks.
-2. [`driving-the-client.md`](./driving-the-client.md) — start one yourself and watch it; how to read the board and which log to trust.
+2. [`driving-the-client.md`](./driving-the-client.md) — start one yourself and watch it; how to read the board, which log to trust, and (§9) the automated test that does the same journey with nobody at the keyboard.
 3. [`battle-engine.md`](./battle-engine.md) — the turn FSM the offline battle rides on.
 4. [`mod-bridge.md`](./mod-bridge.md) — drive the game (or watch its traffic) from an external host.
-5. [`driving-the-client.md`](./driving-the-client.md) → "The first automated test" — the same journey with nobody at the keyboard, and how to write another one.
-6. [`patch-inventory.md`](./patch-inventory.md) — the fork surface both features touch.
+5. [`patch-inventory.md`](./patch-inventory.md) — the fork surface both features touch.
 
 ## Source material
 

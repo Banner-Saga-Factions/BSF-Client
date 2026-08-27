@@ -23,6 +23,13 @@
 // It is started as:  node relay.js <port>
 // The test picks the port, writes it into mods/host.json, and is listening on it
 // before the game is launched.
+//
+// NOT THE SAME THING AS scripts/mod-host/host.js, AND DO NOT MERGE THEM. That
+// one is for a person driving the game by hand: it keeps a transcript, replays a
+// list of commands, and prints a readable summary of the board. This one must
+// stay a pipe that understands nothing, because everything it learned to
+// understand would be a second opinion about what the game said — and the test
+// on the other end is meant to be the only one.
 
 'use strict';
 

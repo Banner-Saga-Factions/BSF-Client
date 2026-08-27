@@ -417,6 +417,11 @@ The helper writes everything the game sent to `mods\transcript.jsonl`, and if a 
 present it sends those commands in order (`scripts\mod-host\script.example.json` shows the shape). Its
 own logging comes back tagged `[modhost]` in the game log.
 
+> **The automated test in §9 borrows this same slot.** It writes its own `mods\host.json`, naming its
+> go-between rather than this helper, and puts yours back when it finishes. So do not expect a hand
+> setup to survive a test run that was killed halfway — and if the bridge ever seems to have stopped
+> working, look at `mods\host.json` first.
+
 ### The trap this replaces: which build am I actually running?
 
 `run-adl.ps1` used to check only that *a* game file was installed, not that it was ours. Launching the
@@ -435,8 +440,9 @@ produce it.
 
 Everything above is a person driving the game. `tests/first-battle.test.js` is that same journey with
 nobody at the keyboard: it starts the game, watches it log in, starts a practice battle, checks the
-board, steps three of the player's turns, and closes the game again. Twenty-seven seconds, and it is
-the client's first automated test of any kind.
+board, steps three of the player's turns, and closes the game again. It is the client's first automated
+test of any kind. Half a minute on a quiet machine, twice that on a busy one — most of it spent waiting
+for the game to load a battle, which is why every wait here is generous.
 
 ```powershell
 node --test                                # every client test
@@ -446,8 +452,18 @@ $env:BSF_TEST_VERBOSE=1; node --test       # and watch it work
 
 Name the file, or name nothing at all — but **do not name the folder**. `node --test tests\` looks
 right and is not: Node runs the folder as though it were a single file and reports a baffling "cannot
-find module". It needs the same three things §1 needs, for the same reasons — the local server up,
-`AIR_HOME` set, and our own build installed.
+find module".
+
+It needs three things in place: the local server up (§1), `AIR_HOME` set and our own build installed
+(both checked by `run-adl.ps1`, which refuses to launch a build that is not ours). If the game, the
+server or the login live somewhere else on your machine, say so rather than editing anything —
+`BSF_GAME_PATH`, `BSF_SERVER_URL`, `BSF_USERNAME`, `BSF_STEAM_ID`.
+
+**One run at a time.** There is one installed game, with one setting naming its helper program, and
+every run rewrites that setting. Two runs at once would hand each other the wrong port and then put
+each other's settings back — which does not look like a clash, it looks like a flaky game. `node --test`
+runs test **files** side by side, so this stops being hypothetical the day a second test file exists.
+The driver takes a lock and makes the second run wait its turn; `--test-concurrency=1` avoids the wait.
 
 **It is a test of our build by definition**, since the channel it drives and the practice battle it
 starts exist only in the copy we compile. That is the deliberate trade §8 sets out, not an oversight —
@@ -480,22 +496,43 @@ that take more than one byte, and a chunk can split one down the middle.
 
 A fixed wait before `start_ai_battle` is what the example script does, and it is a guess. The game says
 when it is ready, in three messages the tap already carries: the login being answered, the account and
-roster arriving, and then a `services/game/location` request — the player landing somewhere. That last
-one is the useful one, because the game only sends it once its configuration is loaded **and** the
-account has been read, which is everything a battle needs in order to exist.
+roster arriving, and then a `services/game/location` request — the player landing somewhere.
 
-This is not a tidiness point. A draft of this test started the battle as soon as the roster arrived,
-skipping the landing message, and **the battle silently never started** — `battle_state` answered
-`{"inBattle":false}` for two solid minutes with no error anywhere. Waiting for the right message turned
-that into a battle on the board in nine seconds.
+**The last one is the one that matters, and waiting only for the roster is not enough.** A draft of this
+test started the battle as soon as the roster arrived and **the battle silently never started** —
+`battle_state` answered `{"inBattle":false}` for two solid minutes with no error raised anywhere.
+Waiting for the landing message instead turned that into a battle on the board in nine seconds.
 
-With the launch arguments `run-adl.ps1` passes, the place the player lands is `loc_versus` — the ranked
-match search, not camp (`--versus_start`; see `FactionsState`). Starting the practice battle cancels the
-search, which is why a run's traffic shows a `/vs/start` followed by a `/vs/cancel`.
+The reason is not that the roster was missing; it had arrived. It is that **the battle was started and
+then thrown away.** `FactionsState.handleEnteredState` asks to be told when the faction load finishes
+and **never cancels that request** — the class has no `handleCleanup` and never removes the listener. So
+whenever the load completes, `factionsHandler` runs *wherever the game has since got to* and calls
+`transitionTo(VersusFindMatchState)`, discarding a battle started in between. `Fsm.transitionTo` guards
+only on the machine already stopping, so nothing refuses it. Waiting for the landing message means that
+jump has already happened and there is nothing left to throw the battle away.
+
+> **The fingerprint, if this ever comes back:** a `/vs/start` with **no** `/vs/cancel` after it. A
+> healthy run shows the cancel, because starting the practice battle is what cancels the search.
+> Measured across four runs — the three good ones each had one `/vs/start` and a cancel; the failed one
+> had two `/vs/start` and no cancel at all, and never reported a battle.
+
+Two things this also settles about `start_ai_battle`: it answers `"ok"` **unconditionally**
+(`GameFsm.as`), reporting only that the request was passed on, never that a battle exists — which is the
+whole of "no error anywhere". And a battle is confirmed only by `battle_state` saying so.
+
+With the launch arguments `run-adl.ps1` passes, the place the player lands is `loc_versus` — the match
+search rather than camp (`--versus_start` → `FactionsState`'s ranked branch, which also returns before
+the tutorial check, so an account that has not finished the tutorial still gets here). Note `loc_versus`
+itself does not distinguish ranked from a quick match; both send the same word. Two smaller traps in the
+same area: the login queue sends a `services/game/location` request too, with a different place, so a
+test matching on the request alone can match far too early — check the place, not just the request. And
+an offline session never sends one at all, because the game only reports a location when it has a
+session key and is not offline.
 
 ### Closing the game while a unit is walking hangs it
 
-**This is a real fault in the game, found by the test on its first run.** Closing the window mid-battle
+**This is a real fault in the game, found by the test on its first run** — tracked as
+[issue #36](https://github.com/Banner-Saga-Factions/BSF-Client/issues/36). Closing the window mid-battle
 starts the game's own exit path, which tears the board down; tearing down a unit that is *still walking*
 interrupts the walk, and the interruption sets off a chain that asks the sprite pool for a target
 indicator after that pool has been emptied and set to nothing:
@@ -508,15 +545,38 @@ GameMainAir/exitingHandler -> GameConfig/cleanup -> Fsm/stopFsm -> SceneState/ha
   -> AnimClipSpritePool/pop -> addPool   ->  TypeError #1009
 ```
 
-`AnimClipSpritePool.cleanup` sets `pools`, `acrs`, `poolAcrs`, `popped` and `resman` all to nothing, so
-the `pools[...]` read inside `addPool` is a read off nothing. The exit never finishes and the game sits
-there until it is forced.
+**Name the fault carefully, because the obvious name is the wrong one.** It is tempting to call this
+"`AnimClipSpritePool.addPool` reads `pools` after `cleanup` set it to nothing" — true, but that is a
+symptom, and fixing that line would not fix the hang. The fault is one level up: **the sprite stores are
+torn down while every target marker is still listening to the battle.** `BattleBoardView.cleanup` clears
+all three stores and never cleans up its entity views, and the only call to `EntityView.cleanup` — which
+is what would unhook a marker — comes from the handler for an entity being *removed*. So each marker
+keeps all its listeners through teardown, and the next battle event reaches a store that is now nothing.
+Three consequences worth knowing:
 
-Measured both ways in one afternoon: closing while the computer's unit was walking **never** completed
-in twenty seconds, and closing with the board still completed in **1.7 seconds**. The test therefore
-waits for control to come back to the player before it closes — which is a fair thing to check anyway,
-since a turn has to come back from the computer rather than merely leave the player. Anyone driving the
-game by hand can avoid it the same way: do not close mid-move.
+- **`BitmapPool.addPool` already has the guard `AnimClipSpritePool.addPool` lacks** (`if(!pools) return
+  null;`). Whoever hit this before fixed one sibling and not the other, which is a good sign of the
+  shape of the bug and a bad sign for guarding just one more line.
+- **Add that guard and the crash moves rather than goes away** — `pop` then returns nothing and the
+  reclaim path reads `popped[...]` off the same emptied store.
+- **Which class appears in the stack is an accident** of whether that marker was showing a clip or a
+  still image; the bitmap store's guard means the same close can land in `BitmapPool.reclaim` instead.
+
+**Why it hangs rather than crashes and exits.** `GameMainAir.exitingHandler` marks the exit as handled
+*before* the cleanup loop that throws, and both the `preventDefault()` and the timer that actually calls
+`exit()` come *after* it. So the throw strands the shutdown with no route left to finish it, and the
+"already handled" mark makes a second attempt return immediately.
+
+Measured both ways: closing while the computer's unit was walking did not complete within twenty
+seconds — the game had to be forced — while closing with the board still completed in **1.7 seconds**,
+three times over. The walk really is the trigger: a unit is only interruptible between starting a move
+and finishing it, and every clean run closed mid-battle with a full board of markers and exited fine.
+
+The test therefore waits for control to come back to the player before closing — a fair thing to check
+anyway, since a turn has to come *back* from the computer rather than merely leave the player. Anyone
+driving the game by hand can avoid it the same way: **do not close mid-move.** One honest limit: the
+bridge does not report whether anything is moving, so "it is the player's turn" is a stand-in for "the
+board is still" rather than a direct reading of it.
 
 ---
 

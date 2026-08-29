@@ -14,7 +14,8 @@ anything.** For _why_ the launcher works the way it does (the runtime mismatch, 
 extension), see [`build-workflow.md`](./build-workflow.md) → "The AIR SDK 33-vs-51 wall". For how the
 offline computer opponent actually thinks, see [`offline-ai.md`](./offline-ai.md).
 
-Everything below was **measured** on real runs — 2026-08-19 and 2026-08-21 — not inferred from source.
+Everything below was **measured** on real runs — 2026-08-19, 2026-08-21 and 2026-08-29 — not inferred
+from source.
 Where a claim is an inference or rests on a small sample, it says so.
 
 **Two different builds appear below, and the difference matters.** The 2026-08-19 run used **our
@@ -40,6 +41,48 @@ the initiative bar, the two-click rule — is the same in both.
 The launcher's default arguments include `--versus_start`, which **puts you straight into matchmaking**
 rather than at camp. On a single-player test machine that search never finds anyone, which is harmless
 — but don't read the "Searching for a match" screen as a hang.
+
+### Landing at camp instead — and why removing one argument is not enough
+
+Matchmaking is a dead end for anything that is not a battle. The town is where the great hall (the
+roster), the mead house and the proving grounds hang off, and the only way into any of them is to click
+a building. `run-adl.ps1 -Landing camp` goes there instead.
+
+**The obvious way to write that option is wrong, and it fails in a way that looks like a hang.** Simply
+dropping `--versus_start` does not leave you at camp: the game stops at the **main menu** and never
+reports arriving anywhere, so anything waiting for a landing message waits forever. Measured
+2026-08-29, then traced:
+
+- `--factions` and `--developer` set the **same single run-mode value**, so whichever comes last wins.
+  The launcher passes them in that order, which leaves the mode on DEVELOPER.
+- `--versus_start` sets it back to FACTIONS — so that one argument was quietly doing **two** jobs:
+  choosing the match search, and repairing the mode the previous argument had overwritten.
+- The mode decides `startInFactions` (`GameMainAir.as:714`), and `ReadyState` only enters the state
+  that leads to the town when that is true. Otherwise it stops at the main menu.
+
+So the camp landing passes `--developer --factions` in **that** order and leaves `--versus_start` out.
+If you ever edit the launcher's argument list, this is the trap: the order of those two is load-bearing
+and nothing on screen says so.
+
+**Camp also needs an account that has finished the tutorial.** `FactionsState` sends an account whose
+`completed_tutorial` is 0 to the tutorial instead, which reads as the wrong screen rather than as a
+refusal. Check the `accounts` table before blaming the launcher.
+
+**Where each building goes**, from `TownState.handleLandscapeClick` — worth having written down,
+because the buildings carry no labels until you hover them:
+
+| Hotspot | Goes to |
+| ------- | ------- |
+| `click_greathall` | the great hall — roster, promotions, and the match banners |
+| `click_meadhouse` | the mead house, where units are hired |
+| `click_provinggrounds` | the proving grounds |
+| `click_hall_of_valor` | the hall of valor |
+| `click_marketplace` | opens the marketplace panel over the town |
+| `click_firetower` | **avoid** — a quit dialog, or straight out to the main menu |
+| `click_trophytower`, `click_weavershut` | accepted, and do nothing |
+
+The two burning braziers are the fire tower. A scripted run that clicks one gets a modal dialog it was
+not expecting, which is a slow way to lose a session.
 
 ### Two players at once — one window, not two (both builds)
 
@@ -157,11 +200,36 @@ because both land inside the same rendering frame. Sending the second click a se
 a separate step, commits reliably every time. If your automation "clicks twice and nothing happens",
 this is why — it is not a missed coordinate.
 
+**And the rule is not about targeting — it is about clicking.** The paragraphs above describe arming an
+attack, which makes the two clicks sound like a feature of the battle board. They are not. Measured
+2026-08-29 on the **town**, where nothing is being armed and there is no check mark to see: a single
+click on the great hall did nothing at all, twice, on separate runs. The same click preceded by any
+other click, or simply repeated a second later, opened it every time — four runs, no exceptions. So
+treat **two spaced clicks as the way to click anything**, and a single click as the special case you
+ask for deliberately when you want to arm a battle action without committing it.
+
+Worth saying what this is *not*, because both guesses cost a run each. It is not the pointer failing to
+register as having entered the target: adding intermediate movement events before the press changed
+nothing. And it is not a wrong coordinate: the position was confirmed by magnifying the picture first,
+and the very same position worked on the next click.
+
 **Screen scaling will silently break your coordinates.** On a 125% display the game reports the screen
 as 1536×864 while Windows reports 1920×1080. Capture and clicking must both use the **Windows** numbers,
 and the capturing process must declare itself scaling-aware or the image comes back at the smaller size
 and every click lands about a quarter short. Verify a capture really is full-size before trusting any
 coordinate derived from it.
+
+**Resizing the window between the picture and the click breaks them just as quietly**, and one Windows
+call does it by accident. Asking to "restore" a window — the usual way to un-minimise one — *shrinks* a
+window that is maximised. A driver that called it before every click turned a 1938×1038 window into
+1042×767 between one step and the next, after which every position read off the previous picture was
+meaningless. Un-minimise only a window that is actually minimised, and have whatever does the clicking
+refuse a position that falls outside the window as it is now, rather than clicking somewhere arbitrary.
+
+**Under the debug launcher the window opens at about 518×422**, which is the size in the application
+descriptor. It is big enough for the mod bridge, which never looks at the screen, and far too small to
+read an initiative bar, a stat panel or a banner. Nothing on screen suggests the window is smaller than
+it should be. Make it bigger before photographing anything.
 
 **Still screenshots are enough, but only just.** One frame per step, a second or two apart, is fine for
 reading a menu, a board state, or a crash dialog. It will not catch an animation or a one-frame flash.
@@ -422,6 +490,24 @@ own logging comes back tagged `[modhost]` in the game log.
 > setup to survive a test run that was killed halfway — and if the bridge ever seems to have stopped
 > working, look at `mods\host.json` first.
 
+### A driver that already does both
+
+`.claude/skills/run-bsf-client/` is a ready-made handle on all of this, so neither channel has to be
+rebuilt from scratch each time. `driver.js` launches the game, talks to the bridge, clicks the window
+and photographs it, taking one command per line — `ready`, `battle`, `board`, `move`, `click`, `shot`,
+`zoom`. It reuses `tests/lib/game-session.js` for the conversation itself, so there is one
+implementation of the launch-and-shutdown machinery rather than two. `SKILL.md` beside it is the
+operating manual; this document remains the reasoning behind it.
+
+**Ask the game where it is rather than photographing it to find out.** Every state that the player can
+arrive at announces itself to the server — `loc_strand` for the town, `loc_great_hall`, `loc_mead_house`,
+`loc_versus` and so on — so a helper watching that traffic can say which screen the game is on, and
+therefore whether a click did anything, without taking a picture at all. That is much cheaper than a
+screenshot and far more precise than looking at one, and it turns "did that click work?" into a fact.
+Two cautions carried over from the readiness rule in section 9: match on the **place**, not merely on
+the request, because the login queue sends one too; and remember the announcement is a fact about the
+game's state machine, which runs ahead of what has finished drawing.
+
 ### The trap this replaces: which build am I actually running?
 
 `run-adl.ps1` used to check only that *a* game file was installed, not that it was ours. Launching the
@@ -556,6 +642,19 @@ worth building before a second test actually needs them:
 - **The driver cannot tell whether the board is moving.** `waitForOurTurn` is also the "safe to close"
   signal, for the reason in the next section — and a test that moves and attacks is far likelier to be
   mid-walk at shutdown than this one is, because an attack ends the turn and hands it to the computer.
+
+> **Three of the four now exist — beside the driver rather than in it.** The run skill's `driver.js`
+> (section 8) has the login steps, a readable board, and a "this must have worked" wrapper that stops
+> with the game's own refusal; "is the board still?" is answered by comparing two readings half a second
+> apart, which catches a walk but not an animation that moves nobody. So the second test's real cost is
+> now a **move** into `tests/lib/game-session.js` rather than fresh code — and the argument above still
+> stands, because the wait carrying the "do not drop this" warning is still copied rather than shared.
+>
+> One measurement worth taking across with them: **a move is reported when it is accepted, not when it
+> is finished.** A six-step walk answered instantly, still showed the unit on its starting tile a tenth
+> of a second later, was two tiles along at one second, and had arrived by three — roughly two tiles a
+> second. A test asserting where something stands, or a screenshot meant to show it there, has to wait
+> that out.
 
 ### Closing the game while a unit is walking hangs it
 

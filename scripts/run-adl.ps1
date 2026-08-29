@@ -28,7 +28,17 @@ param(
     [string]$SteamId   = "123456",
     # Launch whatever SWF is installed, even when it is not the one we just built. Off by default,
     # because launching the shipped build by accident looks exactly like launching ours.
-    [switch]$AllowUnpatched
+    [switch]$AllowUnpatched,
+    # WHERE THE PLAYER ENDS UP after logging in.
+    #   versus (default) - straight into the match search, which is what every previous run did.
+    #   camp             - the town, from which the great hall, mead house and proving grounds are
+    #                      reachable by clicking. This takes MORE than leaving out --versus_start: see
+    #                      the note on argument order further down, which is what actually makes it work.
+    # CAMP NEEDS AN ACCOUNT THAT HAS FINISHED THE TUTORIAL. FactionsState sends an account with
+    # completed_tutorial = 0 to the tutorial instead, which looks like the wrong screen rather than a
+    # refusal. Check the accounts table before blaming the launcher.
+    [ValidateSet('versus', 'camp')]
+    [string]$Landing = 'versus'
 )
 
 if (-not $env:AIR_HOME) { Write-Error "AIR_HOME is not set. Point it at the AIR SDK 51 root."; exit 1 }
@@ -111,17 +121,40 @@ if (-not $serverUp) {
 }
 
 # Same arguments launch-game-1p.ps1 passes to the captive .exe.
+#
+# THE ORDER OF --factions AND --developer MATTERS, and not in a way anything on screen reveals.
+# Both set the SAME single run-mode value, so the last one given wins (GameMainAir.parseArguments).
+# The run mode then decides two separate things much later:
+#   * startInFactions = (runMode is FACTIONS)  - and ReadyState only enters FactionsState when that
+#     is true. Otherwise it stops at the main menu.
+#   * whether the main menu is shown at all.
+#
+# That is why --versus_start used to be load-bearing twice over: it chose the match search AND set the
+# run mode back to FACTIONS after --developer had overwritten it. Simply dropping it left the run mode
+# on DEVELOPER, so the game stopped at the main menu and never announced arriving anywhere - measured,
+# not guessed. So the camp landing puts --factions last instead.
 $gameArgs = @(
     "--debug",
     "--server", $ServerUrl,
-    "--username", $Username,
-    "--factions",
-    "--developer",
-    "--steam_id", $SteamId,
-    "--steam", "false",
-    "--versus_start",
-    "--versus_countdown", "0"
+    "--username", $Username
 )
+if ($Landing -eq 'camp') {
+    # --developer first so --factions wins the run mode, and no --versus_start: FactionsState then
+    # runs out of branches, completes, and the state machine moves on through TownLoadState to town.
+    $gameArgs += @("--developer", "--factions")
+} else {
+    # Exactly the order every previous run used. Left alone deliberately.
+    $gameArgs += @("--factions", "--developer")
+}
+$gameArgs += @(
+    "--steam_id", $SteamId,
+    "--steam", "false"
+)
+if ($Landing -eq 'versus') {
+    $gameArgs += @("--versus_start")
+}
+$gameArgs += @("--versus_countdown", "0")
+Write-Host "Landing: $Landing" -ForegroundColor Cyan
 
 # root-dir = the install dir, so <content>app.game.air.swf</content> and all game assets resolve there.
 Write-Host "Launching under adl (root = $GamePath) ..." -ForegroundColor Green

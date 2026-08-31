@@ -61,6 +61,10 @@ const DEFAULTS = {
   serverUrl: process.env.BSF_SERVER_URL || 'http://localhost:8082/',
   username: process.env.BSF_USERNAME || 'test2',
   steamId: process.env.BSF_STEAM_ID || '123456',
+  // Where the player ends up after logging in: 'versus' for the match search,
+  // 'camp' for the town the great hall and mead house open off. Everything
+  // written before this option existed lands in versus, so that stays default.
+  landing: process.env.BSF_LANDING || 'versus',
 };
 
 // How long to give each part of the run before calling it a failure. Generous,
@@ -401,6 +405,7 @@ class GameSession {
       '-ServerUrl', this.options.serverUrl,
       '-Username', this.options.username,
       '-SteamId', this.options.steamId,
+      '-Landing', this.options.landing,
     ];
     this.note(`starting: powershell ${args.join(' ')}`);
     this.launcher = spawn('powershell.exe', args, { windowsHide: true });

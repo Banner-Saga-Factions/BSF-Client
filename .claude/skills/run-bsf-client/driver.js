@@ -68,9 +68,17 @@ const PATIENCE = {
   turnComesRound: 90000,
 };
 
-// EVERY PLACE THE GAME REPORTS ARRIVING AT, taken from the states that announce
-// one (each calls updateGameLocation with its own word). Two things make this
-// table worth having rather than matching one string:
+// THE PLACES THIS DRIVER CAN LAND ON OR WAIT FOR, taken from the states that
+// announce one (each calls updateGameLocation with its own word).
+//
+// NOT every place in the client, and do not let this table imply otherwise.
+// Twelve states announce a place; `map_camp` belongs to saga mode and is left out
+// as unreachable from here. Screens that open OVER another screen rather than
+// replacing it — the marketplace is one, and it is on the town's own list of
+// things to click — announce nothing at all. So a place arriving proves a click
+// worked, while silence proves nothing either way.
+//
+// Two things make this table worth having rather than matching one string:
 //
 //   - `loc_login_queue` is DELIBERATELY ABSENT. The login queue announces itself
 //     the same way, long before the player has gone anywhere, so a wait that
@@ -414,6 +422,10 @@ function takeScreenshot(session, name) {
 // The command language
 // -------------------------------------------------------------------------
 
+// Has any press already landed on the game this run? The first one never does
+// — see the note on `click` below.
+let firstPressSpent = false;
+
 const COMMANDS = {
   // ready [place] — wait for the game to log in and arrive somewhere.
   // Given a place (loc_strand, loc_versus, ...) it waits for that one in
@@ -488,13 +500,24 @@ const COMMANDS = {
   // the same tile. That is a good-enough answer, not a perfect one: an animation
   // that moves nothing between tiles — a swing, a flinch — is invisible to it.
   async settle(session, args) {
-    const timeoutMs = Number(args[0] || 20000);
+    // A bad number must not become an endless wait: Number("abc") is NaN, and every
+    // comparison against NaN is false, so the deadline would never arrive.
+    const asked = Number(args[0]);
+    const timeoutMs = Number.isFinite(asked) && asked > 0 ? asked : 20000;
     const snapshot = state => (state.units || [])
       .map(u => `${u.id}@${u.tile ? `${u.tile.x},${u.tile.y}` : '?'}`)
       .sort()
       .join('|');
 
+    // TWO MATCHING READINGS ARE NOT ENOUGH. A move is answered when it is accepted,
+    // not when the walk begins — the unit still stood on its starting tile when asked
+    // a tenth of a second later — so the first two readings can match simply because
+    // nothing has started yet, and this would report stillness just before a walk.
+    // Three matching readings need a full second of quiet, which is longer than the
+    // gap between accepting a move and the unit setting off.
+    const REQUIRED_MATCHES = 3;
     let previous = null;
+    let matches = 1;
     return session.until(
       'the board to stop moving',
       async () => {
@@ -504,7 +527,12 @@ const COMMANDS = {
         }
         const now = snapshot(state);
         if (previous !== null && now === previous) {
-          return 'the board is still';
+          matches += 1;
+          if (matches >= REQUIRED_MATCHES) {
+            return 'the board is still';
+          }
+        } else {
+          matches = 1;
         }
         previous = now;
         return null;
@@ -622,31 +650,66 @@ const COMMANDS = {
   // refuses rather than clicking when the game did not come to the front, since
   // a click that lands in the wrong window is worse than a step that stops.
   //
-  // IT CLICKS TWICE, ABOUT A SECOND APART, because once does not work. That rule
-  // was written down for the battle board — first click arms, second commits —
-  // but it holds in the town too: a lone click on the great hall did nothing on
-  // two separate runs, while the same click repeated opened it every time. Add
-  // `once` as a fourth word for a single click, which is what you want to arm a
-  // battle action without committing it.
+  // THE FIRST PRESS OF A RUN IS LOST, so this spends it on purpose: the first
+  // `click` of a run presses twice, and every click after it presses once.
+  //
+  // Measured 2026-08-30 over four runs. A lone click on the great hall did nothing,
+  // even after waiting fifteen seconds. A run that lost a click on a popup close
+  // button then opened the hall with a SINGLE click; a run that spent a click on
+  // empty ground then closed the popup AND opened the hall, one click each. So it
+  // is not that a control needs two clicks — it is that the run needs to lose one.
+  // Giving that press to the title bar instead does not work: it has to land on
+  // the game. See docs/driving-the-client.md for the whole account.
+  //
+  // Why this matters beyond the first click: pressing twice on a control that
+  // changes the screen means the second press lands on whatever the first one
+  // opened. That is harmless only while one press is being eaten, which is exactly
+  // and only the first click of a run.
+  //
+  // `once` forces a single press wherever it appears — that is how you arm a battle
+  // action without committing it — and warns if you spend it on the lost first press.
   //
   // Prefer the bridge for anything inside a battle; this is for the screens the
   // bridge cannot reach at all.
   async click(session, args) {
-    const [x, y, button, once] = args;
+    const [x, y, ...rest] = args;
     if (x === undefined || y === undefined) {
       throw new Error('click needs a position from the last screenshot: click 640 400');
     }
+    let button = null;
+    let wantsOnce = false;
+    for (const word of rest) {
+      const w = String(word).toLowerCase();
+      if (w === 'left' || w === 'right') {
+        button = w;
+      } else if (w === 'once') {
+        wantsOnce = true;
+      } else {
+        // Bind nothing by position: `click 100 200 once` used to pass "once" as the
+        // button and fail inside PowerShell instead of here.
+        throw new Error(`click does not understand "${word}". Use: click <x> <y> [left|right] [once]`);
+      }
+    }
     const extra = ['-X', String(Number(x)), '-Y', String(Number(y))];
     if (button) {
-      extra.push('-Button', String(button));
+      extra.push('-Button', button);
     }
-    if (String(once).toLowerCase() === 'once') {
-      extra.push('-Repeat', '1');
+    const firstOfRun = !firstPressSpent;
+    let note = null;
+    if (wantsOnce) {
+      if (firstOfRun) {
+        note = 'this was the first click of the run, and the first press of a run is lost, so it probably did nothing. Click something harmless first.';
+      }
+    } else if (firstOfRun) {
+      extra.push('-Repeat', '2');
     }
     const result = await runHelper(session, INPUT_PS1, extra);
+    firstPressSpent = true;
+    const warning = result.warning || note;
     return `clicked ${result.button} x${result.clicks} at ${result.at} (window ${result.window})` +
-      (result.warning ? `
-  WARNING: ${result.warning}` : '');
+      (firstOfRun && !wantsOnce ? ' — first click of the run, so one press is spent being lost' : '') +
+      (warning ? `
+  WARNING: ${warning}` : '');
   },
 
   // zoom <x> <y> <w> <h> [scale] [name]
@@ -720,7 +783,9 @@ async function runCommand(session, line) {
   }
 
   const verb = parts[0];
-  const handler = COMMANDS[verb];
+  // Object.hasOwn, not a plain lookup: without it `toString` and `constructor` are
+  // inherited from every object and were accepted as commands.
+  const handler = Object.hasOwn(COMMANDS, verb) ? COMMANDS[verb] : undefined;
   if (!handler) {
     throw new Error(
       `no such command "${verb}". Known: try, ${Object.keys(COMMANDS).sort().join(', ')}`
@@ -784,7 +849,7 @@ async function main() {
   if (mode === 'shell') {
     steps = (await readStdin()).map(l => l.replace(/#.*$/, '').trim()).filter(Boolean);
     landing = landing || 'versus';
-  } else if (RECIPES[mode]) {
+  } else if (Object.hasOwn(RECIPES, mode)) {
     steps = RECIPES[mode].steps.slice();
     landing = landing || RECIPES[mode].landing;
   } else {

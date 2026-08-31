@@ -83,7 +83,10 @@ test('a helper program can drive a practice battle from start to finish', async 
   await t.test('the channel opened, so this is our build', async () => {
     // Built first and started second, so the tidy-up above is holding it even if
     // starting is the thing that fails.
-    session = new GameSession({ name: 'first-battle' });
+    // Pin the landing this test asserts on. The option defaults from BSF_LANDING,
+    // so a shell that had exported it would otherwise send this run to the town and
+    // leave the test waiting ninety seconds for a place it never reaches.
+    session = new GameSession({ name: 'first-battle', landing: 'versus' });
     await session.start();
     const reply = await session.send('ping');
     assert.equal(reply, 'pong', 'the game should answer a ping with a pong');

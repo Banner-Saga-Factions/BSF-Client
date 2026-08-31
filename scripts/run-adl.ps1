@@ -13,7 +13,8 @@
 #       .\scripts\build.ps1 -Target windows           # produces _build\app.game.air.swf
 #       Copy-Item .\_build\app.game.air.swf "<GamePath>\app.game.air.swf" -Force
 #
-# IN-GAME: once at camp, press Ctrl+Shift+A to start the player-vs-AI battle.
+# IN-GAME: with -Landing camp, press Ctrl+Shift+A once at camp to start the player-vs-AI battle.
+# The default landing is the match search instead, which is a different screen - see -Landing below.
 
 # TWO PLAYERS AT ONCE: pass two comma-separated names and ids and the game builds one view per
 # name, side by side in a single window — left is the first name, right is the second. Each half is
@@ -114,38 +115,34 @@ $utf8 = New-Object System.Text.UTF8Encoding($false)
 [IO.File]::WriteAllText($testDesc, $desc, $utf8)
 Write-Host "Wrote adl descriptor: $testDesc  (namespace 51.0, <extensions> stripped)" -ForegroundColor Cyan
 
-# The client boots through login -> camp, so the server must be up.
+# The client cannot get past login without the server, whichever landing is asked for.
 $serverUp = Test-NetConnection -ComputerName localhost -Port 8082 -InformationLevel Quiet -WarningAction SilentlyContinue
 if (-not $serverUp) {
     Write-Host "WARNING: nothing is listening on localhost:8082 - start ..\bsf-server\start-server.bat first." -ForegroundColor Yellow
 }
 
-# Same arguments launch-game-1p.ps1 passes to the captive .exe.
+# Same arguments launch-game-1p.ps1 passes to the captive .exe, minus --developer: see below.
 #
-# THE ORDER OF --factions AND --developer MATTERS, and not in a way anything on screen reveals.
-# Both set the SAME single run-mode value, so the last one given wins (GameMainAir.parseArguments).
-# The run mode then decides two separate things much later:
-#   * startInFactions = (runMode is FACTIONS)  - and ReadyState only enters FactionsState when that
-#     is true. Otherwise it stops at the main menu.
-#   * whether the main menu is shown at all.
+# THE RUN MODE HAS TO END UP AS "FACTIONS", OR THE GAME STOPS AT THE MAIN MENU.
+# Several arguments set that one value and the last one given wins, so what matters is not which
+# ones appear but which one appears last. --factions sets it; --versus_start sets it as well AND
+# asks for the match search; --developer sets it to something else. Anything other than FACTIONS -
+# including the default, which is BETA when no mode argument is given at all - means ReadyState
+# never enters FactionsState and the game stops at the main menu without announcing a place.
 #
-# That is why --versus_start used to be load-bearing twice over: it chose the match search AND set the
-# run mode back to FACTIONS after --developer had overwritten it. Simply dropping it left the run mode
-# on DEVELOPER, so the game stopped at the main menu and never announced arriving anywhere - measured,
-# not guessed. So the camp landing puts --factions last instead.
+# WE USED TO PASS --developer HERE AND IT NEVER DID ANYTHING. It sets the run mode and nothing
+# else, and in both landings a later argument overwrote it - --versus_start for the match search,
+# --factions for camp. Its only real effect was to make the ORDER of the list load-bearing, which
+# cost a run to diagnose when the camp landing was added. It is gone, and with it the trap.
 $gameArgs = @(
     "--debug",
     "--server", $ServerUrl,
     "--username", $Username
 )
-if ($Landing -eq 'camp') {
-    # --developer first so --factions wins the run mode, and no --versus_start: FactionsState then
-    # runs out of branches, completes, and the state machine moves on through TownLoadState to town.
-    $gameArgs += @("--developer", "--factions")
-} else {
-    # Exactly the order every previous run used. Left alone deliberately.
-    $gameArgs += @("--factions", "--developer")
-}
+# --factions in both landings. For camp that is what puts the run mode where it needs to be, and
+# leaving out --versus_start is what lets FactionsState run out of branches, complete, and hand on
+# through TownLoadState to the town.
+$gameArgs += @("--factions")
 $gameArgs += @(
     "--steam_id", $SteamId,
     "--steam", "false"

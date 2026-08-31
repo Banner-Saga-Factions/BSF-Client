@@ -1,7 +1,11 @@
 # window.ps1 — resize the game window so a screenshot is worth taking.
 #
 # WHY THIS EXISTS. Launched under the AIR debug runtime the game opens at about
-# 518x422 — the size in the application descriptor. That is fine for the mod
+# 518x422. That is NOT set in the application descriptor — its width and height
+# are both commented out and nothing fills them in — so the size comes from the
+# compiled file's own stage or from a default inside adl. Nobody has chased it
+# further; what matters here is that the file you would first think to edit has
+# nothing in it to change. The size is fine for the mod
 # bridge, which never looks at the screen, and useless for anything a person
 # would want photographed: at that size the initiative bar, the stat panel and
 # the unit banners are all unreadable. Measured on a first run, and written down

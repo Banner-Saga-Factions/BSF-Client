@@ -23,12 +23,12 @@
 #   2. THE WINDOW IS NOT WHERE YOU EXPECT. Our build runs under the AIR debug
 #      launcher, so the process is `adl`, not anything named after the game. And
 #      the launcher spawns it as a grandchild, so a search from the launcher's own
-#      process id has to walk down. Pass -Pid to search a process tree, or
+#      process id has to walk down. Pass -ProcessId to search a process tree, or
 #      -ProcessName to search by name.
 #
 # USAGE
 #   .\screenshot.ps1 -Out shot.png -ProcessName adl
-#   .\screenshot.ps1 -Out shot.png -Pid 12345          # searches that tree
+#   .\screenshot.ps1 -Out shot.png -ProcessId 12345    # searches that tree
 #   .\screenshot.ps1 -List                             # what windows can be seen
 #
 # It prints one line of JSON so a caller can read the result without parsing prose.
@@ -226,7 +226,9 @@ try {
     $bitmap.Dispose()
 }
 
-$size = (Get-Item $Out).Length
+# -LiteralPath, because square brackets in a name are a wildcard to PowerShell:
+# `shot hall[1]` wrote the picture and then reported no path and zero bytes.
+$size = (Get-Item -LiteralPath $Out).Length
 
 # A blank capture is the failure worth naming, because it looks like a success.
 # An all-one-colour image compresses to almost nothing, so the file's own size
@@ -235,7 +237,7 @@ $suspiciouslySmall = ($size -lt 20000) -and ($CropW -le 0)
 
 Write-Output (@{
     ok = $true
-    path = (Resolve-Path $Out).Path
+    path = (Resolve-Path -LiteralPath $Out).Path
     width = $target.Width
     height = $target.Height
     bytes = $size

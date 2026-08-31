@@ -27,11 +27,25 @@
 # a target only ARMS the action and the second commits it, with the two needing
 # to be about a second apart. Measured here, it turns out to be more general than
 # that. Clicking a building in the town behaves the same way: one click does
-# nothing at all, and the second one opens it. Reproduced four times over — a
-# lone click on the great hall did nothing twice, while the same click preceded
-# by any other click, or repeated, opened it every time.
+# nothing at all, and a second one opens it.
 #
-# So this does TWO clicks by default, spaced. Pass -Repeat 1 for a single one.
+# THE REASON IS NOT THAT THE GAME WANTS TWO CLICKS. Measured 2026-08-30 across
+# three runs: the FIRST click of a run is swallowed, and every click after it
+# works on its own. Run 2 lost a click on a popup close button and then opened
+# the great hall with a SINGLE click; run 3 spent a click on empty ground and
+# then closed the popup AND opened the hall, one click each. Waiting does not
+# help — a lone click after fifteen seconds still did nothing.
+#
+# WHY is not settled, and the likeliest answer has already been ruled out: giving
+# that press to the title bar instead does NOT help (measured, same day), so it is
+# not simply Windows swallowing the press that raises a background window. The
+# press has to land on the game itself to be spent. What happens next is visible
+# in the client: SceneViewController acts on a release only if it saw the matching
+# press, and says nothing at all when it did not.
+#
+# So the first press of a run is spent DELIBERATELY: the driver asks for two
+# presses on the first click of a run and one on every click after it. This file
+# clicks ONCE by default and does not decide that policy — see driver.js.
 #
 # USAGE
 #   .\input.ps1 -ProcessId 1234 -X 640 -Y 400
@@ -46,10 +60,12 @@ param(
     [Parameter(Mandatory = $true)][int]$Y,
     [ValidateSet('left', 'right')]
     [string]$Button = 'left',
-    # HOW MANY CLICKS, AND HOW FAR APART. Two by default, because one does not
-    # work: see the note further down. A caller that genuinely wants a single
-    # click — to arm a battle action without committing it — passes -Repeat 1.
-    [int]$Repeat = 2,
+    # HOW MANY CLICKS, AND HOW FAR APART. ONE by default, which is what the game
+    # actually wants. The lost-first-press problem is handled by the title-bar
+    # click further down, not by clicking the target twice. Ask for -Repeat 2
+    # only when you mean it: on anything that changes the screen, the second
+    # click lands on whatever the first one opened.
+    [int]$Repeat = 1,
     [int]$GapMs = 900,
     # Click even when the window we raised is not the one in front. Off by
     # default: see the note above about where a stray click ends up.
@@ -145,6 +161,22 @@ if (-not $target) {
     exit 1
 }
 
+
+# UN-MINIMISE BEFORE MEASURING, NOT AFTER. Windows parks a minimised window off
+# the side of the screen at about -32000, so a rectangle read while it is still
+# minimised describes nowhere at all, and every position worked out from it is
+# nonsense. Restoring first and re-reading costs one call.
+#
+# ONLY UN-MINIMISE A WINDOW THAT IS MINIMISED. Asking to "restore" a MAXIMISED
+# window shrinks it back to its old size, which ruins every coordinate taken
+# from the last screenshot. Measured the hard way: an unconditional restore here
+# turned a 1938x1038 window into 1042x767 between one click and the next.
+if ([WindowInput]::IsIconic($target.MainWindowHandle)) {
+    [void][WindowInput]::ShowWindow($target.MainWindowHandle, [WindowInput]::SW_RESTORE)
+    Start-Sleep -Milliseconds 300
+    [void][WindowInput]::GetWindowRect($target.MainWindowHandle, [ref]$rect)
+}
+
 $width  = $rect.Right - $rect.Left
 $height = $rect.Bottom - $rect.Top
 
@@ -165,16 +197,6 @@ $screenY = $rect.Top + $Y
 # BRING IT TO THE FRONT. Windows refuses to let a background program simply take
 # the foreground, and refuses SILENTLY — the call returns and nothing moves. The
 # tap on ALT releases that lock, which is the documented way round it.
-#
-# ONLY UN-MINIMISE A WINDOW THAT IS MINIMISED. Asking to "restore" a MAXIMISED
-# window shrinks it back to its old size, which is the opposite of what is wanted
-# and ruins every coordinate taken from the last screenshot. Measured the hard
-# way: an unconditional restore here turned a 1938x1038 window into 1042x767
-# between one click and the next.
-if ([WindowInput]::IsIconic($target.MainWindowHandle)) {
-    [void][WindowInput]::ShowWindow($target.MainWindowHandle, [WindowInput]::SW_RESTORE)
-    Start-Sleep -Milliseconds 300
-}
 [WindowInput]::keybd_event([WindowInput]::VK_MENU, 0, 0, [UIntPtr]::Zero)
 [WindowInput]::keybd_event([WindowInput]::VK_MENU, 0, [WindowInput]::KEYEVENTF_KEYUP, [UIntPtr]::Zero)
 [void][WindowInput]::SetForegroundWindow($target.MainWindowHandle)
@@ -193,16 +215,15 @@ if (-not $isFront -and -not $Force) {
 
 # ARRIVE AT THE SPOT, DO NOT TELEPORT TO IT.
 #
-# This game hit-tests on mouse MOVEMENT, so a pointer that appears at a position
-# in one jump may never be treated as having entered the thing under it — and the
-# click that follows is simply lost. Measured: the very same click at the very
-# same position reached the great hall on one run and did nothing on the next,
-# and the difference was whether a click had already happened somewhere else
-# first. The first click of a run was the one that vanished.
+# KEPT, BUT NOT THE THING THAT FIXES ANYTHING. This used to carry the theory that
+# the game hit-tests on mouse MOVEMENT and so needs the pointer to walk onto its
+# target. That theory is wrong — the lost click was the activation press — and the
+# stepping was in place for every measurement that failed as well as every one
+# that worked, so it was never what made the difference.
 #
-# So: land a few pixels away, then step onto the target, then wait long enough
-# for the game to notice. Several movement events and a real dwell, instead of
-# one jump and a hope.
+# It stays because it is cheap and because a pointer that arrives with movement
+# around it is closer to what a person does. Do not cite it as a cause, and do not
+# remove it expecting a change: nothing here has been measured without it.
 [void][WindowInput]::SetCursorPos(($screenX - 6), ($screenY - 6))
 Start-Sleep -Milliseconds 90
 [void][WindowInput]::SetCursorPos(($screenX - 2), ($screenY - 2))
@@ -252,5 +273,6 @@ Write-Output (@{
     screen = "$screenX,$screenY"
     window = "${width}x${height}"
     cameToFront = $isFront
+
     warning = $coveredWarning
 } | ConvertTo-Json -Compress)

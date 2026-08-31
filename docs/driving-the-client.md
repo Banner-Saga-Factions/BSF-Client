@@ -23,7 +23,7 @@ recompiled SWF** under `adl` (`scripts/run-adl.ps1`) — the build carrying the 
 player-versus-computer work. The 2026-08-21 run used the **shipped Steam client**, launched by
 `bsf-server\launch-game-2p.ps1`, which has none of our patches: no `Ctrl+Shift+A` practice battle and
 no mod bridge. Each section says which build it describes. What the game does on screen — the banners,
-the initiative bar, the two-click rule — is the same in both.
+the initiative bar, the way clicking behaves — is the same in both.
 
 ---
 
@@ -53,16 +53,26 @@ dropping `--versus_start` does not leave you at camp: the game stops at the **ma
 reports arriving anywhere, so anything waiting for a landing message waits forever. Measured
 2026-08-29, then traced:
 
-- `--factions` and `--developer` set the **same single run-mode value**, so whichever comes last wins.
-  The launcher passes them in that order, which leaves the mode on DEVELOPER.
-- `--versus_start` sets it back to FACTIONS — so that one argument was quietly doing **two** jobs:
-  choosing the match search, and repairing the mode the previous argument had overwritten.
+- Several arguments set the **same single run-mode value**, so whichever comes last wins. `--factions`
+  sets it to FACTIONS; `--versus_start` sets it to FACTIONS *and* asks for the match search, so that one
+  argument was quietly doing two jobs; `--developer` sets it to something else.
 - The mode decides `startInFactions` (`GameMainAir.as:714`), and `ReadyState` only enters the state
   that leads to the town when that is true. Otherwise it stops at the main menu.
+- **The rule is not about `--developer` in particular.** `startInFactions` is true only for FACTIONS, so
+  *anything* else stops at the main menu — including the default, which is BETA when no mode argument is
+  given at all (`GameMainAir.as:46`). Passing no mode argument fails exactly like passing the wrong one.
 
-So the camp landing passes `--developer --factions` in **that** order and leaves `--versus_start` out.
-If you ever edit the launcher's argument list, this is the trap: the order of those two is load-bearing
-and nothing on screen says so.
+So the camp landing passes `--factions` and leaves `--versus_start` out. That is the whole fix.
+
+**A trap we made ourselves, and then removed — worth a paragraph because the reasoning generalises.** The
+launcher used to pass `--developer` as well. It sets the run mode and does nothing else, and in both
+landings a later argument overwrote it, so it never had any effect on anything. What it did have was a
+position: while it sat in the list, the **order** of the arguments decided where you landed. The first
+version of the camp option was therefore written as "put `--factions` after `--developer`", together with
+three separate notes warning that the order was load-bearing and that nothing on screen would say so. All
+of that was careful documentation of a hazard that existed only because a no-op argument was being
+passed. Deleting the argument deleted the hazard. When a fix comes out as "be careful about the order",
+check first whether everything in the list needs to be there at all.
 
 **Camp also needs an account that has finished the tutorial.** `FactionsState` sends an account whose
 `completed_tutorial` is 0 to the tutorial instead, which reads as the wrong screen rather than as a
@@ -78,7 +88,7 @@ because the buildings carry no labels until you hover them:
 | `click_provinggrounds` | the proving grounds |
 | `click_hall_of_valor` | the hall of valor |
 | `click_marketplace` | opens the marketplace panel over the town |
-| `click_firetower` | **avoid** — a quit dialog, or straight out to the main menu |
+| `click_firetower` | **avoid** — a quit dialog. (It offers the main menu instead only when the run mode is not FACTIONS, and both landings end as FACTIONS, so in practice it is always the dialog.) |
 | `click_trophytower`, `click_weavershut` | accepted, and do nothing |
 
 The two burning braziers are the fire tower. A scripted run that clicks one gets a modal dialog it was
@@ -200,18 +210,42 @@ because both land inside the same rendering frame. Sending the second click a se
 a separate step, commits reliably every time. If your automation "clicks twice and nothing happens",
 this is why — it is not a missed coordinate.
 
-**And the rule is not about targeting — it is about clicking.** The paragraphs above describe arming an
-attack, which makes the two clicks sound like a feature of the battle board. They are not. Measured
-2026-08-29 on the **town**, where nothing is being armed and there is no check mark to see: a single
-click on the great hall did nothing at all, twice, on separate runs. The same click preceded by any
-other click, or simply repeated a second later, opened it every time — four runs, no exceptions. So
-treat **two spaced clicks as the way to click anything**, and a single click as the special case you
-ask for deliberately when you want to arm a battle action without committing it.
+**Outside the battle board the rule is different, and it is not "click twice".** The paragraphs above
+describe arming an attack, which is a genuine feature of the battle board. In the town nothing is being
+armed, and something else is going on: **the first click of a run is lost, and every click after it
+works on its own.**
 
-Worth saying what this is *not*, because both guesses cost a run each. It is not the pointer failing to
-register as having entered the target: adding intermediate movement events before the press changed
-nothing. And it is not a wrong coordinate: the position was confirmed by magnifying the picture first,
-and the very same position worked on the next click.
+Measured 2026-08-30 over five runs, after an earlier session wrote this down as "one click does nothing,
+it takes two" and shipped a driver that clicked everything twice. The three runs that settle it:
+
+| Run | What was clicked | What happened |
+| --- | --- | --- |
+| 1 | one click on the great hall, after waiting fifteen seconds | nothing — so it is not a matter of waiting |
+| 2 | one click on a popup close button, then one on the great hall | the close button did nothing; **the hall opened on a single click** |
+| 3 | one click on empty ground, then the close button, then the hall | the first was lost; **the popup closed and the hall opened, one click each** |
+
+Run 3 is what settles it, because it contains two single clicks that each visibly did something. Under
+"every control needs two clicks" neither of them could have happened.
+
+**Why the wrong rule survived: it works.** Clicking twice does reach the great hall — the first press is
+the one being eaten. And it keeps working for as long as every click is a scene change, where a redundant
+second press lands on a screen that is already changing and does nothing visible. The place it would
+break is a checkbox, a tab, anything with two states, and none of those were on the path anyone had
+driven yet. **A fix that works is not evidence for the story you told about why it works.**
+
+**What does the eating is not settled, but two answers are ruled out** — worth writing down, because each
+cost a run. It is *not* the pointer failing to register as having entered the target: adding intermediate
+movement events before the press changed nothing. And it is *not* Windows swallowing the press that
+raises a background window: giving that press to the title bar instead, which is Windows' own furniture
+rather than the game's, does not help — so the press has to land on the game itself to be spent. The last
+step is visible from the client's side: `SceneViewController.mouseUpHandler` acts on a release only when
+it saw the matching press, and returns silently when it did not, so a press that goes missing takes the
+whole click with it and leaves no trace anywhere.
+
+**So spend the first press deliberately.** Click something harmless once at the start of a run, or let the
+driver do it — it presses twice on the first click of a run and once on every click after. Do not click
+everything twice: on any control that changes the screen, the second press lands on whatever the first one
+opened.
 
 **Screen scaling will silently break your coordinates.** On a 125% display the game reports the screen
 as 1536×864 while Windows reports 1920×1080. Capture and clicking must both use the **Windows** numbers,
@@ -226,8 +260,11 @@ window that is maximised. A driver that called it before every click turned a 19
 meaningless. Un-minimise only a window that is actually minimised, and have whatever does the clicking
 refuse a position that falls outside the window as it is now, rather than clicking somewhere arbitrary.
 
-**Under the debug launcher the window opens at about 518×422**, which is the size in the application
-descriptor. It is big enough for the mod bridge, which never looks at the screen, and far too small to
+**Under the debug launcher the window opens at about 518×422.** That is *not* the application
+descriptor's doing — its `<width>` and `<height>` are commented out, and neither the build script nor the
+launcher fills them in, so the size comes from the compiled file's own stage or from a default inside
+`adl`. Nobody has chased it further, which is fine; what matters is that the file you would first think
+to edit has nothing in it to change. It is big enough for the mod bridge, which never looks at the screen, and far too small to
 read an initiative bar, a stat panel or a banner. Nothing on screen suggests the window is smaller than
 it should be. Make it bigger before photographing anything.
 
@@ -499,11 +536,18 @@ and photographs it, taking one command per line — `ready`, `battle`, `board`, 
 implementation of the launch-and-shutdown machinery rather than two. `SKILL.md` beside it is the
 operating manual; this document remains the reasoning behind it.
 
-**Ask the game where it is rather than photographing it to find out.** Every state that the player can
-arrive at announces itself to the server — `loc_strand` for the town, `loc_great_hall`, `loc_mead_house`,
+**Ask the game where it is rather than photographing it to find out.** Many of the places a player can
+reach announce themselves to the server — `loc_strand` for the town, `loc_great_hall`, `loc_mead_house`,
 `loc_versus` and so on — so a helper watching that traffic can say which screen the game is on, and
 therefore whether a click did anything, without taking a picture at all. That is much cheaper than a
 screenshot and far more precise than looking at one, and it turns "did that click work?" into a fact.
+
+**But only twelve places announce anything, so silence is not an answer.** The main menu does not
+announce. Neither does a panel that opens over the screen you are already on rather than replacing it —
+the marketplace is exactly that, and it is on the town's own list of things to click. So this technique
+tells you a click *worked* when the place changes, and tells you nothing at all when it does not: it
+cannot separate "the click missed" from "the click opened something that does not announce". For those,
+take the picture.
 Two cautions carried over from the readiness rule in section 9: match on the **place**, not merely on
 the request, because the login queue sends one too; and remember the announcement is a fact about the
 game's state machine, which runs ahead of what has finished drawing.
@@ -637,18 +681,28 @@ worth building before a second test actually needs them:
 - **`send` has no "this must have worked" form.** Each acting command needs two checks — that the reply
   came, and that it says `ok` — so a `session.act(...)` that throws with the game's own refusal attached
   would halve the noise. Refusals arrive as ordinary replies with `{ok: false, reason}`, not as errors,
-  so the roughly twenty-five documented refusals in [`mod-bridge.md`](./mod-bridge.md) §5 can all be
+  so the thirty-odd documented refusals in [`mod-bridge.md`](./mod-bridge.md) §5 can all be
   tested with no new machinery at all.
 - **The driver cannot tell whether the board is moving.** `waitForOurTurn` is also the "safe to close"
   signal, for the reason in the next section — and a test that moves and attacks is far likelier to be
   mid-walk at shutdown than this one is, because an attack ends the turn and hands it to the computer.
 
-> **Three of the four now exist — beside the driver rather than in it.** The run skill's `driver.js`
-> (section 8) has the login steps, a readable board, and a "this must have worked" wrapper that stops
-> with the game's own refusal; "is the board still?" is answered by comparing two readings half a second
-> apart, which catches a walk but not an animation that moves nobody. So the second test's real cost is
-> now a **move** into `tests/lib/game-session.js` rather than fresh code — and the argument above still
-> stands, because the wait carrying the "do not drop this" warning is still copied rather than shared.
+> **All four now exist in some form — beside the driver rather than in it.** The run skill's `driver.js`
+> (section 8) has the login steps, a readable board, a "this must have worked" wrapper that stops with
+> the game's own refusal, and an "is the board still?" that waits for three readings half a second apart
+> to agree. Three matching readings rather than two, because a move is answered when it is *accepted*:
+> two readings can agree simply because the walk has not started yet, which would report stillness right
+> before a unit sets off. It still catches only movement between tiles, not an animation that moves
+> nobody.
+>
+> **This does not make the second test nearly free, and an earlier draft of this paragraph said it did.**
+> These are affordances for an agent reading a terminal: they return sentences — "on the deploy screen
+> with 12 units", a formatted board — where a test needs the values themselves, the unit list, the tile.
+> Moving them means rewriting every return value from prose into data, and re-adding at least one check
+> the driver dropped (the test asserts the account request succeeded; the driver does not). Call it a
+> rewrite with the hard thinking already done, which is still worth a great deal — the expensive part was
+> never the code, it was learning which waits are load-bearing. The argument above also still stands: the
+> wait carrying the "do not drop this" warning is copied rather than shared.
 >
 > One measurement worth taking across with them: **a move is reported when it is accepted, not when it
 > is finished.** A six-step walk answered instantly, still showed the unit on its starting tile a tenth

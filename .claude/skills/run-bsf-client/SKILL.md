@@ -24,10 +24,11 @@ operating instructions; that one is the reasoning. Do not duplicate it here.
 
 ## Prerequisites
 
-Three things, all of which the launcher checks and complains about by name:
+Three things. The launcher checks the last two and complains about them by name; **nothing
+checks Node**, so if it is missing or old you get a raw error from Node itself.
 
 ```powershell
-node --version              # v24.15.0 here; the driver needs Node 24+
+node --version              # v24.15.0 here; nothing newer than Object.hasOwn is used, so Node 16.9+
 echo $env:AIR_HOME          # C:\AirSDK\AIRSDK_51.3.2 — adl.exe lives in bin\ under it
 Test-Path "C:\Program Files (x86)\Steam\steamapps\common\The Banner Saga Factions\win32"
 ```
@@ -82,14 +83,22 @@ rather than let that fail confusingly half a minute later.
 
 ```powershell
 cd ..\bsf-server
-node build\index.js          # already built; prints "Express server listening on port 8082"
+yarn build                   # ONCE, and after any server change — `build\` is not in git
+node build\index.js          # prints "Express server listening on port 8082"
 ```
 
-**Use that line, not `start-server.bat`, while the driver is running.** The batch
-file deliberately runs `Stop-Process -Name node -Force` to make sure no stale build
-answers requests — and the driver, and the go-between the game talks through, are
-both Node. Starting the server that way mid-run kills them. Rebuild with
-`yarn build` separately if you need to.
+**`yarn build` first, and it is easy to miss.** The server runs from `build\`, which is
+deliberately not committed, so on a machine that has never built it `node build\index.js`
+fails with `MODULE_NOT_FOUND` and nothing explains why.
+
+**Use `node build\index.js`, not `start-server.bat`, while the driver is running.** The
+batch file deliberately runs `Stop-Process -Name node -Force` so no stale build can answer
+requests — and the driver, and the go-between the game talks through, are both Node.
+Starting the server that way mid-run kills them.
+
+One inherited confusion to expect: if you start the driver with no server up, its own error
+message tells you to run `bsf-server\start-server.bat`. That advice is fine *before* a run
+and wrong *during* one, for the reason just given.
 
 ## Run (agent path)
 
@@ -120,7 +129,8 @@ shot my-picture
 "@ | node .claude\skills\run-bsf-client\driver.js shell
 ```
 
-The same thing from a POSIX shell, which is how it was verified:
+A different set of steps from a POSIX shell — this is the form everything here was
+verified with, and it shows `move` and `settle`, which the block above does not:
 
 ```bash
 node .claude/skills/run-bsf-client/driver.js shell <<'EOF'
@@ -138,7 +148,9 @@ EOF
 
 The bridge cannot get to them; clicking can. Land at camp, photograph the town,
 click the building, then check where you ended up — `where` answers that without
-another picture, because the game announces every arrival.
+another picture — for the screens that announce themselves, which is most but not
+all of them (the marketplace opens over the town and announces nothing, so there
+`where` cannot tell a missed click from a successful one).
 
 ```bash
 node .claude/skills/run-bsf-client/driver.js shell --landing camp <<'EOF'
@@ -167,7 +179,7 @@ building on the hill in a maximised 1938x1038 window — read the position off y
 | `click_provinggrounds` | the proving grounds |
 | `click_hall_of_valor` | the hall of valor |
 | `click_marketplace` | opens the marketplace panel over the town |
-| `click_firetower` | **avoid** — a quit dialog, or straight out to the main menu |
+| `click_firetower` | **avoid** — a quit dialog. It only offers the main menu instead when the run mode is not FACTIONS, which never happens through this launcher |
 | `click_trophytower`, `click_weavershut` | accepted, and do nothing |
 
 The two burning braziers are the fire tower. Clicking one asks the game to quit, and
@@ -192,7 +204,7 @@ a modal dialog is exactly the thing that stalls a scripted run.
 | `endturn` | End the player's turn. |
 | `shot [name]` | Photograph the window into `_build\tests\`. |
 | `zoom <x> <y> <w> <h> [scale] [name]` | A magnified crop of a fresh capture, so a small control's position can be read exactly rather than guessed. |
-| `click <x> <y> [left|right] [once]` | Click the window at a position read off the last picture. Clicks **twice** by default; see Gotchas. |
+| `click <x> <y> [left|right] [once]` | Click the window at a position read off the last picture. `left`/`right` and `once` may be given in either order, and an unknown word is refused rather than guessed. Presses twice on the first click of a run and once thereafter; see Gotchas. |
 | `send <cmd> [json]` | Any bridge command, unmediated. |
 | `sleep <ms>`, `quit` | |
 | `try <command>` | Run it and carry on even if the game refuses — for checking that illegal things *are* refused. |
@@ -257,14 +269,17 @@ Measured on this machine, on 2026-08-29, unless said otherwise.
   after a move photographs a unit mid-stride, and an assertion about where
   something stands reads the old tile. Use `settle`.
 
-- **One click does nothing; it takes two.** Measured four times over: a lone click
-  on the great hall did nothing on two separate runs, while the same click preceded
-  by any other click, or simply repeated, opened it every time. The rule was already
-  written down for the battle board — first click arms, second commits, and the two
-  must be about a second apart — but it holds for town buildings too, so it is a
-  property of the game's clicking rather than of targeting. `click` therefore clicks
-  twice, spaced, by default. Pass `once` as a fourth word when you deliberately want
-  a single one.
+- **The first click of a run is lost; every click after it works on its own.** Not
+  "every control needs two clicks" — that was the earlier reading of the same
+  evidence, and it is wrong. Measured 2026-08-30: a lone click on the great hall did
+  nothing even after a fifteen-second wait, while a run that first lost a click
+  elsewhere then opened the hall with a **single** click, and a run that spent a
+  click on empty ground went on to close a popup *and* open the hall, one click each.
+  `click` handles this for you: two presses on the first click of a run, one on every
+  click after. **Do not click everything twice** — on anything that changes the
+  screen, the second press lands on whatever the first one opened. The separate
+  battle-board rule still stands: there, the first click arms and the second commits,
+  and `once` is how you arm without committing.
 
 - **Clicking takes over the machine.** It brings the game to the front and moves the
   real mouse pointer, so the computer is not usable while a clicking script runs. It
@@ -279,8 +294,18 @@ Measured on this machine, on 2026-08-29, unless said otherwise.
 
 - **An account that has not finished the tutorial cannot land at camp.** It is sent
   to the tutorial instead, which reads as the wrong screen rather than a refusal
-  (`FactionsState.as:64`). The default account is fine; check others with the query
-  below, looking at `completed_tutorial`.
+  (`FactionsState.as:64`), and a `ready loc_strand` simply waits out its ninety
+  seconds. On this machine the default account is fine. **On a fresh database no
+  account is** — a migration flipped the column's default to 0, so every row created
+  since then starts at 0 and "pick another account" does not help. Check, and set one
+  if you need to:
+
+  ```powershell
+  sqlite3 ..\bsf-server\data\bsf.db "select user_id, completed_tutorial from accounts;"
+  sqlite3 ..\bsf-server\data\bsf.db "update accounts set completed_tutorial = 1 where user_id = '123456';"
+  ```
+
+  The database file is not in git either, so this is per-machine setup, not a one-off fix.
 
 - **Do not close the game while a unit is walking.** It wedges on the way out and
   has to be forced, which also loses the game's own log —
@@ -299,7 +324,8 @@ Measured on this machine, on 2026-08-29, unless said otherwise.
   battle mirrors the party in the database, so a single armour-only unit in a party
   puts one on *both* sides and makes the known damage-overlay crash near-certain.
   The default account (`123456`, passed as `test2`) fields no Shieldbanger and so
-  avoids it; three other accounts in the local database do carry one. Choose
+  avoids it; six other rows in the local database do carry one, though only three of
+  those have finished the tutorial. Choose
   deliberately depending on whether you are trying to reproduce that crash or avoid
   it. Check with:
   `sqlite3 ..\bsf-server\data\bsf.db "select user_id, party_ids_json from accounts;"`
@@ -334,7 +360,8 @@ game folder first. Every run rewrites it and puts it back at the end, so a run t
 was killed halfway can leave it pointing at a go-between that will never answer.
 
 **A click did nothing.** Most likely it was a single click — see Gotchas; `click`
-does two by default, so this mainly bites when `once` was passed. Otherwise check
+presses twice on the first click of a run, so this mainly bites when `once` was passed,
+or on a screen that opens over another one rather than replacing it. Otherwise check
 `where` before and after: it names the screen the game thinks it is on, which
 separates "the click missed" from "the click worked and the screen looks the same".
 
@@ -342,11 +369,12 @@ separates "the click missed" from "the click worked and the screen looks the sam
 tutorial. Pick another:
 `sqlite3 ..\bsf-server\data\bsf.db "select user_id, completed_tutorial from accounts;"`
 
-**It stopped at the main menu and never announced arriving anywhere.** The run mode
-ended up as DEVELOPER rather than FACTIONS, so `ReadyState` never entered the state
-that leads to the town. `--factions` and `--developer` set the same single value and
-the last one wins, which is why the camp landing orders them deliberately. If you
-have edited the launcher's argument list, that is the thing to check.
+**It stopped at the main menu and never announced arriving anywhere.** The run mode did
+not end up as FACTIONS, so `ReadyState` never entered the state that leads to the town.
+Several arguments set that one value and the last one wins, so what matters is which one
+comes last — and *anything* other than FACTIONS stops at the main menu, including the
+default when no mode argument is given at all. If you have edited the launcher's argument
+list, check that `--factions` or `--versus_start` is still in it and still last.
 
 **A screenshot came back tiny or blank.** Tiny means the window was never maximized.
 Blank would mean the window refused to paint a copy of itself; the capture script

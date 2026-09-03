@@ -88,7 +88,7 @@ because the buildings carry no labels until you hover them:
 | `click_provinggrounds` | the proving grounds |
 | `click_hall_of_valor` | the hall of valor |
 | `click_marketplace` | opens the marketplace panel over the town |
-| `click_firetower` | **avoid** — a quit dialog. (It offers the main menu instead only when the run mode is not FACTIONS, and both landings end as FACTIONS, so in practice it is always the dialog.) |
+| `click_firetower` | **avoid** — a quit dialog. (`TownState.as:65` offers the main menu instead only when `runMode.mainMenu` is true, which today only DEVELOPER sets — see [`architecture.md`](./architecture.md) → "What each run mode actually changes". Both landings run as FACTIONS, so in practice it is always the dialog.) |
 | `click_trophytower`, `click_weavershut` | accepted, and do nothing |
 
 The two burning braziers are the fire tower. A scripted run that clicks one gets a modal dialog it was
@@ -131,6 +131,35 @@ Two smaller things about that launcher: the Steam executable hands off to the re
 exits, so the script prints "Game has closed" while the game is still running — that is not a failure.
 And the two halves *do* share some engine-wide state, so treat "both screens agree" as evidence about
 the game, not proof that two independent programs agree.
+
+### Typing the command by hand — the same trap, no launcher to hide it
+
+`run-adl.ps1` builds its argument list for you, and the trap above is explained right in the script's
+own comments. Typing the `.exe` command directly has no such guardrail. This command looks like it
+asks for Factions and skips the trap — it doesn't:
+
+```powershell
+& '.\The Banner Saga Factions.exe' --server http://localhost:8082/ --debug --factions --developer `
+    fullscreen=false --quickload --steam false --steam_id 123456 --username test
+```
+
+`--developer` comes *after* `--factions` here, so it wins: the run mode ends up DEVELOPER, not
+FACTIONS, and the game stops at the main menu with nothing on screen to explain why — the same
+last-one-wins rule as the camp-landing story above, just triggered by hand instead of by a script. Two
+smaller mistakes ride along in the same command, both silent: `fullscreen=false` (no leading dashes)
+isn't a recognized token at all — only `--fullscreen false` is read — and `--quickload` doesn't exist
+anywhere in the client. Neither is rejected; both are just ignored, so the command still runs, just
+not as intended.
+
+The corrected form, matching what `run-adl.ps1` actually builds:
+
+```powershell
+& '.\The Banner Saga Factions.exe' --server http://localhost:8082/ --debug --factions `
+    --fullscreen false --steam false --steam_id 123456 --username test
+```
+
+For the complete recognized-flag list, and which ones share the run-mode field, see
+[`architecture.md`](./architecture.md) → "Boot sequence — `GameMainAir.as`".
 
 ---
 

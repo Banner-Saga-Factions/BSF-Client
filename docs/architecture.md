@@ -38,12 +38,12 @@ The build sequence is always: `decompile.ps1` → `apply-patches.ps1` → `build
 
 The client is an Adobe AIR application — Flash Player runtime packaged with a native installer.
 
-| Layer                            | What it does                                           | Notes                                                                                              |
-| -------------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| **Adobe AIR (HARMAN SDK 33.1+)** | Hosts the Flash runtime + native OS bridge.            | HARMAN took over from Adobe in 2019 — older Adobe AIR SDKs no longer work for compile + packaging. |
-| **Flash Player 32 VM**           | Executes the compiled AS3 bytecode.                    | Same VM as the dead-on-the-web Flash plugin, but inside AIR it still runs.                         |
-| **Starling (Stage3D)**           | A GPU 2D renderer **bundled in the SWF but never started** — `new Starling` appears nowhere and `GameMainAir` declares an `s:Starling` field it never assigns. Rendering is entirely on the **native Flash display list**: menus/HUD via `GuiSprite`/`GuiBase`, the isometric board/scenes via the **`as3isolib`** library. `[Inference]` See [`ui-system.md`](./ui-system.md). | Bundled with the original SWF; `[Inference]` vestigial — not used. |
-| **Steamworks ANE**               | Native extension wrapping the Steam C API.             | Removed for mobile builds; **planned** to be replaced by a `DiscordSteamworks` crossplay driver — not yet in `src/` (see [`patch-inventory.md`](./patch-inventory.md)). |
+| Layer                            | What it does                                                                                                                                                                                                                                                                                                                                                                    | Notes                                                                                                                                                                   |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Adobe AIR (HARMAN SDK 33.1+)** | Hosts the Flash runtime + native OS bridge.                                                                                                                                                                                                                                                                                                                                     | HARMAN took over from Adobe in 2019 — older Adobe AIR SDKs no longer work for compile + packaging.                                                                      |
+| **Flash Player 32 VM**           | Executes the compiled AS3 bytecode.                                                                                                                                                                                                                                                                                                                                             | Same VM as the dead-on-the-web Flash plugin, but inside AIR it still runs.                                                                                              |
+| **Starling (Stage3D)**           | A GPU 2D renderer **bundled in the SWF but never started** — `new Starling` appears nowhere and `GameMainAir` declares an `s:Starling` field it never assigns. Rendering is entirely on the **native Flash display list**: menus/HUD via `GuiSprite`/`GuiBase`, the isometric board/scenes via the **`as3isolib`** library. `[Inference]` See [`ui-system.md`](./ui-system.md). | Bundled with the original SWF; `[Inference]` vestigial — not used.                                                                                                      |
+| **Steamworks ANE**               | Native extension wrapping the Steam C API.                                                                                                                                                                                                                                                                                                                                      | Removed for mobile builds; **planned** to be replaced by a `DiscordSteamworks` crossplay driver — not yet in `src/` (see [`patch-inventory.md`](./patch-inventory.md)). |
 
 The AIR descriptor `META-INF/AIR/application.xml` declares the runtime version (AIR 3.7), app ID, the supported profiles (`extendedDesktop` plus the two mobile profiles), and both platform ANEs (FMOD + Steamworks). The `bsf://` URL scheme (for the Discord OAuth deep-link back into the running client) and the mobile Steamworks-ANE removal are **planned — not yet in the committed descriptor** (mirroring the planned `DiscordSteamworks` driver above).
 
@@ -57,10 +57,10 @@ The shipped client is **not one SWF.** It is a main application SWF (`app.game.a
 
 When a resource SWF is loaded and its code references a class, AS3 resolves that reference one of two ways, and the difference is everything:
 
-| Mechanism | What it is | Which copy runs | Patchable from the app SWF? |
-| --- | --- | --- | --- |
-| **Symbol linkage** | A movie clip in the SWF is tagged with a class (e.g. the great-hall page clip `extends GuiGreatHall`); instantiating the clip instantiates that class. | **Always the copy bundled _inside that resource SWF_** — version- and `ApplicationDomain`-independent. | **No.** |
-| **By-name** | Plain `new Foo()` / `obj.prop` in the resource SWF's code. | Resolves through the active `ApplicationDomain`, so it can find the **app SWF's** copy. | **Yes**, if the SWF is loaded into a domain where the app copy is already defined. |
+| Mechanism          | What it is                                                                                                                                             | Which copy runs                                                                                        | Patchable from the app SWF?                                                        |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| **Symbol linkage** | A movie clip in the SWF is tagged with a class (e.g. the great-hall page clip `extends GuiGreatHall`); instantiating the clip instantiates that class. | **Always the copy bundled _inside that resource SWF_** — version- and `ApplicationDomain`-independent. | **No.**                                                                            |
+| **By-name**        | Plain `new Foo()` / `obj.prop` in the resource SWF's code.                                                                                             | Resolves through the active `ApplicationDomain`, so it can find the **app SWF's** copy.                | **Yes**, if the SWF is loaded into a domain where the app copy is already defined. |
 
 **Worked example (verified, BSF-Client #12).** `GreatHallPage.handleStart()` calls `loadFullPageMovieClip("great_hall.swf")` and casts the embedded clip (`greathall extends GuiGreatHall`) to `IGuiGreatHall` — there is no `new GuiGreatHall()` anywhere in app code. So `GuiGreatHall` is **symbol-linked**: the stale copy inside `great_hall.swf` runs, no matter what. Meanwhile a _by-name_ dependency that stale copy calls (e.g. `GuiUtil.updateDisplayList`) resolves through the domain. Routing `battle_initiative.swf` into `ApplicationDomain.currentDomain` (`DisplayResourceLoader.as`) leaves the symbol-linked `GuiInitiative` still running from the SWF, but makes its by-name `GuiUtil` resolve to the patched app copy — that asymmetry is exactly why the reroute fixes some crashes and not others.
 
@@ -68,10 +68,10 @@ When a resource SWF is loaded and its code references a class, AS3 resolves that
 
 The resource gui SWFs are an **older generation** than the app SWF: Stoic kept evolving the app (e.g. moving `party`/`renown` off `GameGuiContext` onto `Legend`) without rebuilding the resource SWFs. So a stale gui symbol class calls a member the modern app context no longer exposes → `#1069 (property not found)`; or calls a method-turned-getter → `#1006 (value is not a function)`. This is a **bounded, enumerable** backlog (the finite set of drifted calls), not open-ended breakage. Three repair mechanisms, chosen by _how the broken reference resolves_:
 
-| Repair | Use when | Example |
-| --- | --- | --- |
-| **App-side compat shim** | A **by-name** call to a member the app dropped — re-add it to the app class, delegating to its new home. | `GameGuiContext.party` getter → `legend.party` |
-| **Domain reroute** | A resource SWF's **by-name dependency** must resolve to the patched app copy — load that SWF into `currentDomain`. | `battle_initiative.swf` → app's guarded `GuiUtil` |
+| Repair                   | Use when                                                                                                                                  | Example                                                |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| **App-side compat shim** | A **by-name** call to a member the app dropped — re-add it to the app class, delegating to its new home.                                  | `GameGuiContext.party` getter → `legend.party`         |
+| **Domain reroute**       | A resource SWF's **by-name dependency** must resolve to the patched app copy — load that SWF into `currentDomain`.                        | `battle_initiative.swf` → app's guarded `GuiUtil`      |
 | **JPEXS bytecode patch** | A **symbol-linked** class, or a getter-called-as-a-function (`#1006`) — a shim can't reach it; edit the resource SWF's bytecode directly. | Ranked `totalPower()` (`callproperty` → `getproperty`) |
 
 For the full reasoning, the worked diagnosis, and the public-release backlog, see [`../misc/Plan-Issue-12-Player-vs-AI-Public-Release.md`](../misc/Plan-Issue-12-Player-vs-AI-Public-Release.md). To prove whether a given drift is Stoic's (pre-existing) or introduced by our rebuild, see [`reference-codebases.md`](./reference-codebases.md) → "Verifying provenance". For the mechanical how-to of the **JPEXS bytecode patch** row — and `scripts/patch-gui-swf.ps1`, the ready-but-shelved Ranked `#1006` patch built from it — see [`build-workflow.md`](./build-workflow.md) → "Patching a resource gui SWF".
@@ -80,19 +80,84 @@ For the full reasoning, the worked diagnosis, and the public-release backlog, se
 
 The entry point is `GameMainAir.extends Sprite`. Important phases, in order:
 
-1. **CLI argument parsing.** `GameMainAir.as:370–410` walks `invokeArguments` looking for flags. The ones that change runtime behavior:
+1. **CLI argument parsing.** `GameMainAir.parseArguments` (`GameMainAir.as:317–591`) walks `invokeArguments` in a single left-to-right pass. Recognized flags are always `--flag` or `--flag value` — space-separated, never `--flag=value` — and there are about 40 of them. The table below is the complete list, split into the one group where order matters and everything else, where it doesn't.
 
-   | Flag              | Effect                                                                                                  |
-   | ----------------- | ------------------------------------------------------------------------------------------------------- |
-   | `--server <url>`  | Overrides `serverHostsLive`/`serverHostsQa`. **No SWF edit needed** for a custom server. (line 381–385) |
-   | `--qa`            | Shorthand for `--server http://tbs-dev-qa.stoicstudio.com/`. (line 386–390)                             |
-   | `--version <vN>`  | Overrides reported build version. (line 391–398)                                                        |
-   | `--assets <path>` | Overrides asset root path. (line 399–403)                                                               |
-   | `--gui <path>`    | Overrides GUI asset root. (line 404–407)                                                                |
-   | `--child <n>`     | Multi-account-on-one-Steam index.                                                                       |
-   | `--party <names>` | Force-load a specific party (testing).                                                                  |
+   **Order matters here, and only here.** All six of these write the same single field, `runMode`. Each overwrites it unconditionally, so whichever flag appears **last** in the argument list wins — nothing on screen reports the overwrite. See [`driving-the-client.md`](./driving-the-client.md) → "The launch, in order" for a worked example, including a still-live bug in a hand-typed command that puts `--developer` after `--factions`.
 
-   The `--server` mechanism is the single most important takeaway for anyone running the client against a custom server: **it does not require a recompile**. See `bsf-server/misc/Findings-Client-ActionScript-Crossplay.md` ([local](../../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Findings-Client-ActionScript-Crossplay.md)) Item 1.
+   | Flag                | Effect                                                                                                                                                                                                |
+   | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | `--run_mode <name>` | Sets run mode directly by `RunMode` enum name — one of `DEVELOPER`, `KIOSK`, `BETA`, `FACTIONS`; no others are defined. (412–415)                                                                     |
+   | `--kiosk`           | Run mode → KIOSK — unattended-demo mode: auto-login, high matchmaking priority, skips the "ready" gate (see below). (416–419)                                                                         |
+   | `--beta`            | Run mode → BETA — behaviorally identical to FACTIONS (same field values, see below); also the default when no run-mode flag is given at all (`GameMainAir.as:46`). (420–423)                          |
+   | `--developer`       | Run mode → DEVELOPER — unlocks the debug console and every unit class for hire/promotion (see below). No script in this repo passes it anymore; typed by hand it is still fully recognized. (424–427) |
+   | `--factions`        | Run mode → FACTIONS — the only value `startInFactions` (`GameMainAir.as:714`) treats as "reached the town." Every other value stops at the main menu. (533–536)                                       |
+   | `--versus_start`    | Run mode → FACTIONS **and** queues for a ranked match on arrival — one flag doing two jobs. (481–485)                                                                                                 |
+
+   **What each run mode actually changes.** `RunMode` isn't just a label — each value is a bundle of five booleans (`engine/core/RunMode.as:11–17`) that other classes read directly:
+
+   | Mode      | fullscreen | autologin | town | mainMenu | developer |
+   | --------- | ---------- | --------- | ---- | -------- | --------- |
+   | DEVELOPER | false      | false     | true | **true** | **true**  |
+   | KIOSK     | true       | **true**  | true | false    | false     |
+   | BETA      | true       | false     | true | false    | false     |
+   | FACTIONS  | true       | false     | true | false    | false     |
+
+   Two fields are dead weight today. `fullscreen` is never read anywhere outside the constructor — the real fullscreen behavior comes entirely from the separate `--fullscreen` CLI flag, unrelated to run mode. `town` is `true` for every mode currently defined, so every `if (runMode.town)` check in the codebase (`VersusFailState.as:23`, `VersusCancelState.as:58`, `SceneState.as:211`) always passes regardless of mode; it only still matters as the negated half of `FactionsState.as:38`'s `!config.runMode.town || config.runMode == RunMode.KIOSK`, which today reduces to just the `== KIOSK` check.
+
+   The two fields that still do something:
+   - **`autologin` (KIOSK only).** `PreAuthState.as:51` logs in with the fixed guest credentials `kiosk`/`kiosk` instead of asking for one; `VersusStartMatchTxn.as:19` requests high matchmaking priority (`priority = 100`); `LoginQueuePage.as:37` skips the page's "ready" gate. All three exist for unattended retail-kiosk demos, not for testing.
+   - **`developer` (DEVELOPER only).** Unlocks several things at once:
+     - `RunMode.isClassAvailable()` (`RunMode.as:39–66`) returns `true` for every unit class instead of checking a 16-class whitelist — the mead house (`GuiMeadHouse.as:392`), the promotion screen (`GuiPromotion.as:124`), and `PurchasableUnits.as:40` all call through this, so DEVELOPER mode can hire or promote into any class, not just the base 16.
+     - The debug console's toggle button becomes visible (`ConsoleGui.as:770`) — without it, the console isn't reachable through the UI at all.
+     - Two console commands only run in this mode: `video <url>` force-plays an arbitrary cutscene (`GameConfig.as:1115–1122`), and `tt ...` spawns a tutorial tooltip on demand for testing placement (`GameConfig.as:1142–1162`).
+     - Cutscene playback gets extra keybindings — space to pause, arrows to seek (`VideoPage.as:44–52`).
+
+   This corrects an overly broad claim in project memory that `--developer` is inert: it has no effect on which screen the client lands on — that's controlled entirely by the `runMode == RunMode.FACTIONS` identity check at `GameMainAir.as:714`, and BETA/FACTIONS share identical field values so nothing above distinguishes them either — but it is a real, working "cheat mode" for unit access and a debug console, one that happens to also overwrite the run mode in a way that stops the client at the main menu if nothing sets it back to FACTIONS afterward.
+
+   All other recognized flags write independent fields, so their order relative to each other and to the run-mode group above doesn't matter — with one narrower exception, marked † below.
+
+   | Flag                                                  | Effect                                                                                                                                                         |
+   | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | `--server <url>`                                      | Overrides `serverHostsLive`/`serverHostsQa`. **No SWF edit needed** for a custom server. (381–385)                                                             |
+   | `--qa`                                                | Shorthand for `--server http://tbs-dev-qa.stoicstudio.com/`. (386–390)                                                                                         |
+   | `--version <vN>`                                      | Overrides reported build version. (391–398)                                                                                                                    |
+   | `--assets <path>`                                     | Overrides asset root path. (399–403)                                                                                                                           |
+   | `--local_assets`                                      | Bare form of the above — points assets at the local `compile-assets` build output. (347–352)                                                                   |
+   | `--gui <path>`                                        | Overrides GUI asset root. (404–407)                                                                                                                            |
+   | `--party <names>`                                     | Force-load a specific party (testing). (408–410)                                                                                                               |
+   | `--reset_prefs`                                       | Resets every window's saved local preferences. (428–434)                                                                                                       |
+   | `--debug`                                             | Turns on debug-level logging. † (353–361)                                                                                                                      |
+   | `--mouse`                                             | Forces a software-rendered mouse cursor. (362–365)                                                                                                             |
+   | `--username <name[,name...]>`                         | Creates one game window per comma-separated name — the multi-window mechanism (see "Two players at once" in `driving-the-client.md`). (366–372)                |
+   | `--child <n[,n...]>`                                  | Multi-account-on-one-Steam index, one per window; applied after parsing finishes. (373–376)                                                                    |
+   | `--sound <true\|false>`                               | Enables/disables sound. (377–380)                                                                                                                              |
+   | `--steam <true\|false>`                               | Enables/disables real Steam auth; `false` substitutes a null stub. (546–549)                                                                                   |
+   | `--steam_id <id[,id...]>`                             | Overrides the Steam ID per window (bypasses real Steam auth); applied after parsing finishes. (554–557)                                                        |
+   | `--offline`                                           | Skips network auth entirely. (550–553)                                                                                                                         |
+   | `--fullscreen <true\|false>`                          | Sets the window's fullscreen state. Only the space-separated form is read — a bare `fullscreen=false` token matches nothing and is silently ignored. (537–541) |
+   | `--width <px>` / `--height <px>`                      | Resizes the window, keeping it anchored. (451–462)                                                                                                             |
+   | `--min_size <w> <h>`                                  | Sets a minimum window size (two values). (463–468)                                                                                                             |
+   | `--turn <secs[,...]>`                                 | Overrides the per-turn timer, one value per window. † (435–446)                                                                                                |
+   | `--versus_countdown <secs>`                           | Overrides the pre-battle countdown. (447–450)                                                                                                                  |
+   | `--versus_opponent <id[,...]>`                        | Forces a specific ranked opponent, one value per window (testing). † (469–480)                                                                                 |
+   | `--versus_scene <scene[,...]>`                        | Forces a specific battle scene, one value per window (testing). † (494–505)                                                                                    |
+   | `--combat <name[,...]>`                               | Forces a specific starting combat, one value per window (testing). † (506–518)                                                                                 |
+   | `--tourney <id>`                                      | Forces a tourney ID (testing). (486–493)                                                                                                                       |
+   | `--saga <url[:happening]>` / `--happening <id>`       | Forces a saga/happening — single-player content, testing. (519–532)                                                                                            |
+   | `--tutorial`                                          | Forces the tutorial flag on. (574–577)                                                                                                                         |
+   | `--log_anim_events`                                   | Verbose animation-controller logging. (542–545)                                                                                                                |
+   | `--spritesheet <true\|false>`                         | Toggles spritesheet rendering. (558–561)                                                                                                                       |
+   | `--spritesheet_debug_render`                          | Debug-draws spritesheet bounds. (580–583)                                                                                                                      |
+   | `--new_music`                                         | Enables the newer music system. (584–587)                                                                                                                      |
+   | `--fmod_port <port>` / `--fmod_profile <true\|false>` | FMOD audio-engine tuning. (562–569)                                                                                                                            |
+   | `--debug_txn_immediate_finalize`                      | Skips transaction batching for immediate server-call finalization. (570–573)                                                                                   |
+   | `--miner`                                             | Recognized but does nothing — vestigial. (578)                                                                                                                 |
+
+   † **A second, narrower order dependency.** `--debug`, `--turn`, `--versus_opponent`, `--versus_scene`, and `--combat` write straight into whatever window(s) exist _at the moment they're parsed_ — they don't wait for parsing to finish. In a multi-window launch (`--username a,b`) that means they need to come **after** `--username`, or the second window silently misses them. `--child` and `--steam_id` don't have this problem — they're stored and applied to every window only after parsing finishes.
+
+   Not recognized at all, despite looking plausible: `--quickload` (not a real flag anywhere in the client), and any bare `key=value` form (only `--flag value` is read; `fullscreen=false` is a working example of the form that silently does nothing). Both fail without any error — the client logs `parsing arg <token>` for every token but never reports one it didn't recognize.
+
+   The `--server` mechanism remains the single most important takeaway for anyone running the client against a custom server: **it does not require a recompile**. See `bsf-server/misc/Findings-Client-ActionScript-Crossplay.md` ([local](../../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Findings-Client-ActionScript-Crossplay.md)) Item 1.
 
 2. **Platform detection.** `GameMainAir.as:628–642` branches on `Capabilities.os`:
 
@@ -114,7 +179,7 @@ The entry point is `GameMainAir.extends Sprite`. Important phases, in order:
    }
    ```
 
-   This is the default — _unless_ `--server` was passed, which sets `serverOverridden = true` and replaces these.
+   This is the defalt — _unless_ `--server` was passed, which sets `serverOverridden = true` and replaces these.
 
 4. **`GameFsm` startup.** The top-level finite-state machine boots into `PreAuthState`, which calls Steam for an auth ticket (or the `overrideSteamId` bypass), then transitions through `LoginQueueState` → `AuthState` → `MainMenuState`. See [`subsystem-index.md`](./subsystem-index.md) → `game/session/states/`.
 
@@ -149,9 +214,9 @@ The **crossplay-specific** patches live in `bsf-client/src/` (the full 33-file `
 
 | File                                                   | Role                                                                                                                                                                     |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/game/session/states/PreAuthState.as`              | Replaces the Steam ticket fetch with a Discord OAuth token when `overrideSteamId` is set.                                     |
+| `src/game/session/states/PreAuthState.as`              | Replaces the Steam ticket fetch with a Discord OAuth token when `overrideSteamId` is set.                                                                                |
 | `src/engine/steamworks/DiscordSteamworks.as` (planned) | New `ISteamworks` implementation that feeds Discord credentials through the existing Steam auth path. Extends `NullSteamworks` (the original Stoic no-op `ISteamworks`). |
-| `META-INF/AIR/application.xml`                         | **Planned** (not yet in the committed descriptor): add the `bsf://` URL scheme (Discord OAuth deep-link) and, for mobile targets, remove the Steamworks `<extensionID>`.                                                           |
+| `META-INF/AIR/application.xml`                         | **Planned** (not yet in the committed descriptor): add the `bsf://` URL scheme (Discord OAuth deep-link) and, for mobile targets, remove the Steamworks `<extensionID>`. |
 
 The patch surface is small by design — replacing one class plus a config tweak is all the original architecture demands. See `bsf-server/misc/Findings-Client-ActionScript-Crossplay.md` ([local](../../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Findings-Client-ActionScript-Crossplay.md)) Items 2 + 6.
 

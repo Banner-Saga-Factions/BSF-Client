@@ -10,7 +10,7 @@ For mirror selection (decompile vs 2013 source) and the 12-stale-file caveat, se
 
 | Class         | Role                                                                                                                                                | Decompile path   | 2013 path                            |
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ------------------------------------ |
-| `GameMainAir` | Adobe AIR entry point. CLI arg parsing (`--server`, `--qa`, `--version`, `--assets`, `--gui`, `--party`, `--child`), OS dispatch, asset-path setup. | `GameMainAir.as` | (none — entry point added post-2013) |
+| `GameMainAir` | Adobe AIR entry point. CLI arg parsing — ~40 flags (`--server`, the `--factions`/`--developer` run-mode family, `--username`, `--steam_id`, ...); full list and the run-mode order-dependency in [architecture.md](./architecture.md) → "Boot sequence", OS dispatch, asset-path setup. | `GameMainAir.as` | (none — entry point added post-2013) |
 | `AneFixer`    | Workaround for ANE loading on Mac.                                                                                                                  | `AneFixer.as`    | (none)                               |
 
 ## `engine/core/` — primitives

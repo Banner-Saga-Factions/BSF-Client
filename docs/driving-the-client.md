@@ -65,8 +65,10 @@ reports arriving anywhere, so anything waiting for a landing message waits forev
 So the camp landing passes `--factions` and leaves `--versus_start` out. That is the whole fix.
 
 **A trap we made ourselves, and then removed — worth a paragraph because the reasoning generalises.** The
-launcher used to pass `--developer` as well. It sets the run mode and does nothing else, and in both
-landings a later argument overwrote it, so it never had any effect on anything. What it did have was a
+launcher used to pass `--developer` as well. In both landings a later argument overwrote it.
+(The flag is not a no-op in general — it unlocks the debug console and lets you hire or promote
+into any unit class; see [`architecture.md`](./architecture.md) → "What each run mode actually
+changes". It was cancelled *here*, by what came after it.) What it did have was a
 position: while it sat in the list, the **order** of the arguments decided where you landed. The first
 version of the camp option was therefore written as "put `--factions` after `--developer`", together with
 three separate notes warning that the order was load-bearing and that nothing on screen would say so. All

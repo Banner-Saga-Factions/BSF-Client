@@ -130,10 +130,12 @@ if (-not $serverUp) {
 # including the default, which is BETA when no mode argument is given at all - means ReadyState
 # never enters FactionsState and the game stops at the main menu without announcing a place.
 #
-# WE USED TO PASS --developer HERE AND IT NEVER DID ANYTHING. It sets the run mode and nothing
-# else, and in both landings a later argument overwrote it - --versus_start for the match search,
-# --factions for camp. Its only real effect was to make the ORDER of the list load-bearing, which
-# cost a run to diagnose when the camp landing was added. It is gone, and with it the trap.
+# WE USED TO PASS --developer HERE AND IT DID NOTHING IN THIS LIST: in both landings a later
+# argument overwrote it - --versus_start for the match search, --factions for camp. Elsewhere it
+# is a real cheat mode (debug console, any unit class for hire) - see docs/architecture.md,
+# "What each run mode actually changes". Its only effect here was to make the ORDER of the list
+# load-bearing, which cost a run to diagnose when the camp landing was added. It is gone, and
+# with it the trap.
 $gameArgs = @(
     "--debug",
     "--server", $ServerUrl,

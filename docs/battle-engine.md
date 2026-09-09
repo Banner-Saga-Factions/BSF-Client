@@ -104,7 +104,7 @@ public function addPartyMember(
 
 **Why this is load-bearing:** the per-turn DJB hash (next section) is computed over a string built from every entity's ID, in order. If your client and the opponent's client disagree on even _one_ character of _one_ entity ID, the hashes diverge at turn 0 and the battle desyncs immediately.
 
-The most common way this breaks: the server returns different `account_id` values to the two players for the same opponent. That happens if the server reduces 64-bit Steam IDs inconsistently (e.g. one player sees the full 64-bit ID, the other sees the reduced 32-bit). See `bsf-server/CLAUDE.md` ([local](../../bsf-server/CLAUDE.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/CLAUDE.md)) → "32-bit account IDs in all in-game data" and `.claude/rules/gotchas.md`.
+The most common way this breaks: the server returns different `account_id` values to the two players for the same opponent. That happens if the server reduces 64-bit Steam IDs inconsistently (e.g. one player sees the full 64-bit ID, the other sees the reduced 32-bit). See `bsf-server/.claude/rules/gotchas.md` ([local](../../bsf-server/.claude/rules/gotchas.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/.claude/rules/gotchas.md)) → "32-bit account IDs in all in-game data".
 
 ## Per-turn DJB hash — `BattleStateNextTurn`
 

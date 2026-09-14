@@ -4,32 +4,33 @@
 
 .DESCRIPTION
     Chains scripts/apply-patches.ps1 (copies src/ onto _decompiled/) and scripts/build.ps1
-    (amxmlc compile only — no -Package, since packaging needs a certificate password and would
+    (amxmlc compile only - no -Package, since packaging needs a certificate password and would
     hang a commit waiting for input). Requires AIR_HOME to already be set and _decompiled/ to
-    already exist (run scripts/decompile.ps1 once first) — the same precondition build.ps1 always
+    already exist (run scripts/decompile.ps1 once first) - the same precondition build.ps1 always
     had on its own.
 
     Deliberately does NOT run anything under tests/: those tests drive the real running AIR
     client over the mod bridge, and launching the game automatically on every commit would need a
     display and could hang. See CLAUDE.md -> "Pre-commit check".
 
-    apply-patches.ps1 does not call `exit` on its normal success path, so $LASTEXITCODE would
-    otherwise still hold whatever a much earlier command left it at. Resetting it to 0
-    immediately before the call makes "still 0 afterward" mean what it looks like it means.
+    apply-patches.ps1 does not call `exit` on its normal success path, so $LASTEXITCODE is reset
+    first - otherwise it is empty in a fresh process and the check below fails every commit. The
+    reset must be $global:LASTEXITCODE: a plain `$LASTEXITCODE = 0` makes a local copy that
+    build.ps1 also reads when this script is called from another one, so a failed compile reported
+    success (#279).
 
 .EXAMPLE
-    ./scripts/pre-commit-verify.ps1
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts/pre-commit-verify.ps1
 #>
 [CmdletBinding()]
 param()
 
-Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $repoRoot
 try {
-    $LASTEXITCODE = 0
+    $global:LASTEXITCODE = 0
     & (Join-Path $PSScriptRoot 'apply-patches.ps1')
     if ($LASTEXITCODE -ne 0) { exit 1 }
 

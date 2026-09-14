@@ -53,6 +53,12 @@ powershell ./scripts/apply-patches.ps1
 powershell ./scripts/build.ps1 -Target windows   # or: android, ios
 ```
 
+## Pre-commit check
+
+A pre-commit hook compiles the patched client automatically (`scripts/apply-patches.ps1` then `scripts/build.ps1`, compile-only — no packaging) — commits are blocked if the compile fails. It deliberately never runs anything under `tests/`: those drive the real running game over the mod bridge, and launching it automatically on every commit would need a display and could hang.
+
+Use `scripts/verify-and-commit.ps1 -Message "..."` to commit instead of a plain `git commit` — it runs that same compile check once, keeps the full compiler output in `logs/` instead of printing it, and skips the hook's own redundant second run (`SKIP_SIMPLE_GIT_HOOKS=1`, the hook's own switch, set only for that one commit). Requires `AIR_HOME` (the HARMAN AIR SDK) to be set — the same requirement `build.ps1` already has on its own. See [`../CLAUDE.md`](../CLAUDE.md) and BSF-Custom-Server issue #279.
+
 ## Coordination Protocol
 
 - **Parent repo:** `../` (BSF root) tracks this repo as a git submodule.

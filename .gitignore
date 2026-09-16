@@ -7,3 +7,5 @@ build.log
 *.p12
 *.cer
 zeno-notes.md
+node_modules/
+logs/

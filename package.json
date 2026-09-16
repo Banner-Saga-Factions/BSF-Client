@@ -1,0 +1,15 @@
+{
+  "name": "bsf-client-hooks",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Not an npm project — this file exists only to install the pre-commit compile check via simple-git-hooks. See CLAUDE.md.",
+  "scripts": {
+    "prepare": "simple-git-hooks"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/pre-commit-verify.ps1"
+  },
+  "devDependencies": {
+    "simple-git-hooks": "^2.13.1"
+  }
+}

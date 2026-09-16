@@ -53,6 +53,14 @@ powershell ./scripts/apply-patches.ps1
 powershell ./scripts/build.ps1 -Target windows   # or: android, ios
 ```
 
+## Pre-commit check
+
+A pre-commit hook compiles the patched client automatically (`scripts/apply-patches.ps1` then `scripts/build.ps1`, compile-only — no packaging) — commits are blocked if the compile fails. It deliberately never runs anything under `tests/`: those drive the real running game over the mod bridge, and launching it automatically on every commit would need a display and could hang.
+
+The hook is installed by running `yarn install` in this folder once; a fresh clone has none until then. Once installed, every commit needs `AIR_HOME` (the HARMAN AIR SDK) set and `_decompiled/` present — without them even a documentation-only commit is blocked. The check compiles the working folder, so unstaged edits are compiled too.
+
+Use `scripts/verify-and-commit.ps1 -Message "..."` to commit instead of a plain `git commit` — it runs that same compile check once, the same way the hook does, keeps the full compiler output in `logs/` instead of printing it, and skips the hook's own redundant second run (`SKIP_SIMPLE_GIT_HOOKS=1`, the hook's own switch, set only for that one commit and put back afterwards). It needs PowerShell 7.3 or newer (`pwsh`). The server's matching helper is described in `bsf-server/CLAUDE.md` ([local](../bsf-server/CLAUDE.md#commands) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/CLAUDE.md#commands)) → *Commands*; see BSF-Custom-Server issue #279. Before editing any of the check's scripts, read the three traps in `bsf-server/docs/Development.md` ([local](../bsf-server/docs/Development.md#writing-a-powershell-script-that-runs-a-check) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/Development.md#writing-a-powershell-script-that-runs-a-check)) → *Writing a PowerShell script that runs a check*.
+
 ## Coordination Protocol
 
 - **Parent repo:** `../` (BSF root) tracks this repo as a git submodule.

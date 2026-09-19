@@ -106,7 +106,7 @@ All four are **no-behavior-change** repairs of decompiler damage.
 
 | File | What changed | Why |
 |---|---|---|
-| `src/engine/sound/NullSoundDriver.as` | File-internal-classes import repair of the no-op sound driver (`:165`). | **No behavior change.** The FMOD-vs-`NullSoundDriver` fallback story (which causes the local-2-client init hang) is documented in [`build-workflow.md`](./build-workflow.md) → "Audio & the FMOD ANE". |
+| `src/engine/sound/NullSoundDriver.as` | File-internal-classes import repair of the no-op sound driver (`:165`). | **No behavior change.** How the game chooses between real audio and this silent stand-in — and why a second game view in the same window always gets the stand-in — is documented in [`build-workflow.md`](./build-workflow.md) → "Audio & the FMOD ANE". |
 
 ## Saga (1)
 

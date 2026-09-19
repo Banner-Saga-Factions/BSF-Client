@@ -14,15 +14,16 @@ anything.** For _why_ the launcher works the way it does (the runtime mismatch, 
 extension), see [`build-workflow.md`](./build-workflow.md) → "The AIR SDK 33-vs-51 wall". For how the
 offline computer opponent actually thinks, see [`offline-ai.md`](./offline-ai.md).
 
-Everything below was **measured** on real runs — 2026-08-19, 2026-08-21 and 2026-08-29 — not inferred
-from source.
+Everything below was **measured** on real runs — 2026-08-19, 2026-08-21, 2026-08-23, 2026-08-29,
+2026-09-16 and 2026-09-18 — not inferred from source.
 Where a claim is an inference or rests on a small sample, it says so.
 
 **Two different builds appear below, and the difference matters.** The 2026-08-19 run used **our
 recompiled SWF** under `adl` (`scripts/run-adl.ps1`) — the build carrying the offline
 player-versus-computer work. The 2026-08-21 run used the **shipped Steam client**, launched by
 `bsf-server\launch-game-2p.ps1`, which has none of our patches: no `Ctrl+Shift+A` practice battle and
-no mod bridge. Each section says which build it describes. What the game does on screen — the banners,
+no mod bridge. The 2026-09-16 and 2026-09-18 runs used that shipped client too. Each section says
+which build it describes. What the game does on screen — the banners,
 the initiative bar, the way clicking behaves — is the same in both.
 
 ---
@@ -122,17 +123,42 @@ quietly share the first id and log in as each other.
 > the battle sat at its opening state. A separate fault appeared alongside it: a `#1034` type-coercion
 > error killed the initiative bar, in the known resource-SWF class-resolution blind spot (§8). The
 > shipped Steam build does complete two-player battles, so **for now two-player testing still belongs on
-> the shipped build.** Tracked as its own piece of work; do not read the paragraph above as "this works".
+> the shipped build.** Tracked as [BSF-Client#51](https://github.com/Banner-Saga-Factions/BSF-Client/issues/51);
+> do not read the paragraph above as "this works".
+>
+> **Before believing you have hit this, check how long the run was given — a window closed early
+> fakes the same signature.** It happened while verifying the **shipped** build on 2026-09-18. In
+> one launch both halves reported themselves locally ready at 50.788 s and the game began shutting
+> down 40 milliseconds later, because the harness had closed it. In the five launches that followed
+> and were allowed to finish, the server's answer came back 1.04–3.97 s after that point — and all
+> five started a battle. "My ready message has not come back" is therefore true of every healthy run
+> too, if you look soon enough. What marks the real fault is the other side never being seen as
+> ready *throughout*.
 
 That is the single most useful fact here for two-player testing: **one screenshot captures both
 players at once**, so there is no window to hunt for, nothing to alt-tab between, and no chance of the
 two captures being a second apart. With `--versus_start` the two halves also queue on their own and
 match each other, so a battle needs no clicks at all to start.
 
-Two smaller things about that launcher: the Steam executable hands off to the real game process and
-exits, so the script prints "Game has closed" while the game is still running — that is not a failure.
-And the two halves *do* share some engine-wide state, so treat "both screens agree" as evidence about
-the game, not proof that two independent programs agree.
+**On the shipped build, use `launch-game-2p.ps1` (or `launch-game-2p-quickbattle.ps1`) rather than a
+hand-typed command.** Two faults in the game stop the battle starting, and the scripts are what work
+around both: they silence every view with `--sound false`, and they ask the server to wait ten seconds
+before pairing anyone. That wait exists *because* of `--versus_start` — queueing both halves the
+instant the game opens is what lets a match arrive before the screen meant to announce it has finished
+drawing, so the flag that saves you the clicks is also the one that needs the wait. Without the two
+workarounds, five launches in a row on 2026-09-16 started no battle; with them, five in a row started
+one on 2026-09-18. The measured explanation is `bsf-server/docs/Development.md` → *Two-Player Local
+Test* ([local](../../bsf-server/docs/Development.md#two-player-local-test-same-machine) |
+[GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/Development.md#two-player-local-test-same-machine)).
+
+The Steam executable hands off to the real game process and exits, so for a while
+`launch-game-2p.ps1` announced "Game has closed" while the game was still running. It no longer
+does that on its own: it notes which game processes were already running, polls for up to 30
+seconds until a new one appears, and waits on that before clearing the pairing wait. Interrupt the
+script yourself with Ctrl+C while it is waiting and you will still see the line, because the
+tidy-up runs on every way out. If no process ever appears it says so and deliberately leaves the
+wait set, on the chance the game is merely slow to start. And the two halves *do* share some engine-wide state, so treat
+"both screens agree" as evidence about the game, not proof that two independent programs agree.
 
 ### Typing the command by hand — the same trap, no launcher to hide it
 
@@ -344,7 +370,7 @@ server-side note is in `bsf-server/docs/client-contract.md` → "Measured eviden
 
 ---
 
-## 5. Where the logs are — and two traps
+## 5. Where the logs are — and four traps
 
 There are three log files, and only one of them is useful while the game is running.
 
@@ -370,7 +396,7 @@ until the client exits, not even with a shared handle. So in practice: **screens
 during the run, and `A-0.log.txt` is your evidence afterwards.** Plan around that rather than fighting
 it.
 
-**The way out of both traps: use the server's log instead.** When you are testing anything the client
+**The way out of those first two: use the server's log instead.** When you are testing anything the client
 and server both touch, the server is the better witness — it is readable *while* the run is happening,
 it is plain text, and it timestamps the same events. Start it yourself with its output sent to a file
 rather than to a console window, and then searching it beats photographing a terminal. Two hours were
@@ -378,6 +404,31 @@ lost to the alternative: reading a server console by screenshot, then losing the
 entirely when the editor panel holding it was resized. If the lines you need have already scrolled
 away, the terminal's own find function will still reach them — but a file you can search is better
 than both.
+
+**Trap 3 — close the game by asking the window to close, rather than killing the process.** A killed
+client may not get its log flushed to disk, leaving you a file that stops partway through — and a gap
+where the evidence should be reads exactly like a hang. (Treat that as a precaution rather than a
+measurement: it is inferred from truncated files, not from watching the flush fail.) Under `adl` it is
+the same force-kill that loses the launcher's copy in Trap 1, so there you lose both files at once; the
+Steam build has no launcher copy to lose. A run you cut short also fakes a fault in its own right — see
+the warning in §1 about a window closed 40 milliseconds after the line you were about to draw
+conclusions from.
+
+**Trap 4 — never search the logs for a bare error number.** Take `3503`, the native-extension error
+thrown by the failing sound load behind
+[BSF-Client#49](https://github.com/Banner-Saga-Factions/BSF-Client/issues/49). Every line carries a
+millisecond stamp, so that search also matches anything logged at 3.503 s, and any longer stamp that
+happens to contain those digits. Both turned up in the preserved 2026-09-16 runs — the first in a half
+whose audio was perfectly healthy, the second in a half that had no sound engine at all:
+
+```
+[DEBUG] (TBS-0) 0 3503 Resource.onLoadComplete common/ability/abl_runthrough.json.z
+[DEBUG] (TBS-1) 157 35035 SWF file://.../gui/match_resolution.swf compression: Z version: 17
+```
+
+Search instead for something that appears only when the fault is real — here, `loadFSB` or
+`failed to allocate memory`. Those are two different lines, and neither is the other: `3503` is what
+the extension call threw, and `failed to allocate memory` is what the sound engine itself reported.
 
 **Reading it afterwards, count state entries, not message text.** The turn state appears under two
 spellings: `State.enterState [BattleFsm/BattleStateTurnAi]` marks an actual AI turn, while

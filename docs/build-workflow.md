@@ -163,15 +163,41 @@ The downgrade is invisible to the rest of the game because everything downstream
 
 Both ANEs are **declared** in the descriptor (`META-INF/AIR/application.xml:145–148` — `air.fmod.ane.FmodContext` and `air.steamworks.ane.SteamworksAneContext`), but the `.ane` binaries themselves are not committed to this patch repo. That is why the dev launcher strips them (see "The AIR SDK 33-vs-51 wall" below) and the client runs on `NullSoundDriver` day to day.
 
-### The local two-client hang
+### Two copies on one PC — why the second is silent, and what breaks
 
-This is the one FMOD quirk that will eat an afternoon if you don't know it. **FMOD's ANE initializes only once per machine.** So when `launch-game-2p.ps1` opens two clients on the same PC to test a battle, the *first* gets the real `FmodSoundDriver` and the *second* falls back to `NullSoundDriver`. The two clients then load resources along **different paths**, and that asymmetry wedges the FMOD-side client:
+**The second view is silent by design; it did not lose a race to the first.** The server repo's
+`launch-game-2p.ps1` opens two game views in one window, and what quietens the second one is not the
+fallback described above. The game asks for real audio only for the first view and builds every view
+after it with the silent stand-in outright. No FMOD attempt is made for those, so there is nothing to
+fail over from.
 
-1. The FMOD-side client loads its sound banks (`common/fmod/character_quality_*.fsb`). A side effect of `FmodSoundDefBundle.fsbLoadedHandler` (`air/fmod/ane/FmodSoundDefBundle.as:121`) **leaks an item** in the page's loading tracker (`GamePage.monitor` — the resource monitor from [`asset-loading.md`](./asset-loading.md)).
-2. Because that tracker never empties, `ScenePage.handleLoaded()` never re-fires, so `doInitReady()` (`game/gui/page/ScenePage.as:366`) never runs.
-3. `doInitReady` is what calls `BattleStateInit.setReady()` (`engine/battle/fsm/state/BattleStateInit.as:53`). Without it the client never sends its local `POST services/battle/ready` (`BattleTxnStartSend`), so the battle's init state **hangs forever** waiting to be told it's ready.
+**Two separate faults stop a same-PC two-player battle, and only one of them is about sound** — a
+sound bank that fails to load in a way the game does not expect, and a match that arrives before the
+"found an opponent" screen has finished drawing. Both two-player launch scripts work around both
+faults. They turn the sound off for every view, which is the **first of the three fallback triggers
+listed above**: with sound disabled the game never tries FMOD at all and goes straight to the silent
+driver. And they ask the server to wait ten seconds before pairing anyone — because `--versus_start`
+is what makes the second fault likely in the first place. It puts both halves in the queue the instant
+the game opens, so the match often arrives before the screen meant to announce it has finished
+drawing. With both workarounds, five launches in a row started a battle on 2026-09-18; without them,
+five in a row started none on 2026-09-16. Keep `--versus_start --versus_countdown 0` — they skip the
+town and the countdown — but they are not what fixes anything.
 
-A workaround patch is drafted in **Banner-Saga-Factions/BSF-Client#7** (a 15-second timeout in `BattleStateInit` that force-calls `setReady()`), but it is **not applied** — it needs a full SWF rebuild. The practical fix is what `launch-game-2p.ps1` already bakes in: `--versus_start --versus_countdown 0` skips the wait. **This is a same-machine artifact only** — a real 1-v-1 across two separate machines gives both clients real FMOD, so they either both race past it or both dodge it. The authoritative write-up (kept on the server side, since that is where the missing `/battle/ready` is noticed) is `bsf-server/.claude/rules/gotchas.md` ([local](../../bsf-server/.claude/rules/gotchas.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/.claude/rules/gotchas.md)).
+The measured write-up of both faults, and what to check when a launch still fails, is
+`bsf-server/docs/Development.md` → *Two-Player Local Test* ([local](../../bsf-server/docs/Development.md#two-player-local-test-same-machine) |
+[GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/Development.md#two-player-local-test-same-machine)). The client-side bugs behind them are [BSF-Client#49](https://github.com/Banner-Saga-Factions/BSF-Client/issues/49) (the
+sound bank) and [BSF-Client#50](https://github.com/Banner-Saga-Factions/BSF-Client/issues/50) (the versus screen); both need the game rebuilt to fix
+properly, which is why they are worked around from outside it. **Our rebuilt client has a two-player
+fault of its own, unrelated to these two** — [BSF-Client#51](https://github.com/Banner-Saga-Factions/BSF-Client/issues/51), and
+[`driving-the-client.md`](./driving-the-client.md) §1.
+
+*Technical.* View 0 is constructed with `FmodSoundDriver` (`GameMainAir.as:163`); ordinals 1 and up
+are constructed with `NullSoundDriver` in the `else` branch of `initWrapper` (`:246`). `--sound false`
+is applied per view in the startup loop (`:733`) and reaches the sound system as the `enabled` flag
+`GameConfig.soundSetup` sets (`game/cfg/GameConfig.as:626`), so `FmodSoundSystem.init` skips its
+`if(enabled)` block (`:77`) and takes the same `if (!driver)` branch (`:96–99`) as any other
+fallback. The scripts are `bsf-server/launch-game-2p.ps1` and `launch-game-2p-quickbattle.ps1`; both
+carry the same two workarounds.
 
 ## The AIR SDK 33-vs-51 wall
 

@@ -233,7 +233,7 @@ Constraints the client imposes on any backend that wants to serve it (covered in
 
 ## Related reading
 
-- Root [`CLAUDE.md`](../../CLAUDE.md) — repo-wide conventions, reference codebases, doc-path style.
-- Root [`REFERENCE.md`](../../REFERENCE.md) — pinned server reference SHA.
+- Root [`CLAUDE.md`](../../CLAUDE.md) — repo-wide conventions and doc-path style.
+- Root [`REFERENCE.md`](../../REFERENCE.md) — which reference mirror to use, the 12 stale files, and the pinned server reference SHA.
 - `bsf-server/docs/ARCHITECTURE.md` ([local](../../bsf-server/docs/ARCHITECTURE.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/ARCHITECTURE.md)) — server-side counterpart.
 - [`bsf-client/CLAUDE.md`](../CLAUDE.md) — AS3 coding standards and refactoring protocol.

@@ -47,7 +47,9 @@ A pass-2 signature comparison (2026-05-16) found 369 of 381 overlapping files ar
 
 Pattern: post-2013 changes were exclusively gameplay iteration — battle internals, entity defs, game config. Core utilities, the protocol layer (`tbs/srv/...`), JSON serialization, stats, and session-state code are all unchanged. Comparison artifacts: `%USERPROFILE%\Code\bsf-refs-compare\`.
 
-This list is duplicated in root [`CLAUDE.md`](../../CLAUDE.md) → "Reference Codebases" so AI agents picking either entry point see the same caveat.
+**Only `engine/` and `game/` have a saved report**, which for a while left an honest doubt about the 50 `tbs/` files — the ones carrying the shape of every message between game and server. The re-run on 2026-09-20 settles it: **all 50 match**, and `engine` (259/249/10) and `game` (72/70/2) came back identical to the saved reports, name for name, which is what shows the re-run was pointed at the right trees. Two things to know before leaning on the number: **36 of the 381 match only because neither side declares anything the parser recognises** — an empty signature equalling an empty signature is not evidence of sameness — and the script's two folder paths still name locations that no longer exist, so it needs repointing at `bsf-refs\` before it will run.
+
+The server side keeps the same list in `REFERENCE.md` ([local](../../REFERENCE.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/REFERENCE.md)) → "Which mirror to use", so anyone picking either entry point sees the same caveat. It used to sit in the repository-root `CLAUDE.md`; it moved out because that file is handed to every session whether or not it needs a lookup table.
 
 ## Decision tree — "I need to read class X, which mirror?"
 

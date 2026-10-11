@@ -6,7 +6,7 @@ How the client runs a battle: the FSM that drives both players' lockstep turns, 
 
 This doc covers the **client** side. The server's authoritative battle state and endgame logic live in `bsf-server/src/services/battle/Battle.ts` ([local](../../bsf-server/src/services/battle/Battle.ts) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/src/services/battle/Battle.ts)) — see `bsf-server/docs/gameFlow.md` ([local](../../bsf-server/docs/gameFlow.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/gameFlow.md)) and `bsf-server/docs/ARCHITECTURE.md` → "3. Battle Service" ([local](../../bsf-server/docs/ARCHITECTURE.md#3-battle-service-srcservicesbattle) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/ARCHITECTURE.md#3-battle-service-srcservicesbattle)).
 
-> **12-stale-file caveat:** the shipped `BattleBoard`, `BattleStateInit`, `BattleStateDeploy`, `BattleFsmConfig`, `BattleTurnOrder`, and `Op.as` are in the [12-stale-file exception list](./reference-codebases.md#prefer-2013-source-over-decompile--_except_-for-12-files) — read the JPEXS decompile under `bsf-refs\client-decompiled-as3\engine\battle\`, not the 2013 source for those files.
+> **12-stale-file caveat:** the shipped `BattleBoard`, `BattleStateInit`, `BattleStateDeploy`, `BattleFsmConfig`, `BattleTurnOrder`, and `Op.as` are in the [12-stale-file exception list](./reference-codebases.md#prefer-2013-source-over-decompile--except-for-12-files) — read the JPEXS decompile under `bsf-refs\client-decompiled-as3\engine\battle\`, not the 2013 source for those files.
 
 ## Battle FSM — `BattleFsm`
 

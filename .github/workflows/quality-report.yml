@@ -27,6 +27,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false # no later step pushes, so none of them needs the access token
 
       # Links that leave this repository are the "[local]" half of a dual link: they point into the
       # parent BSF checkout, which does not exist when this repo is checked out on its own. The

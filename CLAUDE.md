@@ -94,7 +94,7 @@ Every pull request also gets a **report-only** check on GitHub (`.github/workflo
 
 ## Code Review
 
-After a patch or at the end of a work stream, ask whether to spawn review subagents over the files changed in that session. **Offer it *before* the pull request opens** — the instinct is to review after pushing, but by then any mistake is public and fixing it costs an extra commit plus a second review pass.
+After a patch or at the end of a work stream, offer a review of the files changed in that session. The chat that wrote the work hands the review to a new chat; it does not run the reviewers itself. **Offer it *before* the pull request opens** — the instinct is to review after pushing, but by then any mistake is public and fixing it costs an extra commit plus a second review pass.
 
 Offer the checker for every change. Add the second reviewer, the one briefed to *disprove*, only when the change alters what the game sends to the server or reads from it — the same rule the `bsf-review` skill applies to a client change ([local](../.claude/skills/bsf-review/SKILL.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/.claude/skills/bsf-review/SKILL.md)).
 

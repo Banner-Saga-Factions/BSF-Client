@@ -61,6 +61,8 @@ The hook is installed by running `yarn install` in this folder once; a fresh clo
 
 Use `scripts/verify-and-commit.ps1 -Message "..."` to commit instead of a plain `git commit` — it runs that same compile check once, the same way the hook does, keeps the full compiler output in `logs/` instead of printing it, and skips the hook's own redundant second run (`SKIP_SIMPLE_GIT_HOOKS=1`, the hook's own switch, set only for that one commit and put back afterwards). It needs PowerShell 7.3 or newer (`pwsh`). The server's matching helper is described in `bsf-server/CLAUDE.md` ([local](../bsf-server/CLAUDE.md#commands) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/CLAUDE.md#commands)) → *Commands*; see BSF-Custom-Server issue #279. Before editing any of the check's scripts, read the three traps in `bsf-server/docs/Development.md` ([local](../bsf-server/docs/Development.md#writing-a-powershell-script-that-runs-a-check) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/Development.md#writing-a-powershell-script-that-runs-a-check)) → *Writing a PowerShell script that runs a check*.
 
+Every pull request also gets a **report-only** check on GitHub (`.github/workflows/quality-report.yml`). It lists broken links between documents and problems in the PowerShell scripts on the run's summary page, and never blocks a merge. It does not build the game, which needs the AIR SDK and `_decompiled/`, so the compile check above stays local.
+
 ## Coordination Protocol
 
 - **Parent repo:** `../` (BSF root) tracks this repo as a git submodule.
@@ -94,7 +96,7 @@ Use `scripts/verify-and-commit.ps1 -Message "..."` to commit instead of a plain 
 
 After a patch or at the end of a work stream, ask whether to spawn review subagents over the files changed in that session. **Offer it *before* the pull request opens** — the instinct is to review after pushing, but by then any mistake is public and fixing it costs an extra commit plus a second review pass.
 
-Offer two kinds, and run them together whenever the change rests on factual claims.
+Offer the checker for every change. Add the second reviewer, the one briefed to *disprove*, only when the change alters what the game sends to the server or reads from it — the same rule the `bsf-review` skill applies to a client change ([local](../.claude/skills/bsf-review/SKILL.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/.claude/skills/bsf-review/SKILL.md)).
 
 An ordinary checker:
 
@@ -105,7 +107,7 @@ Agent({ subagent_type: "general-purpose", description: "Code review",
 
 Look for: missing `override` keywords and type mismatches left behind by the decompiler, calls to functions not defined in the same class, listeners added without a matching removal, patched files that drifted from their `_decompiled/` original in ways the change did not intend, and request fields that no longer match what `../bsf-server` expects.
 
-And one briefed to *disprove*:
+The second reviewer, briefed to *disprove*:
 
 ```
 Agent({ subagent_type: "general-purpose", description: "Adversarial review",

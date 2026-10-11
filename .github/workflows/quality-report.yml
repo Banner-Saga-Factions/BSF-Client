@@ -31,7 +31,9 @@ jobs:
       # Links that leave this repository are the "[local]" half of a dual link: they point into the
       # parent BSF checkout, which does not exist when this repo is checked out on its own. The
       # "[GitHub]" half of each is what a reader on github.com follows. The runner folder is
-      # <parent>/<repo>, so "leaves the repo" means: a file directly in <parent>, or bsf-server/.
+      # <parent>/<repo>, so "leaves the repo" means: anywhere under <parent> but outside <repo>.
+      # lychee has no "not this folder" pattern, so the checks below exclude everything under
+      # <parent> and then include <repo> again (an include beats every exclude).
       - name: Work out the folder above the checkout
         run: echo "PARENT_DIR=$(dirname "$GITHUB_WORKSPACE")" >> "$GITHUB_ENV"
 
@@ -44,13 +46,15 @@ jobs:
           fail: false # report only
           failIfEmpty: false # an empty result is reported below, as a tool that did not run
           jobSummary: false # the next step writes the summary, in the same style as the others
-          output: logs/lychee-links.md
+          # The reports go to the runner's temp folder, not into the checkout: inside it, the
+          # second check would scan the first one's report as if it were a document.
+          output: ${{ runner.temp }}/lychee-links.md
           # --offline: local files only, so no network failures and no rate limits.
           # Web addresses are skipped, which includes the [GitHub] half of every dual link.
           args: >-
             --offline --no-progress
-            --exclude '^file://${{ env.PARENT_DIR }}/bsf-server/'
-            --exclude '^file://${{ env.PARENT_DIR }}/[^/]+$'
+            --exclude '^file://${{ env.PARENT_DIR }}/'
+            --include '^file://${{ github.workspace }}/'
             '**/*.md'
 
       - name: Document links - summary
@@ -60,7 +64,7 @@ jobs:
         run: |
           {
             echo "### Document links (report only, nothing blocks)"
-            report=logs/lychee-links.md
+            report="$RUNNER_TEMP/lychee-links.md"
             # lychee exits 0 when every link resolved, 2 when some did not. Anything else, or no
             # report at all, means the tool itself failed.
             if [ -z "${LYCHEE_EXIT:-}" ] || { [ "$LYCHEE_EXIT" != 0 ] && [ "$LYCHEE_EXIT" != 2 ]; } || [ ! -s "$report" ]; then
@@ -86,11 +90,11 @@ jobs:
           fail: false
           failIfEmpty: false
           jobSummary: false
-          output: logs/lychee-anchors.md
+          output: ${{ runner.temp }}/lychee-anchors.md
           args: >-
             --offline --no-progress --include-fragments
-            --exclude '^file://${{ env.PARENT_DIR }}/bsf-server/'
-            --exclude '^file://${{ env.PARENT_DIR }}/[^/]+$'
+            --exclude '^file://${{ env.PARENT_DIR }}/'
+            --include '^file://${{ github.workspace }}/'
             '**/*.md'
 
       - name: Document links - anchors summary
@@ -100,7 +104,7 @@ jobs:
         run: |
           {
             echo "### Heading anchors (report only, nothing blocks)"
-            report=logs/lychee-anchors.md
+            report="$RUNNER_TEMP/lychee-anchors.md"
             if [ -z "${LYCHEE_EXIT:-}" ] || { [ "$LYCHEE_EXIT" != 0 ] && [ "$LYCHEE_EXIT" != 2 ]; } || [ ! -s "$report" ]; then
               echo "**TOOL DID NOT RUN** (exit code ${LYCHEE_EXIT:-none})."
             elif grep -qE 'Total\s+\|\s+0\b' "$report"; then

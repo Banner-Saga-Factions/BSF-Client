@@ -1,8 +1,8 @@
-# Report-only checks for the client (issue #346, wave 6). Nothing here can fail a pull request:
-# each tool's findings are written to the job's summary page (and echoed into the log with tee, so
-# a terminal can read them) and the job always ends green. Wave 7 (#347) reads these reports and
-# decides which checks earned the right to block. The server has the same arrangement in its own
-# quality-report.yml, and the same rule for a crashed tool: it must say so.
+# Report-only checks for the client (BSF-Custom-Server issue #346, wave 6). Each tool's findings
+# are written to the job's summary page (and echoed into the log with tee, so a terminal can read
+# them), and a finding never turns the job red. Wave 7 (BSF-Custom-Server issue #347) reads these
+# reports and decides which checks earned the right to block. The server has the same arrangement
+# in its own quality-report.yml, and the same rule for a crashed tool: it must say so.
 #
 # WHAT IS NOT HERE: the game build. scripts/build.ps1 needs the AIR SDK and the decompiled game
 # (_decompiled/), neither of which exists on a GitHub runner, so the build and the pre-commit
@@ -35,12 +35,13 @@ jobs:
       # lychee has no "not this folder" pattern, so the checks below exclude everything under
       # <parent> and then include <repo> again (an include beats every exclude).
       - name: Work out the folder above the checkout
+        continue-on-error: true
         run: echo "PARENT_DIR=$(dirname "$GITHUB_WORKSPACE")" >> "$GITHUB_ENV"
 
       - name: Document links - do the linked files exist
         id: links
         continue-on-error: true
-        uses: lycheeverse/lychee-action@v2.9.0
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
         with:
           lycheeVersion: v0.24.2
           fail: false # report only
@@ -51,26 +52,30 @@ jobs:
           output: ${{ runner.temp }}/lychee-links.md
           # --offline: local files only, so no network failures and no rate limits.
           # Web addresses are skipped, which includes the [GitHub] half of every dual link.
+          # --hidden: also read documents in folders whose name starts with a dot (.claude/).
           args: >-
-            --offline --no-progress
+            --offline --no-progress --hidden
             --exclude '^file://${{ env.PARENT_DIR }}/'
             --include '^file://${{ github.workspace }}/'
             '**/*.md'
 
       - name: Document links - summary
         if: always()
+        continue-on-error: true
         env:
           LYCHEE_EXIT: ${{ steps.links.outputs.exit_code }}
         run: |
           {
             echo "### Document links (report only, nothing blocks)"
             report="$RUNNER_TEMP/lychee-links.md"
-            # lychee exits 0 when every link resolved, 2 when some did not. Anything else, or no
-            # report at all, means the tool itself failed.
-            if [ -z "${LYCHEE_EXIT:-}" ] || { [ "$LYCHEE_EXIT" != 0 ] && [ "$LYCHEE_EXIT" != 2 ]; } || [ ! -s "$report" ]; then
+            # lychee exits 0 when every link resolved, and 2 when some did not or when it rejected
+            # its own command line. Only a report with a Total row shows that it really ran.
+            if [ -z "${LYCHEE_EXIT:-}" ] || { [ "$LYCHEE_EXIT" != 0 ] && [ "$LYCHEE_EXIT" != 2 ]; } || ! grep -q 'Total' "$report" 2>/dev/null; then
               echo "**TOOL DID NOT RUN** (exit code ${LYCHEE_EXIT:-none})."
             elif grep -qE 'Total\s+\|\s+0\b' "$report"; then
               echo "**TOOL DID NOT RUN** (it examined no links)."
+            elif grep -qE 'Successful\s+\|\s+0\b' "$report" && grep -qE 'Errors\s+\|\s+0\b' "$report"; then
+              echo "**TOOL DID NOT RUN** (it skipped every link it found)."
             else
               # The report ends with a link to this very run; drop it.
               grep -v '^\[Full Github Actions output\]' "$report"
@@ -80,11 +85,11 @@ jobs:
           exit 0
 
       # Heading anchors ("file.md#section") are reported on their own so that the file check above
-      # keeps a clean meaning. Whether to check them at all is decided from the first real run.
+      # keeps a clean meaning.
       - name: Document links - heading anchors
         id: anchors
         continue-on-error: true
-        uses: lycheeverse/lychee-action@v2.9.0
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
         with:
           lycheeVersion: v0.24.2
           fail: false
@@ -92,23 +97,26 @@ jobs:
           jobSummary: false
           output: ${{ runner.temp }}/lychee-anchors.md
           args: >-
-            --offline --no-progress --include-fragments
+            --offline --no-progress --hidden --include-fragments
             --exclude '^file://${{ env.PARENT_DIR }}/'
             --include '^file://${{ github.workspace }}/'
             '**/*.md'
 
       - name: Document links - anchors summary
         if: always()
+        continue-on-error: true
         env:
           LYCHEE_EXIT: ${{ steps.anchors.outputs.exit_code }}
         run: |
           {
             echo "### Heading anchors (report only, nothing blocks)"
             report="$RUNNER_TEMP/lychee-anchors.md"
-            if [ -z "${LYCHEE_EXIT:-}" ] || { [ "$LYCHEE_EXIT" != 0 ] && [ "$LYCHEE_EXIT" != 2 ]; } || [ ! -s "$report" ]; then
+            if [ -z "${LYCHEE_EXIT:-}" ] || { [ "$LYCHEE_EXIT" != 0 ] && [ "$LYCHEE_EXIT" != 2 ]; } || ! grep -q 'Total' "$report" 2>/dev/null; then
               echo "**TOOL DID NOT RUN** (exit code ${LYCHEE_EXIT:-none})."
             elif grep -qE 'Total\s+\|\s+0\b' "$report"; then
               echo "**TOOL DID NOT RUN** (it examined no links)."
+            elif grep -qE 'Successful\s+\|\s+0\b' "$report" && grep -qE 'Errors\s+\|\s+0\b' "$report"; then
+              echo "**TOOL DID NOT RUN** (it skipped every link it found)."
             else
               echo "This run also checks that each #section a link names exists. Problems that appear here but not above are anchors."
               echo
@@ -124,7 +132,7 @@ jobs:
         run: |
           $version = '1.25.0'
           $out = [System.Collections.Generic.List[string]]::new()
-          $out.Add('### Script lint (PSScriptAnalyzer, errors and warnings only, nothing blocks)')
+          $out.Add('### Script lint (PSScriptAnalyzer, nothing blocks)')
           try {
             if (-not (Get-Module -ListAvailable -Name PSScriptAnalyzer | Where-Object { $_.Version -eq [version]$version })) {
               Install-Module -Name PSScriptAnalyzer -RequiredVersion $version -Scope CurrentUser -Force -ErrorAction Stop

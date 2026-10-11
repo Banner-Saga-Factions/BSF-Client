@@ -71,7 +71,7 @@ jobs:
             # lychee exits 0 when every link resolved, and 2 when some did not or when it rejected
             # its own command line. Only a report with a Total row shows that it really ran.
             if [ -z "${LYCHEE_EXIT:-}" ] || { [ "$LYCHEE_EXIT" != 0 ] && [ "$LYCHEE_EXIT" != 2 ]; } || ! grep -q 'Total' "$report" 2>/dev/null; then
-              echo "**TOOL DID NOT RUN** (exit code ${LYCHEE_EXIT:-none})."
+              echo "**TOOL DID NOT RUN** (exit code ${LYCHEE_EXIT:-none}, or no table of results)."
             elif grep -qE 'Total\s+\|\s+0\b' "$report"; then
               echo "**TOOL DID NOT RUN** (it examined no links)."
             elif grep -qE 'Successful\s+\|\s+0\b' "$report" && grep -qE 'Errors\s+\|\s+0\b' "$report"; then
@@ -112,7 +112,7 @@ jobs:
             echo "### Heading anchors (report only, nothing blocks)"
             report="$RUNNER_TEMP/lychee-anchors.md"
             if [ -z "${LYCHEE_EXIT:-}" ] || { [ "$LYCHEE_EXIT" != 0 ] && [ "$LYCHEE_EXIT" != 2 ]; } || ! grep -q 'Total' "$report" 2>/dev/null; then
-              echo "**TOOL DID NOT RUN** (exit code ${LYCHEE_EXIT:-none})."
+              echo "**TOOL DID NOT RUN** (exit code ${LYCHEE_EXIT:-none}, or no table of results)."
             elif grep -qE 'Total\s+\|\s+0\b' "$report"; then
               echo "**TOOL DID NOT RUN** (it examined no links)."
             elif grep -qE 'Successful\s+\|\s+0\b' "$report" && grep -qE 'Errors\s+\|\s+0\b' "$report"; then
@@ -153,7 +153,7 @@ jobs:
             $out.Add("$($files.Count) files examined, $($real.Count) findings.")
             if ($unparsed.Count -gt 0) {
               $out.Add('')
-              $out.Add("**$($unparsed.Count) file(s) could not be parsed, so the linter did not check them.**")
+              $out.Add("**$($unparsed.Count) parse error(s): the linter could not read the files they are in, so it did not check them.**")
             }
             if ($real.Count -gt 0) {
               $out.Add('')

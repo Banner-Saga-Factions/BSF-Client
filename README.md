@@ -36,7 +36,7 @@ is the canonical historical artifact and is cited throughout the new docs.
 | Java 11+                    | Required by JPEXS. Install Temurin 21 from https://adoptium.net/                                                                                                                                                        |
 | JPEXS Free Flash Decompiler | Install to `C:\Program Files (x86)\FFDec\` — https://github.com/jindrapetrik/jpexs-decompiler/releases                                                                                                                  |
 | HARMAN AIR SDK 33.1+        | Set `AIR_HOME` env var to SDK root — https://airsdk.harman.com/                                                                                                                                                         |
-| Original SWF (v1.10.51)     | Not included. Default path: `C:\Program Files (x86)\Steam\steamapps\common\The Banner Saga Factions\win32\app.game.air.swf`. Fallback: unzip `BSF-Client-Stock.zip` from the [client releases page](https://github.com/Banner-Saga-Factions/BSF-Client/releases/latest); the file is `BSF-Factions-Stock\win32\app.game.air.swf`. |
+| Original SWF (v1.10.51)     | Not included. Default path: `C:\Program Files (x86)\Steam\steamapps\common\The Banner Saga Factions\win32\app.game.air.swf`. Fallback: unzip `BSF-Client-Stock.zip` from the [client releases page](https://github.com/Banner-Saga-Factions/BSF-Client/releases/latest); the file is `BSF-Factions-2013\win32\app.game.air.swf`. |
 
 ## Build workflow
 

@@ -3,8 +3,9 @@
 What changed in this repository, newest first, written so a non-programmer can follow it. Each
 entry links to the pull request that made the change.
 
-The one public build so far is the pre-release
-[v2-beta](https://github.com/Banner-Saga-Factions/BSF-Client/releases/tag/Beta) of 2026-06-17.
+The one earlier public build was the v2-beta pre-release of 2026-06-17; its download page has since
+been removed. The current download is on the
+[releases page](https://github.com/Banner-Saga-Factions/BSF-Client/releases/latest).
 
 ---
 

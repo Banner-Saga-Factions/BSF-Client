@@ -26,7 +26,7 @@ bsf-client/
 **Why this model:**
 
 - The original SWF is ~80 MB and proprietary — it can't be committed.
-- Every contributor regenerates `_decompiled/` from their own legally-acquired SWF (the Steam install, or the BSF-Custom-Server zip release).
+- Every contributor regenerates `_decompiled/` from their own legally-acquired SWF (the Steam install, or `BSF-Client-Stock.zip` from this repo's [releases page](https://github.com/Banner-Saga-Factions/BSF-Client/releases/latest)).
 - Patches live in `src/` and apply cleanly on top of any future re-decompile, so a JPEXS upgrade or SWF version bump rarely breaks anything.
 - The diff a reviewer sees in a PR is **just the patch**, not ~1,272 files of decompile noise.
 

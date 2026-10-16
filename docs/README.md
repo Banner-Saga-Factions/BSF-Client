@@ -23,6 +23,7 @@ Architecture, build workflow, wire protocol, and reference material for the patc
 | [`data-model.md`](./data-model.md)                   | How does a JSON def become a typed object? The `Def`/`Vars`/`Wrangler` triad, the entity model, and why battle stats come from your roster.          |
 | [`offline-ai.md`](./offline-ai.md)                   | How do offline practice battles work? Starting one, how the AI picks its move, what it can't do, and what our fork fixed.                            |
 | [`mod-bridge.md`](./mod-bridge.md)                   | How does the mod bridge talk to `mods/host.exe`? The wire protocol, the command registry, the lifecycle — and the known security gap.               |
+| [`match-runner.md`](./match-runner.md)               | How strong is the offline opponent? A helper that plays many practice battles against it unattended and counts who wins.                            |
 | [`doc-gaps.md`](./doc-gaps.md)                       | What's still undocumented? The tracked, closeable list of remaining client-doc gaps.                                                                |
 
 ## Reading orders
@@ -66,7 +67,8 @@ Architecture, build workflow, wire protocol, and reference material for the patc
 2. [`driving-the-client.md`](./driving-the-client.md) — start one yourself and watch it; how to read the board, which log to trust, and (§9) the automated test that does the same journey with nobody at the keyboard.
 3. [`battle-engine.md`](./battle-engine.md) — the turn FSM the offline battle rides on.
 4. [`mod-bridge.md`](./mod-bridge.md) — drive the game (or watch its traffic) from an external host.
-5. [`patch-inventory.md`](./patch-inventory.md) — the fork surface both features touch.
+5. [`match-runner.md`](./match-runner.md) — measure the opponent: play many battles against it and count who wins.
+6. [`patch-inventory.md`](./patch-inventory.md) — the fork surface both features touch.
 
 ## Source material
 

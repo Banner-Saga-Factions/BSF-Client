@@ -1,250 +1,240 @@
-# Plan: Improve the Player-vs-AI Battle Opponent (Phased)
+# Plan: a stronger offline battle opponent (issue #31)
 
-Tracked as issue #31 — "The offline opponent plays weakly: it never uses special abilities and never looks ahead".
+Tracked as [BSF-Client #31](https://github.com/Banner-Saga-Factions/BSF-Client/issues/31): "The offline
+opponent plays weakly: it never uses special abilities and never looks ahead". This file is the wave plan
+and what each wave found. Whether a wave is ready, blocked or done lives on the
+[roadmap board](https://github.com/orgs/Banner-Saga-Factions/projects/3), not here. The ready-to-paste
+prompt that starts each wave is a comment on the issue.
 
-## continue in a new chat, scoped to Tier 0 only. Paste this to kick it off:
+## What this is about
 
-▎ Implement Tier 0 from bsf-client/misc/Plan-Improve-Battle-AI.md — special-ability awareness (faction-safe via targetRule), focus-fire, and anti-suicide, plus the friends-array fix. Surgical overlays on AiPlan.as / AiModuleBase.as + a new AiModuleDredge.as overlay. Explain each edit as you go; stop before Tier 1.
+The offline practice battle (`Ctrl+Shift+A`, or the bridge's `start_ai_battle`) works, but the computer
+opponent has two weaknesses. It never uses its units' special abilities, and it never looks ahead: it
+scores each possible move against the board as it stands, never asking what the other side will do
+next. How it thinks today is in [`../docs/offline-ai.md`](../docs/offline-ai.md).
 
-## Context
+**Decisions (owner, 2026-10-16):**
 
-The offline **Player-vs-AI** mode (`Plan-Issue-12-Player-vs-AI-Public-Release.md`) re-exposes the original Banner
-Saga single-player AI, dormant in the Factions client. A run of crash fixes
-(`Plan-Fix-Issue-12-ai-battle-init-hang.md`) got it to where the enemy **moves, attacks, and rests** —
-but it plays **weakly against a thinking human**. This plan improves it.
+- **The thinking stays inside the game.** Quick fixes first, then a one-move look-ahead. Moving the
+  "brain" out to a helper program stays on the roadmap.
+- **Progress is measured, not guessed.** The match runner ([`../docs/match-runner.md`](../docs/match-runner.md))
+  plays the player's side with a fixed simple strategy and reports how often the computer wins.
+- **One opponent strength.** No difficulty levels. A hidden developer switch is fine for comparing two
+  versions.
+- **Fix the opponent's "eyesight" bugs first, then measure.** Add the anti-suicide penalty only if
+  suicides still show up after the fix.
+- **Unattended runs are fine.** Claude starts the client and the local server, and the runner plays N
+  battles in the background.
+- **No overlap with the #47 installer work.** #47 changes nothing under `src/` and no build scripts.
+  Stay out of its worktree and test folder. The installer packs whatever bundle is built when it runs,
+  so the improved opponent ships in the first bundle built after it merges.
 
-**Goal (confirmed with the user):** ultimately a **genuinely challenging** opponent (should beat an
-average player sometimes), reached **phased — quick wins first**. So Tier 0 (cheap, high-payoff) is
-**execution-ready now**, Tier 1 (the look-ahead that's _actually required_ to reach "challenging") is
-**designed as the next step**, and Tier 2 (external engine) is a **roadmap** item.
+**The bar for "challenging", as revised 2026-10-16 after Wave 1's first runs.** The original bar was
+"the computer beats the scripted player in at least half of mirror battles". The unchanged computer
+already beat the plain scripted player in every battle (see *Measurements*), so that bar measured
+nothing. The plain player uses only strength attacks, and armor soaks those up. So the owner chose:
 
-**On "could we use AI like Stockfish":** Stockfish itself is chess-specific and can't read this board.
-What's portable is its _method_ — **search a tree of candidate moves + a strong evaluation function**.
-Today's BSF AI is the evaluation half with **no search half**. So the arc is: sharpen the evaluator
-(Tier 0) → add shallow search on top (Tier 1) → optionally move the brain out-of-process (Tier 2).
-Combat is **near-deterministic** (small per-attack miss chance), so the right search flavor is
-**expectimax / expected-damage**, not strict minimax — a detail, not a blocker.
+- The yardstick is the **`armor-first`** scripted player: the same simple player, except that it uses
+  the armor attack when a strength hit would do 1 damage or less.
+- **The bar is the computer winning at least half of the battles against `armor-first`**, with the
+  computer's average survivors as the tie-breaker between two versions that both clear it.
+- Baselines are recorded for both players, so each later wave can be compared against either.
+- Then the owner plays it, as the final check.
 
-### Two root causes of the weak play (confirmed in code)
+## Measurements
 
-1. **It ignores every special/signature ability.** `AiModuleDredge.tickAi` only enumerates the unit's
-   basic strength and basic armor attacks (`getFirstAbilityByTag(ATTACK_STR / ATTACK_ARM)`) and falls
-   back to `abl_rest`/`abl_end`. The interesting half of every unit's kit is invisible to it.
-2. **Zero look-ahead.** It is a **greedy, single-unit, single-turn** planner scoring each move
-   **statically** from the current board — no clone, no opponent-reply modeling. It walks units into
-   tiles where they die for free, because the positional penalty is tiny next to `WEIGHT_KILL = 200`.
+Each row is one run of the match runner on the `test2` account's party: 2 archers, 2 axemen, a warrior
+and a warhawk on each side. The runner's output folders are in `_build\runner\` (not committed).
 
-### Two facts that make the fixes safe (verified firsthand)
+| Date | Build | Scripted player | Battles | Computer won | Computer survivors, avg | Player survivors, avg | Turns, avg | `#1009` |
+| ---- | ----- | --------------- | ------- | ------------ | ----------------------- | --------------------- | ---------- | ------- |
+| 2026-10-16 | Wave 1 (opponent unchanged from master `9603f55`) | `strength` | 8 | 8 (100%) | 2.88 of 6 | 0 | 65.5 | 0 |
+| — | Wave 1 (opponent unchanged) | `armor-first` | not yet run | | | | | |
 
-- **`fake` mode self-reverts** (`engine/entity/model/Entity.as:47-77`): `get stats()` returns
-  `_fakeStats ? _fakeStats : _stats`; `set fake(true)` does `_fakeStats = _stats.clone(this)`;
-  `set fake(false)` nulls it. So evaluating candidate moves under `board.fake=true` mutates only a
-  throwaway clone — **it cannot corrupt the real board, no matter how many candidates we score.** The
-  AI already uses this via `BattleAbility.getStatChange()` (`…/model/BattleAbility.as:86-125`); we just
-  call it more, and (Tier 1) wrap it in a snapshot/restore loop.
-- **Wrong-faction targeting is impossible** (`…/def/BattleAbilityTargetRule.as:43-135` +
-  `…/model/BattleAbilityValidation.as:141-144`): `validate()` returns `INVALID_TARGET` unless
-  `targetRule.isValid` passes — `FRIENDLY` needs same team, `ENEMY` needs different team, `SELF` needs
-  self. `getStatChange` validates first, so a heal/buff can **never** enumerate onto an enemy and an
-  attack can never enumerate onto a friend — a double safety net for Tier 0(a).
+Before the baseline, three probe battles with the `strength` player all went to the computer, with 3–5
+of its 6 units left. That is what prompted the yardstick change above.
 
-### Constraints
+**The baseline is smaller than planned, and half of it is missing.** A first 20-battle run was stopped by
+the PC running low on memory after 2 battles (both computer wins, not counted above). A second run was
+cut to 10 per player and then stopped by the owner after 8, before the `armor-first` run began. So
+**Wave 2 starts by recording the `armor-first` baseline** on the unchanged opponent, before changing
+anything. A battle takes about 3½ minutes, so 10 battles is about 35 minutes.
 
-- The AI brain lives **inside `app.game.air.swf`**, patchable normally (`src/<pkg>.as` overlay →
-  `apply-patches` → `build`), but **every tweak needs a client rebuild**. (This is the standing argument
-  for Tier 2: ship a bridge once, then evolve the AI with no further reships.)
-- `bsf-client/CLAUDE.md`: **surgical patches only, no engine refactors, extend existing classes.** Strong
-  typing, explicit visibility, match decompiled style. Tier-0 edits **re-overlay** the existing `src/`
-  copies of `AiModuleBase.as`/`AiPlan.as` (which already carry the issue-12 null-safety fixes), plus a
-  **new** overlay of `AiModuleDredge.as`.
+## What reading the code found (2026-10-16, not yet tested in a run)
 
----
+Sources: the opponent files our fork overlays (`src/engine/battle/fsm/aimodule/AiPlan.as`,
+`AiModuleBase.as`), the decompile at `%USERPROFILE%\Code\bsf-refs\client-decompiled-as3\`, and the
+Factions ability files, decoded from `assets\common\ability\*.json.z` (AMF3, the game's compressed binary
+format).
 
-## Current AI — files & flow (what we modify)
+1. **It cannot see danger from melee units.** `AiPlan.computePositionalEnemyWeight` counts an enemy as a
+   threat only when `range < rangeMax && range > rangeMin`. The game's own rule
+   (`BattleAbilityValidation.as:217-221`) includes both ends. Basic melee is `0..1`, so no whole-number
+   distance ever passes and melee threat is always 0. Bows (`2..5`) count only at 3 and 4. The same test
+   gates the opponent's own "I threaten them" reward. This is the likeliest cause of "walks into a free
+   kill".
+2. **It misses exact kills.** The engine kills at `damage >= strength` (`Op_DamageStr.as`: the KILLING
+   tag; `BattleEntity.strengthChangeHandler`: `value <= 0`). `AiPlan`'s constructor flags a kill only at
+   `amount > strength`, so a blow that takes a target exactly to 0 gets no kill bonus.
+3. **The moving unit counts itself as a friend.** `buildEnemyArray` puts the unit taking its turn into
+   `friends`, so the "stay near friends" term penalises it for leaving its own square. The earlier plan's
+   "friends list leak" was wrong: the list is rebuilt fresh each turn.
+4. **The rest-or-advance check counts enemies twice and friends never.** `computePositionalWeight`
+   calls `computePositionalWeightEnemies` twice.
+5. **A failed imagined move can leave the board in "pretend" mode.** The opponent scores a move by
+   playing it on a throwaway copy of the stats ("pretend" mode, `board.fake`). `BattleAbility.getStatChange`'s
+   `catch` returns without switching pretend mode off and without moving the unit back. That has never
+   been seen to happen, but scoring more abilities makes it more likely.
+6. **Specials in Factions.** The reference class list (`client-swf-and-ane/character_classes.json.z`)
+   gives:
 
-| File (decompiled ref / `src` overlay)                     | Role                                                                                                                                                  |
-| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `engine/battle/fsm/state/BattleStateTurnAi.as` (~:20)     | Entry; hardcodes `new AiModuleDredge(this)`; runs `performMove()` then `performAction()`                                                              |
-| `engine/battle/fsm/aimodule/AiModuleDredge.as`            | `tickAi()` = STR pass, then ARM pass → `chooseBestPlan()`; `performMove`/`performAction`                                                              |
-| `engine/battle/fsm/aimodule/AiModuleBase.as` _(overlaid)_ | `findPlans()` enumerates candidates (already SPECIAL-rank-aware); ctor sets `atkStr`/`atkArm`/`isRanged`; `buildEnemyArray` fills `enemies`+`friends` |
-| `engine/battle/fsm/aimodule/AiPlan.as` _(overlaid)_       | `computeWeight()` weighted-sum scoring + positional/threat math; `toString()` logs every plan                                                         |
-| `engine/battle/board/model/BattleBoard.as` _(overlaid)_   | `set fake(...)` simulation switch                                                                                                                     |
+   | Fits the existing "hit one enemy" scoring (Wave 3) | Needs new work (roadmap) |
+   | --- | --- |
+   | Sundering Impact (Warmaster, Wardog), Bring the Pain (Shieldmaster), Bloody Flail (Thrasher), Bird of Prey (Bowmaster), Malice (Provoker) | Buffs score 0 today: Stonewall (Axemaster, self), Forge Ahead (Warleader, ally). Aimed at a tile: Rain of Arrows (Skystriker), Slag and Burn (Siegearcher). Special rules: Tempest (Warhawk, two targets), Run Through (Backbiter), Battering Ram (Strongarm) |
 
-**Scoring today** (`AiPlan.computeWeight`, weighted sum): `WEIGHT_KILL=200` (+ target-stat bonus), STR
-damage ×45, ARM damage ×20, willpower/stars ×10 penalty, self-threat ×0.5 penalty, enemy-in-range ×0.25
-reward, friend-distance ×15 (×2 ranged), small move-length penalty. ~40–80 candidates/unit/turn. Every
-plan is logged via `AiPlan.toString()` — read the candidate set and chosen plan straight from the log.
+   This is the reference copy. The running game may load a different one, so Wave 3 logs the real list.
 
----
+Two facts from the earlier plan still hold and make the fixes safe:
 
-## Phase 0 — Quick wins (execution-ready; one rebuild)
+- **Pretend mode undoes itself** (`engine/entity/model/Entity.as:47-77`). Switching it on clones the
+  stats and switching it off throws the clone away, so scoring a move cannot damage the real board.
+  Finding 5 is the one way out of that, and Wave 3 closes it.
+- **An ability cannot be aimed at the wrong side.** `BattleAbilityValidation.validate` refuses a target
+  that the ability's target rule does not allow, and `getStatChange` validates first.
 
-Three independent additive changes. No new public API, no engine refactor. Each new scoring term gets a
-named constant near `AiPlan`'s other `WEIGHT_*` and a private field surfaced in `toString()` so it's
-tunable from logs and trivially reversible.
+### The external-brain note, corrected
 
-### 0(a) Special-ability awareness — _the biggest single gain_
+The earlier plan's "Tier 2" said a helper program could not see a battle: on 2026-07-22 no bridge
+channel carried battle state, so an outside "brain" would be blind. **That is out of date.** Since
+2026-08-26 the bridge has `battle_state`, `battle_move` and `battle_attack`
+(`src/engine/mod/ModBattleControl.as`; [`../docs/mod-bridge.md`](../docs/mod-bridge.md) §5). A helper
+program can read the whole board and play a battle. Wave 1's match runner does exactly that, and on
+2026-10-16 `battle_state` gained each unit's footprint (`size`) for it.
 
-**Edit `AiModuleBase` ctor (overlaid):** after `atkStr`/`atkArm` are set, build a typed
-`public var specials:Vector.<…>` from the unit's active abilities — read the actives ability-def-levels
-off the turn entity's `def` (e.g. `entity.def.actives`; **confirm the exact accessor at implementation
-time** and null-guard for units with none, matching the existing #12 null style), keeping only entries
-whose `(.def as BattleAbilityDef).tag == BattleAbilityTag.SPECIAL`. (`attacks` holds only basic STR/ARM;
-`actives` holds the signatures.)
+What an external brain still lacks is narrower: **a way for the computer's own turn to hand control to
+the helper and wait.** Today the computer's turn runs inside the game on a timer, and the bridge's move and
+attack commands refuse to act on it. The helper would also need the rules the game applies (range, willpower,
+armor break, miss chance), though trial and refusal over the bridge covers range and reach cheaply
+([`../docs/match-runner.md`](../docs/match-runner.md) §4). It stays on the roadmap.
 
-**Edit `AiModuleDredge.tickAi` (new overlay):** add special passes after the STR/ARM passes and before
-`chooseBestPlan`, reusing the same one-target-per-tick cursor pattern. **Pick the candidate array from
-the special's `targetRule`** (verified routing):
+## Waves (BSF-Client; one wave = one chat = one pull request)
 
-| `targetRule`                                                                                                                              | Candidate array            |
-| ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| `ENEMY`, `ENEMY_NEIGHBORS`                                                                                                                | `enemies`                  |
-| `FRIENDLY`, `FRIENDLY_OTHER`                                                                                                              | `friends`                  |
-| `SELF`                                                                                                                                    | `[caster]`                 |
-| `TILE_ANY`, `TILE_EMPTY`, `ANY`, `NONE`, `ADJACENT_BATTLEENTITY`, `SPECIAL_RUN_THROUGH`, `SPECIAL_BATTERING_RAM`, `SPECIAL_SLAG_AND_BURN` | **skip (defer to Tier 1)** |
+Every wave works in its own client worktree off `origin/master`, never in the main `bsf-client` checkout:
+`git -C bsf-client worktree add --no-track -b <branch> ..\..\BSF-client-ai-31 origin/master`. If the
+earlier wave has not merged yet, stack on its branch instead. A new worktree has no `_decompiled\`: copy
+it from the main checkout, then apply-patches → build → copy the SWF into the game folder → run. Commit
+through `scripts/verify-and-commit.ps1`. Each wave adds rows to *Measurements* above.
 
-Pass the special's **rank-1 root def** to `findPlans` exactly like the STR/ARM roots; `findPlans` expands
-levels internally and already caps SPECIAL level at `RANK`.
+### Wave 1: the match runner and baseline numbers (no opponent change)
 
-**Scoring:** damage specials are **already scored for free** — `AiPlan`'s ctor runs `getStatChange` for
-any non-basic `abldef`, routing through the existing STR/ARM damage weights. Non-damage specials
-(buff/heal/debuff) yield null statchanges → ~0 weight → harmlessly ignored. **Defer positive scoring of
-non-damage abilities to Tier 1** (a heal/buff value heuristic is where mis-valuation risk lives; keep
-Tier 0 to damage specials only, which is already a real strength gain).
+- **Changes:** `scripts/mod-host/runner.js` (the match runner, with the `strength` and `armor-first`
+  players), `docs/match-runner.md`, a `size` field on each unit in `battle_state`
+  (`src/engine/mod/ModBattleControl.as`, read-only), and this plan.
+- **What running it settled** (details in [`../docs/match-runner.md`](../docs/match-runner.md) §4):
+  - **A second battle starts without restarting the game.** Every battle in every run started this way.
+  - **Each battle gets new dice.** An offline battle has no id (`battleId` is null), so the game seeds
+    its dice from its clock. Every battle's trace differed.
+  - **Trial and refusal is fast enough; no `battle_reachable` command is needed.** A refusal costs a
+    few milliseconds and a turn takes a median of 4 commands (worst 26, over 253 turns). What it did need was each unit's size,
+    without which 1 move in 7 went to a tile the unit could not attack from.
+  - **The plain scripted player is too weak to measure against**, which revised the bar (above).
+- **Branch:** `feat/ai-match-runner-31`.
 
-**Defer to Tier 1 (too risky for a surgical patch):** tile/AoE specials (need a tile-candidate generator
+### Wave 2: fix the opponent's eyesight, plus focus fire
 
-- footprint scoring — `findPlans`/`computeMoveToRange` are entity-target-centric); the movement specials
-  (reposition the caster, breaking anti-suicide's landing-tile assumption); and the faction-agnostic
-  `ADJACENT_BATTLEENTITY` rule.
+- **Changes**, all in `src/engine/battle/fsm/aimodule/AiPlan.as` and `AiModuleBase.as`:
+  - Findings 1–4: make the range test inclusive like `BattleAbilityValidation`, use `>=` for kills,
+    leave the moving unit out of `friends`, and make the rest-or-advance check add enemies and friends.
+  - Focus fire: `WEIGHT_FOCUS = 30` × the share of strength the target has lost, kept below
+    `WEIGHT_KILL` so a real kill still wins.
+  - Show the new terms in `toString()`.
+  - Each fix carries a `[Inference] BSF-Client #31` comment, in the #12 style.
+- **First, the missing baseline:** 10 battles against `armor-first` on the unchanged opponent.
+- **Measure, then decide:** 10 battles against `armor-first`, then 10 against `strength`.
+  - If the opponent's units still die on the turn after moving, with no kill to show for it, add the
+    anti-suicide term (below).
+  - If it turns timid instead (resting while it could attack), tune `WEIGHT_SELF_THREAT` down.
+- **Docs:** `docs/offline-ai.md` §4/§5/§7 and `docs/patch-inventory.md`.
+- **Verify:** the log shows non-zero `⌖e` for tiles next to a melee enemy; no new `#1009`; the runner's
+  numbers against the Wave 1 baseline.
+- **Branch:** `fix/ai-eyesight-31`. **Model:** Opus, high. It changes how the opponent decides.
 
-**Safety:** faction is chosen from `targetRule` _and_ independently re-checked by `validate()` inside
-`getStatChange` — double guard (verified above).
+**The anti-suicide term, if needed.** `computePositionalEnemyWeight` already estimates the damage a unit
+would take on its landing tile, but scales it by only 0.5, which is tiny next to `WEIGHT_KILL = 200`.
+If the predicted damage on the landing tile is at least the unit's strength, subtract
+`WEIGHT_SUICIDE = 150`. Keep it below `WEIGHT_KILL` and skip it when the move itself kills a target of
+equal or greater value, so a good trade is still allowed and the opponent does not turn passive.
 
-### 0(b) Focus-fire — `AiPlan.as` (overlaid)
+### Wave 3: use the five single-enemy specials
 
-The existing "already-damaged target" bonus (`computeStrengthDamageWeight`/`computeArmorDamageWeight`,
-the `(original − current) × weight / 2` terms) partly does this, but is weak between guaranteed kills.
-Add a bounded term in `computeWeight`: `WEIGHT_FOCUS = 30`; for a damaging plan with a target,
-`focusWeight = int(WEIGHT_FOCUS * (1 − target.STRENGTH / target.originalSTR))`, `weight += focusWeight`.
-Kept ≤ `WEIGHT_KILL` so a real kill still dominates, but enough to make independently-greedy units
-converge fire on the lowest-effective-HP enemy (killing removes a whole enemy turn — dominant here).
+- **Changes:**
+  - `AiModuleBase` builds a `specials` list from `caster.def.actives` (`EntityDef.actives`). It keeps
+    only `tag == SPECIAL`, `targetRule == ENEMY` and `targetCount == 1`, null-safe.
+  - A new overlay of `AiModuleDredge.as` adds special passes in `tickAi`, after the strength and armor
+    passes, using the same one-target-per-tick pattern.
+  - A special plan is kept only if it scores above 0, so resting still wins when it should.
+  - Fix finding 5 with a surgical overlay of `engine/battle/ability/model/BattleAbility.as`, so the
+    `catch` switches pretend mode off and puts the unit back. Check `docs/patch-inventory.md` first in
+    case it is already overlaid.
+  - At battle start, log each opponent unit's actives (id, tag, target rule) to confirm the real data.
+- **Verify:** special-ability plan lines appear and specials get used in battle; willpower drops when
+  they are used; an enemy's stats change only from the chosen action; the runner's numbers.
+- **Branch:** `feat/ai-specials-31`. **Model:** Opus, high. It adds the planner overlay and uses
+  pretend mode far more often.
 
-### 0(c) Anti-suicide — `AiPlan.as` (overlaid)
+### Wave 4: one-move look-ahead
 
-`computePositionalEnemyWeight` already estimates incoming damage at the landing tile but scales it only
-×0.5 — trivial vs `WEIGHT_KILL`. Factor the per-enemy incoming-damage calc into a small shared helper
-(reused by Tier 1), then in `computeWeight`: if predicted total incoming next-turn damage at `mv.last`
-**≥ caster STR** (the tile gets the caster killed), subtract `WEIGHT_SUICIDE = 150`. Set **below**
-`WEIGHT_KILL` so a _favorable_ lethal trade is still allowed, but above ordinary damage so the AI won't
-suicide for chip damage. **Gate it** so it does _not_ apply when this plan itself kills an
-equally-or-more-valuable target — that keeps the AI aggressive, not passive.
+- **Changes:** a new `src/engine/battle/fsm/aimodule/AiModuleSearch.as` extending `AiModuleDredge`,
+  switched in behind a hidden `BattleFsmConfig.aiLookahead` setting by an overlay of
+  `BattleStateTurnAi.as:20`. Design below.
+- **Stop rule:** the switch defaults on once the runner shows it beats the Wave 3 build. If the computer
+  wins at least half its battles against `armor-first`, the owner plays it as the final check and #31
+  can close. If not, the wave's write-up names the next step from the roadmap.
+- **Branch:** `feat/ai-lookahead-31`. **Model:** Opus, high, or xhigh if the first measurements are
+  puzzling. It is the hardest wave: a search loop over pretend mode.
 
-### 0(d) Fix the latent `friends` leak — `AiModuleBase.as` (overlaid)
+**The look-ahead design.** Subclass rather than patch in place, so the original opponent stays shippable
+and the switch can flip between them. For the top ~6 plans by today's score:
 
-`buildEnemyArray` `splice`s `enemies` but never clears `friends` (a cross-instance double-add). Harmless
-today, but now **load-bearing** once focus-fire/anti-suicide read `friends`-relative geometry. One line:
-clear `friends` alongside the existing `enemies` splice.
+1. note the board (pretend mode's stat clone, plus each unit's position, facing and alive flag);
+2. pretend-play our move and action;
+3. pretend-play the other side's best single reply, scoring expected damage as
+   `amount × (1 − missChance)` (`getStatChange` already reports `FAKE_MISS_CHANCE`). That averages over
+   hit and miss rather than assuming the worst;
+4. detect pretend deaths by `strength <= 0`, since setting `alive` does nothing in pretend mode;
+5. re-score with the existing `computeWeight` terms and restore the board.
 
----
+Pick the best plan after the reply and send it through the unchanged `chooseBestPlan` / `performAction`
+path. About 250–400 lines. Cost: about 36 extra pretend runs on top of today's 40–80, which is
+milliseconds; the opponent already thinks on a timer, so a heavy turn can be spread across ticks.
+Effects that last several turns (damage over time) are out of scope at this depth, because the stat
+clone copies values, not the list of effects.
 
-## Phase 1 — In-client look-ahead (designed; the step that reaches "challenging")
+### Roadmap (not scheduled)
 
-**Seam: subclass, don't patch in place.** New `src/engine/battle/fsm/aimodule/AiModuleSearch.as extends
-AiModuleDredge` (inherits the now-special-aware enumeration + scoring). Swap the brain with a one-line
-overlay at `BattleStateTurnAi.as:20`, gated behind a new `BattleFsmConfig.aiLookahead` flag (runtime
-A/B + instant revert; keeps the legacy `AiModuleDredge` shippable).
-
-**Depth-1 expectimax loop** over the top-K (≈6) statically-scored candidates:
-snapshot (engine's `board.fake` stat-clone + save `pos`/`facing`/`alive`) → fake-apply our move+action →
-**opponent picks its best single reply** (reuse `getStatChange`/the shared incoming-damage helper;
-**detect fake deaths via `STR <= 0`**, since `set alive` is a fake no-op) → evaluate the resulting board
-with the existing `computeWeight` terms → restore. Score replies with **expected damage**
-`amount × (1 − missChance)` (`getStatChange` already reports `FAKE_MISS_CHANCE`) — that's the expectimax
-over hit/miss. Pick the best post-reply candidate; feed it through the unchanged
-`chooseBestPlan`/`performAction` path. **Effort ≈ 250–400 LOC.** Perf: K×N≈36 extra synchronous fake
-executions on top of ~40–80 — milliseconds; the AI already runs on a `Timer(0,0)` tick loop, so spread
-across ticks if a heavy turn ever stutters. Persisted-effect (DoT) modelling is out of scope for depth-1
-(the fake clone copies stat _values_, not the effect list) — acceptable.
-
----
-
-## Phase 2 — External engine via ModBridge (roadmap)
-
-Builds on `Plan-Mod-Bridge-And-Scripting-Host.md`. Serialize battle state to JSON (~200 LOC: walk
-`board.entities` → id/team/pos/facing/alive + `stats.getValue(StatType.*)` + each unit's
-`attacks`/`actives` ids + willpower/exertion), ship over the existing `ModBridge` command channel
-(`src/engine/mod/ModBridge.as`, `registerCommand(name,handler)` returning a result by `id`) to
-`mods/host.exe`, compute the move there (alpha-beta / MCTS / learned policy), receive
-`{move, ability, level, targetId}`, apply via the same path Tier 0/1 use. **Deferred because:** (1) no
-battle-state serializer exists (`toJson`/`serialize` = 0 hits in `engine/battle`); (2) the AI turn is
-synchronous in a `Timer` tick — an async stdin/stdout round-trip must park the turn FSM without tripping
-deploy/turn timeouts; (3) the host must reimplement enough rules (range, willpower, armor-break/puncture,
-miss math) to emit legal strong moves. **Why it's the long-term home:** ship the bridge once, then evolve
-the AI with **no further client reships** — the literal "Stockfish-over-UCI" shape.
-
-**Spike verification (2026-07-22) — Phase 2's premise holds.** A read-only investigation (feeding
-Wave 1 of `bsf-server/misc/Plan-Reconcile-Server-Docs-With-Client-Doc-Track.md`) confirmed that **today
-no ModBridge channel carries live battle state to `mods/host.exe` during an offline battle** — so an
-external "brain" would be blind, and a genuinely smarter offline AI stays gated behind a client rebuild.
-Evidence: the bridge's only automatic way to watch a battle is the HTTP tap (the copy of server traffic
-forwarded to the host — `HttpAction.as:141`/`:253`), which an offline battle, making zero server calls,
-never feeds; the generic `emit(...)` fires only for the `BRIDGE_READY`/`SHUTDOWN` lifecycle events
-(`ModBridge.as:235`/`:466`) and **no `aimodule/*` or battle-engine code calls it**; and the host→game
-commands (`start_ai_battle`, which just returns `"ok"`, and `set_spectator`) only *launch and flag* a
-battle — they never read the board back. Checked against `src/engine/mod/ModBridge.as`, a whole-tree
-grep, and the pristine shipped-SWF decompile (`%USERPROFILE%\Code\bsf-refs\client-decompiled-as3\` —
-**zero** ModBridge references; the original game shipped no such bus). **Upshot — this doesn't change the
-plan, it confirms it:** the one-time client build Tier 2 already calls for (the ~200-LOC battle-state
-serializer — the code that packages the live board into JSON — plus the streaming/command hook) is
-exactly what buys the "evolve the AI with no further reships" property; the launch/steer hooks that
-already ship are not enough on their own.
-
----
+- Scoring for buffs (Stonewall, Forge Ahead).
+- Specials aimed at a tile, and ones that hit two targets. These need aiming code, and the bridge
+  refuses them too.
+- The external brain over the bridge (see the corrected note above).
 
 ## Critical files
 
-| File                                                                      | Tier | Change                                                                                                              |
-| ------------------------------------------------------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------- |
-| `src/engine/battle/fsm/aimodule/AiPlan.as` _(re-overlay)_                 | 0    | `WEIGHT_FOCUS`/`WEIGHT_SUICIDE` terms in `computeWeight`; shared incoming-damage helper; new fields in `toString()` |
-| `src/engine/battle/fsm/aimodule/AiModuleBase.as` _(re-overlay)_           | 0    | Build `specials` list in ctor; clear `friends` in `buildEnemyArray`                                                 |
-| `src/engine/battle/fsm/aimodule/AiModuleDredge.as` _(new overlay)_        | 0    | SPECIAL passes in `tickAi`, candidate array by `targetRule`                                                         |
-| `src/engine/battle/fsm/aimodule/AiModuleSearch.as` _(new)_                | 1    | Depth-1 expectimax subclass                                                                                         |
-| `src/engine/battle/fsm/state/BattleStateTurnAi.as` _(new overlay, ~:20)_  | 1    | One-line brain swap behind `BattleFsmConfig.aiLookahead`                                                            |
-| `src/engine/battle/fsm/BattleFsmConfig.as` _(re-overlay)_                 | 1    | Add `aiLookahead` flag                                                                                              |
-| `src/engine/mod/ModBridge.as` + new serializer/host                       | 2    | External-engine bridge                                                                                              |
-| Reuse (don't edit): `…/ability/model/BattleAbility.as:86` `getStatChange` | 0/1  | The fake-eval primitive both tiers lean on                                                                          |
-
----
-
-## Verification (run locally; paste back the newest log)
-
-Build loop: `./scripts/apply-patches.ps1` → `./scripts/build.ps1` → copy `_build\app.game.air.swf` →
-`…\win32\app.game.air.swf` → `./scripts/run-adl.ps1`. Trigger **Ctrl+Shift+A** (player-vs-AI), play a few
-turns, **close the client** (the file log flushes only on close), read the newest
-`…\Local Store\logs\A-*.log.txt`. The `AiPlan.toString()` lines show every candidate, each weight
-component (the new terms once added), and the chosen plan.
-
-- **First-run sanity (do this once):** dump each unit's actives `tag`/`targetRule` to the log to confirm
-  the faction-routing table matches real ability data — the ability/entity JSON loads at runtime and
-  wasn't eyeballed during design (contracts were read from the parsing code, not concrete records).
-- **0(a) specials:** special-ability plan lines appear (abl id ≠ basic attack); a FRIENDLY/SELF special
-  never appears with an enemy target; willpower (EXERTION/WILLPOWER) drops when one is used. **Stat-decay
-  regression:** note an enemy's STR/ARM before vs after the AI turn — unchanged except by the _chosen_
-  action (validates the fake sandbox under heavier enumeration).
-- **0(b) focus-fire:** two wounded enemies → successive AI units pile onto the lower-HP one.
-- **0(c) anti-suicide:** bait a kill that leaves the unit lethally exposed → it declines the suicidal
-  tile, **but still takes a favorable lethal trade** (proves it isn't over-passive).
-- **Tier 1:** flip `aiLookahead` → logs show it rejecting a high-static-weight plan whose post-reply
-  expected score is worse.
-- No new `#1009` in `engine.battle.fsm.aimodule` (the dormant-AI null-deref pattern from issue #12).
+| File | Wave | Change |
+| ---- | ---- | ------ |
+| `scripts/mod-host/runner.js` _(new)_ | 1 | The match runner |
+| `src/engine/mod/ModBattleControl.as` | 1 | `size` on each unit in `battle_state` |
+| `src/engine/battle/fsm/aimodule/AiPlan.as` _(re-overlay)_ | 2 | Findings 1, 2, 4; `WEIGHT_FOCUS`; maybe `WEIGHT_SUICIDE`; new terms in `toString()` |
+| `src/engine/battle/fsm/aimodule/AiModuleBase.as` _(re-overlay)_ | 2, 3 | Finding 3; the `specials` list |
+| `src/engine/battle/fsm/aimodule/AiModuleDredge.as` _(new overlay)_ | 3 | Special passes in `tickAi` |
+| `src/engine/battle/ability/model/BattleAbility.as` _(new overlay)_ | 3 | Finding 5 |
+| `src/engine/battle/fsm/aimodule/AiModuleSearch.as` _(new)_ | 4 | The look-ahead |
+| `src/engine/battle/fsm/state/BattleStateTurnAi.as` _(new overlay)_, `BattleFsmConfig.as` | 4 | The switch |
 
 ## Risks
 
-- **Ability targeting** (Tier-0 crux): defused by the verified `targetRule` + `validate()` double guard;
-  ambiguous tile/AoE/movement/`ADJACENT_BATTLEENTITY` rules are explicitly deferred.
-- **A 0-weight special beating `abl_rest`:** floor special plans to require positive weight so resting
-  still wins when correct (the existing rest/end fallback handles a null-abldef plan).
-- **Over-passivity** from anti-suicide: bounded `WEIGHT_SUICIDE` < `WEIGHT_KILL` + the favorable-trade gate.
-- **Latent null-derefs** on unusual kits (issue-12 pattern): guard the same way if they surface.
-- **Rebuild per iteration** until Tier 2 — expected; budget for build/test loops.
+- **A special that scores 0 beating rest:** keep only special plans that score above 0.
+- **Turning passive** from the anti-suicide term: keep it below `WEIGHT_KILL`, with the good-trade gate.
+- **Hidden null references** on unusual unit kits (the issue #12 pattern): guard them the same way if
+  they appear. The runner counts `#1009` in every run.
+- **A rebuild per change.** Expected; each measurement is about 35 minutes of unattended play per player
+  for 10 battles. Close other programs first: a long run was once stopped for lack of memory.

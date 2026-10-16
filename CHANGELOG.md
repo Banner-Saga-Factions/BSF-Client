@@ -11,6 +11,26 @@ been removed. The current download is on the
 
 ## [Unreleased]
 
+### The computer opponent now sees danger from units standing next to it
+
+The computer opponent in offline practice battles kept walking its units into free kills. Its check
+for "can that enemy reach me here?" left out both ends of an attack's reach, so it never saw any
+danger from a sword or axe at all. It also missed kills that took a unit to exactly zero, counted the
+moving unit as one of its own friends, and added one score twice where it should have counted
+friends. All four are fixed, and the computer now leans toward finishing off a unit it has already
+hurt. Against the match runner's harder scripted player it went from winning 2 of 4 battles to 4 of
+4, with half its side left instead of a sixth. Those runs held only a few genuinely different
+battles, because battles often repeat move for move; making them vary is the next step.
+
+The match runner can also play battles 4 times faster through a developer-only switch, which is
+refused in online battles. It also counts units the computer throws away.
+
+*Technical:* `AiPlan.as` (inclusive range test, kill at `>=`, `computePositionalWeight` friends term,
+`WEIGHT_FOCUS`), `AiModuleBase.buildEnemyArray` (caster out of `friends`); new `ModGameSpeed.as`,
+`GameWrapper.as` and `BattleStateTurnAi.as` overlays, bridge command `set_game_speed`; runner `--speed`
+and `computerSuicides`. Docs: `offline-ai.md`, `patch-inventory.md`, `mod-bridge.md`,
+`match-runner.md`. BSF-Client #31, Wave 2.
+
 ### A helper that plays practice battles by itself, to measure how strong the computer opponent is
 
 Making the computer opponent stronger (issue #31) needs a number to judge it by. A new helper, the

@@ -97,14 +97,18 @@ When it is the AI side's turn, `BattleStateTurnAi` (`engine/battle/fsm/state/Bat
 drives a planner called `AiModuleDredge`:
 
 1. **A half-second pause** so the turn is watchable, not instant
-   (`BattleStateTurnAi.as:28` — `delayedCall(0.5, …performMove)`).
+   (`BattleStateTurnAi.as:33` — `delayedCall(0.5, …performMove)`). The developer fast-forward used by
+   the match runner shortens it; at normal speed it is half a second ([`match-runner.md`](./match-runner.md)).
 2. **Score every option.** `performMove` (`AiModuleDredge.as:38`) kicks off a per-frame ticker; each
    tick, `tickAi` (`:72-94`) takes one more enemy and builds "walk here and hit that enemy" plans for
-   it (`findPlans`, `AiModuleBase.as:104-176`), trying the unit's basic strength attack, then its basic
+   it (`findPlans`, `AiModuleBase.as:108-180`), trying the unit's basic strength attack, then its basic
    armor-breaking attack. (Spreading the work over frames keeps a big board from hitching.)
-3. **Weigh each plan** (`AiPlan.computeWeight`, `AiPlan.as:298-333`): a plan that **kills** earns a
+3. **Weigh each plan** (`AiPlan.computeWeight`, `AiPlan.as:340-377`): a plan that **kills** earns a
    large fixed bonus (+200); damage counts heavily; a blow hard enough to break a target counts extra;
-   moving far or spending willpower costs a little.
+   hitting an enemy that is already wounded earns up to 30 more (focus fire, added for issue #31);
+   moving far or spending willpower costs a little. Where the unit would end up counts too: standing
+   within reach of an enemy's basic attack costs points, having an enemy within reach of its own earns
+   a few, and every tile between it and each friend costs 15 (30 for an archer).
 4. **Play the best one.** `chooseBestPlan` (`AiModuleDredge.as:96-125`) sorts by weight and takes the
    top plan; if nothing can reach an enemy it either steps closer or rests. After the move finishes,
    another half-second pause, then `performAction` (`:132-158`) uses the chosen attack — or `abl_end` /
@@ -120,8 +124,10 @@ drives a planner called `AiModuleDredge`:
 
 - **It never uses special abilities.** The planner only ever feeds itself the two *basic* attacks
   (strength and armor); a unit's special is never even considered. The code inside `findPlans` that
-  would handle a special (`AiModuleBase.as:157-159`) is unreachable from this planner. [Inference]
-- **No team-up / focus-fire.** Each unit plans on its own; there is no logic to gang up on one target.
+  would handle a special (`AiModuleBase.as:161-163`) is unreachable from this planner. [Inference]
+- **Only a light lean toward ganging up.** Each unit still plans on its own. Since issue #31 a plan
+  earns up to 30 points for hitting an enemy that has already lost strength, so the side tends to finish
+  the wounded one; that is far below the +200 for a kill, so it only tips close choices.
 
 **The "imagined move" trick.** To score "what would this hit actually do?", the AI needs to *try* the
 attack without really changing the board. It does this by running the attack in a **pretend mode**
@@ -141,8 +147,9 @@ Three things keep the pretend attack from leaking into the real game:
 - An imagined lethal hit **can't actually remove anyone**: a unit's `alive` setter is a no-op while
   faking (`BattleEntity.as:549-551`), and `Effect` skips its whole kill-handling block in faking mode
   (`Effect.as:235`), so the target only loses strength on the scratch record. The planner decides a
-  blow is lethal on its own, by **arithmetic** — if the imagined strength damage exceeds the target's
-  remaining strength, it sets the plan's `killed` flag (`AiPlan.as:107-112`). (The "killing effect in
+  blow is lethal on its own, by **arithmetic** — if the imagined strength damage equals or exceeds the
+  target's remaining strength, it sets the plan's `killed` flag (`AiPlan.as:116-125`). (Until issue #31
+  it needed the damage to *exceed* it, so an exact kill went unrewarded.) (The "killing effect in
   fake" throw at `Effect.as:241` is a defensive assertion that does not fire during scoring.)
 
 So the AI can score every option it likes without ever touching the real board or the shared dice.
@@ -159,7 +166,22 @@ matchups. Pointed at an arbitrary player party it crashed, so the fork adds **th
 | ----- | --------------------- | ----- |
 | Unit with no basic strength/armor attack (e.g. a Shieldbanger) | the code reads the attack's id without checking it exists | `AiModuleBase.as:46-52` — treat a missing attack as "not a bow", leave it null |
 | Scenery prop on the board (e.g. a pole) | props are alive but carry no combat stats, so the plan math asks for an ARMOR stat that isn't there | `AiModuleBase.as:79-84` — skip any board entity without an ARMOR stat |
-| Enemy unit with no strength attack | the counter-threat math reads a missing attack before its own guard runs | `AiPlan.as:242-243` — compute that term null-safely |
+| Enemy unit with no strength attack | the counter-threat math reads a missing attack before its own guard runs | `AiPlan.as:278-279` — compute that term null-safely |
+
+**Then issue #31 fixed how it sees the board.** Read from the code first, then measured with the match
+runner ([`match-runner.md`](./match-runner.md)). Each fix is tagged `[Inference] BSF-Client #31`:
+
+| What was wrong | Effect on play | Fix |
+| -------------- | -------------- | --- |
+| The "is that unit within reach?" test left out both ends of an attack's range. A basic melee attack reaches 0 to 1 tiles, so no distance ever passed; a bow (2 to 5) only counted at 3 and 4. | It could not see the danger of standing next to an enemy melee unit, nor the chance to threaten one, so it walked into free kills. | Both ends count, as in the game's own rule (`BattleAbilityValidation.validate`) — `AiPlan.as:282` and the test below it |
+| A kill needed damage *greater than* the target's strength. | A blow that took a target to exactly 0 got no kill bonus. | Damage equal to the remaining strength counts — `AiPlan.as:118` |
+| The unit taking its turn was in its own friends list. | It was marked down for every step away from its own square. | Leave it out — `AiModuleBase.as:90` |
+| The "rest here or walk closer" check added the enemy term twice and never counted friends. | That choice ignored where friends stood. | Enemies plus friends — `AiPlan.as:242` |
+
+Plus one new term, **focus fire** (`WEIGHT_FOCUS`, `AiPlan.as:46` and `:194`): up to 30 points, in
+proportion to the share of strength the target has already lost, on strength and armor attacks alike. Each
+plan's log line shows it as `foc=`. The measured effect of all of these is in
+[`../misc/Plan-Improve-Battle-AI.md`](../misc/Plan-Improve-Battle-AI.md) → *Measurements*.
 
 The planner driver itself (`AiModuleDredge`) is untouched.
 
@@ -176,9 +198,11 @@ The full player-vs-AI public-release picture (all the crash fixes and open items
   strength attack and its basic armour-breaking attack (§4, step 2) — every signature and special
   ability a unit carries is invisible to it, so the interesting half of each kit is never used.
 - **It never looks ahead.** Each option is scored against the board exactly as it stands, one unit at
-  a time, with no attempt to imagine the reply (§4, step 3). A kill earns a large fixed bonus while
-  standing somewhere dangerous costs very little, so it will walk a unit into a place where it dies
-  for nothing. Both gaps, and a plan for closing them, are tracked in issue #31 and
+  a time, with no attempt to imagine the reply (§4, step 3). It judges danger from where each enemy
+  stands *now*, not from where that enemy could walk to before attacking, and a kill earns a large
+  fixed bonus while standing somewhere dangerous costs comparatively little. So it can still walk a unit
+  into a place where it dies for nothing (§6 has what issue #31 fixed so far). Both gaps, and a plan
+  for closing them, are tracked in issue #31 and
   written up in [`../misc/Plan-Improve-Battle-AI.md`](../misc/Plan-Improve-Battle-AI.md).
 - **Portraits.** A known display issue with unit portraits in the offline flow — tracked in the
   public-release plan above.

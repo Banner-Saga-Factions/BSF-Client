@@ -12,11 +12,11 @@ buried in a plan.
 
 | What | Count | Notes |
 |---|---|---|
-| Patched/added `.as` overlays | **34** | The behavior + repair surface below. |
+| Patched/added `.as` overlays | **37** | The behavior + repair surface below. |
 | Embedded font glyph data | 3 `.cff` | `src/_assets/*.cff` — the outlines the three font wrappers re-embed. |
 | AIR descriptor | 1 | `META-INF/AIR/application.xml` — **outside `src/`**; declares the `extendedDesktop` profile (needed by the mod bridge's NativeProcess) and lists the platform ANEs (Adobe Native Extensions — bundled native-code plugins, e.g. Steamworks and FMOD). Adding the `bsf://` URL scheme is **planned — not yet in the committed descriptor**. |
 
-**Two kinds of patch.** Roughly a third of the 34 overlays change **no behavior at all** — they are
+**Two kinds of patch.** Roughly a third of the 37 overlays change **no behavior at all** — they are
 faithful repairs of code the JPEXS decompiler mangled (illegal class names, lost imports, raw
 bytecode opcodes). The rest are real fork changes: crossplay, offline AI, the mod bridge, and gui
 compatibility. Each row below says which it is.
@@ -35,15 +35,16 @@ compatibility. Each row below says which it is.
 | `src/GameMainAir.as` | The AIR entry point and top of the boot spine (see [`client-overview.md`](./client-overview.md)). | Overlaid so the boot path can wire the fork's additions. `[Inference]` — there is no in-file patch comment; its role is confirmed by its imports (`FmodSoundDriver`/`NullSoundDriver`, `SteamworksAne`, `GameWrapper`, `GameConfig`). |
 | `src/game/session/states/PreAuthState.as` | When `overrideSteamId` is set, replaces the Steam auth-ticket fetch with the crossplay bypass token (`:31–33`, sets `steamAuthTicket = "override-authticket"`). | The documented crossplay auth patch point — trace it in [`wire-protocol.md`](./wire-protocol.md) → login flow. |
 
-## Mod bridge (3)
+## Mod bridge (4)
 
 | File | What changed | Why |
 |---|---|---|
 | `src/engine/mod/ModBridge.as` | **New file.** A bidirectional bus to an external mod-host process launched via NativeProcess: one JSON object per newline-terminated line, a command registry, and a restart/shutdown lifecycle. If the host is missing it marks itself failed once and every emit becomes a cheap no-op. Starts either `mods/host.exe` or whatever `mods/host.json` names, so a host can be a script. Strips secret values (`password`, `steam_auth_ticket`, `session_key`, `steamCredentials`) from every line in both directions. | The fork's non-Stoic scripting hook, and the control channel for testing. Full wire protocol is in the file's own doc block; narrative in [`mod-bridge.md`](./mod-bridge.md). |
-| `src/engine/mod/ModBattleControl.as` | **New file.** Five bridge commands: `battle_state` reads the live battle (units, sides, tiles, how many tiles each unit covers, current-versus-base stats), `battle_deploy_ready` gets past the deploy screen (which an offline battle never leaves on its own), `battle_end_turn` ends the turn in progress, `battle_move` walks the active unit to a named tile, and `battle_attack` has it swing at another unit. Registered from `GameFsm`. Reaches the battle through one untyped hop so an engine-layer class need not depend on game-layer `SceneState`. Each of the four that change something makes the same calls the mouse would, so in an **offline** battle none of them reaches the server — used on a local turn in an online battle they send exactly what the mouse would. | Lets a test play and check a whole battle without synthesising mouse clicks — see [`driving-the-client.md`](./driving-the-client.md) → "Two channels". |
+| `src/engine/mod/ModBattleControl.as` | **New file.** Six bridge commands: `battle_state` reads the live battle (units, sides, tiles, how many tiles each unit covers, current-versus-base stats), `battle_deploy_ready` gets past the deploy screen (which an offline battle never leaves on its own), `battle_end_turn` ends the turn in progress, `battle_move` walks the active unit to a named tile, `battle_attack` has it swing at another unit, and `set_game_speed` fast-forwards the game (below; refused above normal speed except in an offline battle). Registered from `GameFsm`. Reaches the battle through one untyped hop so an engine-layer class need not depend on game-layer `SceneState`. Each of the four that change something makes the same calls the mouse would, so in an **offline** battle none of them reaches the server — used on a local turn in an online battle they send exactly what the mouse would. | Lets a test play and check a whole battle without synthesising mouse clicks — see [`driving-the-client.md`](./driving-the-client.md) → "Two channels". |
 | `src/engine/core/http/HttpAction.as` | Taps every outbound request (`doSend`) and raw response (`onResponseReceived`) into `ModBridge`, lazy-starting the host on the first transaction (`:136`, "PATCH begin"). | Lets a mod observe all server traffic without touching each individual action. |
+| `src/engine/mod/ModGameSpeed.as` | **New file.** Holds one number, how many times faster than normal the game clock runs (1 to 8, normally 1). Read by `GameWrapper` and `BattleStateTurnAi`; set only by the bridge's `set_game_speed`. | BSF-Client #31 — a developer fast-forward so the match runner ([`match-runner.md`](./match-runner.md)) can play its battles faster. A separate class so the game's main loop does not depend on the bridge. |
 
-## Offline player-vs-AI (9)
+## Offline player-vs-AI (10)
 
 The self-contained battle against the game's dormant AI. It reuses the same battle FSM + per-turn sync
 hash as multiplayer ([`battle-engine.md`](./battle-engine.md)); design write-up in [`offline-ai.md`](./offline-ai.md).
@@ -51,8 +52,9 @@ hash as multiplayer ([`battle-engine.md`](./battle-engine.md)); design write-up 
 | File | What changed | Why |
 |---|---|---|
 | `src/game/session/states/AiBattleLoadState.as` | **New file.** Loads an offline battle vs the dormant AI (`extends SceneLoadState`). Sets no opponent name → the battle computes `isOnline=false` → the battle **engine** makes zero server calls (the session poll and screen report carry on). Two modes: player-vs-AI and AI-vs-AI spectator. | The entry point for the whole offline feature. |
-| `src/engine/battle/fsm/aimodule/AiModuleBase.as` | Guards a null `atkStr`/`atkArm` for a unit that lacks that stat, during AI target scoring (`:46`). | `[Inference]` BSF-Client #12 — an armor-only unit crashed the AI's scoring. |
-| `src/engine/battle/fsm/aimodule/AiPlan.as` | Guards a null ability returned by `getFirstAbilityByTag(ATTACK_STR)` during AI planning (`:235`). | `[Inference]` BSF-Client #12 — same class of null-stat crash on the planning side. |
+| `src/engine/battle/fsm/aimodule/AiModuleBase.as` | Guards a null `atkStr`/`atkArm` for a unit that lacks that stat, during AI target scoring (`:46`). Keeps scenery props out of the unit lists (`:79`). Leaves the unit taking its turn out of its own friends list (`:90`). | `[Inference]` BSF-Client #12 — an armor-only unit crashed the AI's scoring. `[Inference]` BSF-Client #31 — counted as its own friend, the unit was marked down for every step away from its own square. |
+| `src/engine/battle/fsm/aimodule/AiPlan.as` | Guards a null ability returned by `getFirstAbilityByTag(ATTACK_STR)` during AI planning (`:271`). Four changes to how the opponent scores a move (BSF-Client #31): the "is that unit in reach?" test includes both ends of an attack's range (`:282`); a hit equal to the target's remaining strength counts as a kill (`:118`); the rest-or-advance check adds friends instead of counting enemies twice (`:242`); and a new focus-fire term rewards hitting an already-wounded enemy (`WEIGHT_FOCUS`, `:46`, `:194`), shown as `foc=` in the plan log line. | `[Inference]` BSF-Client #12 — same class of null-stat crash on the planning side. `[Inference]` BSF-Client #31 — with the old range test the opponent never saw danger from melee units, the likeliest reason it walked into free kills; details in [`offline-ai.md`](./offline-ai.md) §6. |
+| `src/engine/battle/fsm/state/BattleStateTurnAi.as` | Divides the opponent's two half-second pauses (before it moves, before it acts) by the game speed (`:29`). | `[Inference]` BSF-Client #31 — those pauses run on a real-time timer the fast-forward in `GameWrapper` does not reach. At normal speed they are unchanged. |
 | `src/engine/battle/board/model/BattleBoard.as` † | Adds a CPU-controlled party, fully deployed up front (`:483`). | So an offline battle has an opponent with no human deploy step. |
 | `src/engine/scene/model/SceneLoader.as` | Injects a mirrored CPU roster into the opposite deployment area (`:51`). | Builds the AI's side of the board from a mirror of the player's party. |
 | `src/game/session/states/SceneLoadState.as` | Handles the `AI_OPPONENT_PARTY` when set by `AiBattleLoadState` (`:89`). | Threads the offline opponent through the shared scene-load path. |
@@ -114,21 +116,22 @@ All four are **no-behavior-change** repairs of decompiler damage.
 |---|---|---|
 | `src/game/saga/GameSaga.as` | Overlaid; `extends` the engine `Saga`, overrides scene-state save/restore, and imports the offline scene states. | `[Inference]` — part of the offline / single-player scene-state plumbing (see [`offline-ai.md`](./offline-ai.md)). The exact change is **not** called out in an in-file comment; treat as inferred. |
 
-## View (1)
+## View (2)
 
 | File | What changed | Why |
 |---|---|---|
+| `src/game/view/GameWrapper.as` | Multiplies each frame's elapsed time by the game speed before handing it on (`:206`). | `[Inference]` BSF-Client #31 — the one place the game learns how much time has passed, so scaling it fast-forwards everything that animates. Normally ×1, which changes nothing. |
 | `src/game/view/TutorialTooltip.as` | Hand-repaired: the CLI decompile of this file was badly corrupted (unrecoverable) (`:12`). | **No behavior change** — a rescue of a file JPEXS could not lift cleanly. |
 
 ---
 
 ## Count reconciliation
 
-34 `.as` overlays = 2 (crossplay/startup) + 3 (mod bridge) + 9 (offline AI) + 7 (gui) + 2 (resource) +
-4 (board/landscape) + 4 (fonts) + 1 (audio) + 1 (saga) + 1 (view). Of these, **~11 are pure
+37 `.as` overlays = 2 (crossplay/startup) + 4 (mod bridge) + 10 (offline AI) + 7 (gui) + 2 (resource) +
+4 (board/landscape) + 4 (fonts) + 1 (audio) + 1 (saga) + 2 (view). Of these, **~11 are pure
 decompiler-artifact repairs** with no behavior change (`ResourceTree`, the four
 board/landscape repairs, the four font repairs, `NullSoundDriver`, and `TutorialTooltip`) — the honest "real
-fork behavior" surface is closer to **~22 files**.
+fork behavior" surface is closer to **~25 files**.
 
 `†` marks files that are also on the **12-stale-file list** (where the 2013 mirror is stale and the
 decompile is authoritative — see [`reference-codebases.md`](./reference-codebases.md)): `BattleBoard`,

@@ -149,7 +149,7 @@ Two commands are built in (`createBuiltins`, `:652-665`):
 - **`ping`** → replies `"pong"`.
 - **`set_spectator`** → sets the `spectatorMode` flag (see §7).
 
-The registry is static and additive, so **more commands can be registered at runtime**, and six are —
+The registry is static and additive, so **more commands can be registered at runtime**, and seven are —
 all when the top-level game state is built (`GameFsm.as:171` and `:183`):
 
 | Command | What it does | Replies with |
@@ -160,9 +160,23 @@ all when the top-level game state is built (`GameFsm.as:171` and `:183`):
 | **`battle_end_turn`** | Ends the turn in progress. | `{"ok":…}` |
 | **`battle_move`** | Walks the unit whose turn it is to a tile. | `{"ok":…}` |
 | **`battle_attack`** | Has that unit swing at another one. Ends its turn. | `{"ok":…}` |
+| **`set_game_speed`** | Fast-forwards the whole game, `{"scale":N}` with N from 1 to 8 — see below. | `{"ok":…,"scale":N}` |
 
 Together they are enough to play a battle from start to finish without a mouse:
 `start_ai_battle` → `battle_deploy_ready` → (`battle_move`, `battle_attack` or `battle_end_turn`) per turn.
+
+**`set_game_speed` is a developer fast-forward** (added for issue #31, so the match runner can play
+battles faster). Each frame the game works out how many milliseconds have passed and moves everything on
+by that much; this multiplies that number, and also shortens the computer opponent's two half-second
+pauses by the same factor. It changes how fast the battle plays, not the rules. Two limits:
+
+- **Above 1 only in an offline battle.** Anything faster is refused with `not in a battle` or `an online
+  battle cannot be sped up`, because an online battle's timing is shared with the other player and the
+  server. Going back to `1` is always allowed.
+- **It lasts until it is set again or the game restarts.** Setting it back is the host's job; the match
+  runner does it after every battle.
+
+A bad value answers `scale must be a whole number from 1 to 8`.
 
 The offline battle `start_ai_battle` launches is documented in [`offline-ai.md`](./offline-ai.md). A host
 author registers their own commands the same way, via `registerCommand`.

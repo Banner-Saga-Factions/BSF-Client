@@ -21,8 +21,7 @@ Tested on 2026-10-16:
 - The offline practice battle starts.
 - With Steam running, a Steam account signs in.
 
-The earlier belief that this needed an older developer kit was wrong. It needed a different kind of
-package. Nothing is published yet: the download comes later, and first the developer kit's licence
+Nothing is published yet: the download comes later, and first the developer kit's licence
 terms on unpacked-and-run programs need a decision.
 
 *Technical:* `scripts/build.ps1 -Target bundle` (captive runtime bundle, `-arch x86`, AIR SDK 51.3.2),

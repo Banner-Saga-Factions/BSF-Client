@@ -16,9 +16,9 @@
 // That is --player strength, the default. --player armor-first is the same
 // player with one rule added: when a strength hit would do 1 damage or less,
 // use the armor attack instead. Armor soaks up a strength hit (damage is
-// roughly the attacker's strength minus the target's armor), so the plain
-// player mostly chips; measured 2026-10-16, it lost 3 battles of 3 to the
-// unchanged computer opponent. The second player is the harder yardstick.
+// roughly the attacker's strength minus the target's armor). Measured
+// 2026-10-16, the plain player lost 8 battles of 8 to the unchanged computer
+// opponent; whether this second player is a fairer yardstick is not measured yet.
 // "Can reach" is worked out with the game's own range rule and then put to the
 // game: a move or an attack it would not allow comes back refused with a
 // reason, and the runner tries the next option. The arithmetic only decides
@@ -44,7 +44,8 @@
 //
 // WHAT IT WRITES, in the output folder (default _build\runner\<date-time>):
 //   runner-results.jsonl  one line per battle: winner, turns, survivors per side
-//   runner-summary.txt    the totals, also printed at the end
+//   runner-summary.txt    the totals, also printed at the end (written even if the
+//                         run stops early, with a line saying so)
 //   runner-turns.jsonl    one line per player turn: what it tried and how long it took
 // plus the session's own transcript and run log in _build\tests\.
 //
@@ -91,19 +92,31 @@ function parseArgs(argv) {
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    const next = () => argv[++i];
-    if (arg === '--battles') opts.battles = parseInt(next(), 10);
+    const next = () => {
+      const value = argv[++i];
+      if (value === undefined || value.startsWith('--')) {
+        throw new Error(`${arg} needs a value after it`);
+      }
+      return value;
+    };
+    // A whole number of at least 1. parseInt alone would turn "abc" into NaN and
+    // "3.5" into 3, and a NaN turn cap quietly switches the safety net off.
+    const wholeNumber = () => {
+      const text = next();
+      if (!/^[1-9]\d*$/.test(text)) {
+        throw new Error(`${arg} needs a whole number of at least 1, not "${text}"`);
+      }
+      return parseInt(text, 10);
+    };
+    if (arg === '--battles') opts.battles = wholeNumber();
     else if (arg === '--out') opts.out = next();
-    else if (arg === '--turn-cap') opts.turnCap = parseInt(next(), 10);
+    else if (arg === '--turn-cap') opts.turnCap = wholeNumber();
     else if (arg === '--summary-only') opts.summaryOnly = next();
     else if (arg === '--player') opts.player = next();
     else throw new Error(`unknown argument: ${arg}`);
   }
   if (!PLAYERS.includes(opts.player)) {
     throw new Error(`--player must be one of: ${PLAYERS.join(', ')}`);
-  }
-  if (!Number.isInteger(opts.battles) || opts.battles < 1) {
-    throw new Error('--battles needs a whole number of at least 1');
   }
   return opts;
 }
@@ -513,23 +526,31 @@ function simpleHash(text) {
 async function startGame() {
   // Pin the landing: see first-battle.test.js for why it matters.
   const session = new GameSession({ name: 'runner', landing: 'versus' });
-  await session.start();
-  await session.waitFor(
-    'the login to be answered',
-    m => m.event === 'HTTP_RESPONSE' && String(m.url || '').includes('services/auth/login'),
-    { timeoutMs: PATIENCE.login });
-  await session.waitFor(
-    'the account and roster to arrive',
-    m => m.event === 'HTTP_RESPONSE' && String(m.url || '').includes('services/account/info'),
-    { timeoutMs: PATIENCE.login });
-  // DO NOT DROP THIS WAIT. A battle started before the player has landed is
-  // thrown away by the game a moment later, silently. The full story is in
-  // tests/first-battle.test.js and docs/driving-the-client.md §9.
-  await session.waitFor(
-    'the player to land in the versus screen',
-    m => m.event === 'HTTP_REQUEST' &&
-      String(m.url || '').includes('services/game/location') && m.body === 'loc_versus',
-    { timeoutMs: PATIENCE.login });
+  try {
+    await session.start();
+    await session.waitFor(
+      'the login to be answered',
+      m => m.event === 'HTTP_RESPONSE' && String(m.url || '').includes('services/auth/login'),
+      { timeoutMs: PATIENCE.login });
+    await session.waitFor(
+      'the account and roster to arrive',
+      m => m.event === 'HTTP_RESPONSE' && String(m.url || '').includes('services/account/info'),
+      { timeoutMs: PATIENCE.login });
+    // DO NOT DROP THIS WAIT. A battle started before the player has landed is
+    // thrown away by the game a moment later, silently. The full story is in
+    // tests/first-battle.test.js and docs/driving-the-client.md §9.
+    await session.waitFor(
+      'the player to land in the versus screen',
+      m => m.event === 'HTTP_REQUEST' &&
+        String(m.url || '').includes('services/game/location') && m.body === 'loc_versus',
+      { timeoutMs: PATIENCE.login });
+  } catch (err) {
+    // The caller only gets the session back on success, so close it here: a
+    // timed-out wait would otherwise leave the game window open and keep this
+    // process alive.
+    await session.stop();
+    throw err;
+  }
   return session;
 }
 
@@ -545,7 +566,7 @@ async function startGame() {
  * prints for the missing sound extension: seeing them proves the right log was
  * read, and their absence says the count beside them means nothing.
  */
-function countLogFlags(runStartedAt) {
+function countLogFlags(runStartedAt, gamesStarted) {
   const dir = path.join(process.env.APPDATA || '', 'TheBannerSagaFactions', 'Local Store', 'logs');
   let files = [];
   try {
@@ -578,6 +599,10 @@ function countLogFlags(runStartedAt) {
   }
   if (totals.found === 0) {
     totals.reason = `no game log in ${dir} written since the run began mentions a practice battle`;
+  } else if (totals.found !== gamesStarted) {
+    // A game closed by force writes no log, a locked one is skipped above, and a
+    // game the owner started by hand during the run would be counted too.
+    totals.warning = `found ${totals.found} game logs for ${gamesStarted} games the runner started`;
   }
   return totals;
 }
@@ -636,9 +661,13 @@ async function main() {
   }
 
   const outDir = path.resolve(REPO_ROOT, opts.out || path.join('_build', 'runner', stamp()));
+  const resultsPath = path.join(outDir, 'runner-results.jsonl');
+  // Results are appended as each battle ends, so a reused folder would mix two runs.
+  if (fs.existsSync(resultsPath)) {
+    throw new Error(`${outDir} already holds results; pick a new --out folder`);
+  }
   fs.mkdirSync(outDir, { recursive: true });
   opts.outDir = outDir;
-  const resultsPath = path.join(outDir, 'runner-results.jsonl');
   const turnsPath = path.join(outDir, 'runner-turns.jsonl');
   const summaryPath = path.join(outDir, 'runner-summary.txt');
   say(`writing to ${outDir}`);
@@ -648,6 +677,8 @@ async function main() {
   const sessions = [];
   const runStartedAt = Date.now();
   let session = null;
+  let gamesStarted = 0;
+  let failure = null;
   let previousBattleId;
   let restartNext = false;
 
@@ -669,11 +700,12 @@ async function main() {
         }
         say('starting the game');
         session = await startGame();
+        gamesStarted++;
         restartNext = false;
       }
       // The session keeps every message it has heard so it can answer waits for
-      // things that already happened. A long run would hold hundreds of
-      // megabytes of board readings; nothing below waits on old messages.
+      // things that already happened. Nothing below waits on old messages, so
+      // each battle starts with the list empty.
       session.messages.length = 0;
 
       say(`battle ${i} of ${opts.battles}`);
@@ -703,26 +735,37 @@ async function main() {
         `survivors player ${record.survivors.player} / computer ${record.survivors.computer}, ` +
         `${record.seconds}s, id ${record.battleId}`);
     }
+  } catch (err) {
+    failure = err;
   } finally {
-    // Close when nothing is walking: every battle above ends on a finished board
-    // or on our own turn with a still board.
+    // After a normal run nothing is walking: every battle above ends on a
+    // finished board or on our own turn with a still board. After a failure the
+    // game is closed wherever it stands, which can hang it on the way out
+    // (issue #36); the session then forces it closed.
     await stopSession();
   }
 
-  const flags = countLogFlags(runStartedAt);
+  const flags = countLogFlags(runStartedAt, gamesStarted);
   const summary = [
+    ...(failure
+      ? [`RUN STOPPED EARLY after ${results.length} of ${opts.battles} battles: ` +
+        `${String(failure.message).split('\n')[0]}`]
+      : []),
     summarise(results),
     summariseTurns(allTurns),
     flags.found > 0
       ? `game logs (${flags.files.join(', ')}): #1009 x${flags.error1009}, ` +
         `"went wrong while faking" x${flags.fakingWentWrong}, ` +
         `practice battles started x${flags.battlesStarted}, ` +
-        `sound-extension #1508 x${flags.error1508} (expected 3 per game start under adl)`
+        `sound-extension #1508 x${flags.error1508} (3 per game start under adl; ` +
+        `a shortfall means check which log was read, not that the count is wrong)`
       : `game logs NOT COUNTED: ${flags.reason}. Read them by hand before trusting this run.`,
+    ...(flags.warning ? [`WARNING: ${flags.warning}. Read the logs by hand before trusting the count.`] : []),
     `game closed: ${sessions.map(x => x.closedPolitely ? 'politely' : 'BY FORCE').join(', ')}`,
   ].join('\n');
   fs.writeFileSync(summaryPath, summary + '\n');
   console.log('\n' + summary);
+  if (failure) throw failure;
 }
 
 main().catch(err => {

@@ -215,7 +215,7 @@ comes out of nowhere. Read `moved` precisely — it means **the unit's move has 
 it went anywhere. Attacking confirms the move whether or not the unit left its tile (the on-screen
 execute button does the same), so a unit that stood still and swung reports `"moved":true`.
 
-Three things about the unit list are worth knowing before you write assertions against it:
+A few things about the unit list are worth knowing before you write assertions against it:
 
 - **Scenery is filtered out.** Props such as `prop+pole03` are alive board entities with a team but no
   combat stats, and reading a stat off one throws. They are skipped the same way the offline AI skips
@@ -227,7 +227,8 @@ Three things about the unit list are worth knowing before you write assertions a
   `{"width":2,"length":2}` also stands on `5,2`, `4,3` and `5,3`. Anything working out whether one unit
   can reach another needs both, because the game measures attack range as the gap between the two blocks
   of tiles, not between their corners. Added 2026-10-16 for the match runner
-  ([`match-runner.md`](./match-runner.md)), whose first version wasted one move in seven without it.
+  ([`match-runner.md`](./match-runner.md)), whose first version moved to a tile it could not attack from
+  on 4 of its first 28 turns without it.
 - **Each stat gives `current` and `base`** — the same two numbers the on-screen stat panel shows, the
   second being what the unit was built with before buffs and damage. `state` is the battle's state-machine
   name, matching what the game log prints.

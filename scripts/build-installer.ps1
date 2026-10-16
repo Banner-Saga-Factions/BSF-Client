@@ -16,7 +16,7 @@
 #   .\scripts\build-installer.ps1 -Version 1.11.0 -LaunchArgs "--steam true --server https://example.org/" -PrivacyUrl https://example.org/privacy
 #
 # Prerequisites:
-#   - Inno Setup 6: winget install JRSoftware.InnoSetup (free for non-commercial use)
+#   - Inno Setup 6.3 or later: winget install JRSoftware.InnoSetup (free for non-commercial use)
 #   - _build\bundle\win32 from build.ps1 -Target bundle
 
 param(
@@ -25,7 +25,8 @@ param(
     [string]$Version    = "1.11.0",
     # The options the Start-menu shortcut passes to the game. The default is for local testing.
     [string]$LaunchArgs = "--steam true --server http://localhost:8082/",
-    # Shown to the player before installing (licence section 6.4 needs a published privacy policy).
+    # Shown to the player before installing. Licence section 6.4 also wants the address shown
+    # inside the game, which this page does not do (BSF-Custom-Server #377).
     [string]$PrivacyUrl = "(privacy policy address to come - BSF-Custom-Server #377)",
     # The Steam install's win32 folder, as in build.ps1. assets\ and gui\ come from the folder above it.
     [string]$GamePath   = "C:\Program Files (x86)\Steam\steamapps\common\The Banner Saga Factions\win32",
@@ -78,9 +79,10 @@ foreach ($d in @("assets", "gui")) {
 
 # -- Stage -------------------------------------------------------------------------------------
 # robocopy /MIR makes each stage folder an exact copy, and only copies what changed since the
-# last run. Exit codes below 8 mean success.
+# last run. Exit codes below 8 mean success. /R:2 /W:2 gives up on a locked file after two short
+# retries instead of robocopy's default of a million.
 function Copy-Mirror($from, $to, $extra) {
-    & robocopy $from $to /MIR /NFL /NDL /NJH /NJS /NP @extra | Out-Null
+    & robocopy $from $to /MIR /NFL /NDL /NJH /NJS /NP /R:2 /W:2 @extra | Out-Null
     if ($LASTEXITCODE -ge 8) { Write-Error "Copying '$from' failed (robocopy $LASTEXITCODE)."; exit 1 }
 }
 Write-Host "Staging files in $StageDir ..."
@@ -104,7 +106,7 @@ shared with the Steam copy.
 
 Privacy policy: $PrivacyUrl
 
-When the game starts you will see the HARMAN logo for about two seconds. HARMAN makes
+When the game starts you will see the HARMAN logo. HARMAN makes
 the Adobe AIR runtime the game is built on, and its free licence requires the logo.
 "@
 [IO.File]::WriteAllText($InfoFile, ($info -replace "`r?`n", "`r`n"), [Text.Encoding]::ASCII)
@@ -116,8 +118,9 @@ Write-Host "Building the setup file with $IsccPath ..."
 if ($LASTEXITCODE -ne 0) { Write-Error "Inno Setup failed (ISCC $LASTEXITCODE)."; exit 1 }
 
 $setup = Join-Path $OutDir "BSF-Client-Setup-$Version.exe"
+if (-not (Test-Path $setup)) { Write-Error "Inno Setup reported success but wrote no '$setup'."; exit 1 }
 $hash  = (Get-FileHash -Algorithm SHA256 $setup).Hash.ToLower()
-$sizeMb = [math]::Round((Get-Item $setup).Length / 1MB)
+$sizeMib = [math]::Round((Get-Item $setup).Length / 1MB)
 Write-Host ""
-Write-Host "Done. Output: $setup ($sizeMb MB)" -ForegroundColor Green
+Write-Host "Done. Output: $setup ($sizeMib MiB)" -ForegroundColor Green
 Write-Host "SHA-256: $hash"

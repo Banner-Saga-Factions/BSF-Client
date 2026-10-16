@@ -69,8 +69,8 @@ Source: "{#StageDir}\assets\*"; DestDir: "{app}\assets"; Flags: recursesubdirs c
 Source: "{#StageDir}\gui\*"; DestDir: "{app}\gui"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
-; The game must start from inside win32\. Started from anywhere else with --steam true, Steam
-; closes it and opens the 2013 copy in the Steam library instead.
+; The game must start from inside win32\. Started from another folder (measured with the
+; repository's) with --steam true, Steam closes it and opens the 2013 copy in the Steam library.
 Name: "{userprograms}\{#AppName}"; Filename: "{app}\win32\{#GameExe}"; Parameters: "{#LaunchArgs}"; WorkingDir: "{app}\win32"
 Name: "{userdesktop}\{#AppName}"; Filename: "{app}\win32\{#GameExe}"; Parameters: "{#LaunchArgs}"; WorkingDir: "{app}\win32"; Tasks: desktopicon
 

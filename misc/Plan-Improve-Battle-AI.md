@@ -181,7 +181,12 @@ through `scripts/verify-and-commit.ps1`. Each wave adds rows to *Measurements* a
 - **Measured** (*Measurements* above): the `armor-first` baseline first, on the unchanged opponent; then
   4 battles against `armor-first` at ×4. The `strength` run was dropped by the owner's choice: 4 battles,
   after the fix, against `armor-first` only.
-  - The computer went from 2 of 4 to 4 of 4, with 3.00 survivors instead of 1.00.
+  - The computer went from 2 of 4 to 4 of 4, with 3.00 survivors instead of 1.00. This changed two
+    things at once: the baseline ran at normal speed and this run at ×4, and the new opponent was never
+    run at normal speed. Code reading says speed changes only timing; no run has tested it.
+  - Focus fire is not the likely cause: the damage score already adds 22½ points per strength point a
+    target has lost, against focus fire's 30 at most. In Factions, leaving an enemy weakened but alive
+    can be a deliberate strategy, so the lean toward finishing wounded units is not assumed to help.
   - The log shows the fixes at work: 262 of 414 plans in the trial battle had a non-zero `⌖e` (danger
     from enemies within reach), and 70 a non-zero `foc=`.
 - **The anti-suicide term was not added**, by the owner's choice, although the count met the rule set

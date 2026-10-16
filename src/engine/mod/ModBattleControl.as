@@ -28,8 +28,10 @@ package engine.mod
     * it: "battle_state", "battle_deploy_ready", "battle_end_turn", "battle_move"
     * and "battle_attack". Registered once from GameFsm, alongside
     * "start_ai_battle". A sixth, "set_game_speed", is a developer fast-forward
-    * for unattended runs (ModGameSpeed); it changes how fast the game plays,
-    * never what it decides, and only ever inside an offline practice battle.
+    * for unattended runs (ModGameSpeed). It can only be raised inside an offline
+    * practice battle, but it stays raised until it is set back, even after the
+    * battle (BSF-Client #72). It is meant to change timing only; that rests on
+    * reading the code, not on a measured comparison.
     *
     * WHY IT DUCK-TYPES ONE HOP: the path from the game's state machine down to a
     * battle runs through SceneState, which is game-layer code, while this class
@@ -51,7 +53,7 @@ package engine.mod
     *   battle_attack        what the execute button does
     *                        (BattleHudPage.executeTurnAbility)
     *
-    * So none of this adds behaviour the game did not already have — it only
+    * So apart from set_game_speed, none of this adds behaviour the game did not already have — it only
     * makes the moment deterministic instead of timed, and reachable without a
     * screen. Two places where the likeness is not exact, both found in review:
     * the move commands skip setWayPoint, so the on-screen waypoint marker stays
@@ -72,7 +74,7 @@ package engine.mod
     *
     * NOTHING HERE THROWS AT THE HOST. Every handler is wrapped; a fault comes
     * back as a described refusal rather than as an ERROR line. Note the shapes
-    * differ: the four commands that do something answer {"ok":…}, while
+    * differ: the five commands that do something answer {"ok":…}, while
     * battle_state answers a description with no "ok" field at all.
     */
    public class ModBattleControl

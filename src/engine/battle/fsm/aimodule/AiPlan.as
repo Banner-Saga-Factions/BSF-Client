@@ -46,7 +46,8 @@ package engine.battle.fsm.aimodule
       // [Inference] BSF-Client #31: focus fire. A plan that hits a target already missing
       // some of its strength earns up to this many points, in proportion to the share lost,
       // so the side's units lean toward finishing one enemy rather than spreading damage.
-      // Kept far below the kill bonus (200) so an actual kill always wins.
+      // Kept far below the kill bonus (200). The weights are added up, so this does not
+      // guarantee a kill wins; the friends term alone can outweigh both.
       private static const WEIGHT_FOCUS:int = 30;
       
       public var ai:AiModuleBase;

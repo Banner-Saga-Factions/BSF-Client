@@ -105,7 +105,8 @@ drives a planner called `AiModuleDredge`:
    armor-breaking attack. (Spreading the work over frames keeps a big board from hitching.)
 3. **Weigh each plan** (`AiPlan.computeWeight`, `AiPlan.as:340-377`): a plan that **kills** earns a
    large fixed bonus (+200); damage counts heavily; a blow hard enough to break a target counts extra;
-   hitting an enemy that is already wounded earns up to 30 more (focus fire, added for issue #31);
+   hitting an enemy that is already wounded earns more, through the damage score and, since issue #31,
+   up to 30 points of focus fire;
    moving far or spending willpower costs a little. Where the unit would end up counts too: standing
    within reach of an enemy's basic attack costs points, having an enemy within reach of its own earns
    a few, and every tile between it and each friend costs 15 (30 for an archer).
@@ -125,9 +126,11 @@ drives a planner called `AiModuleDredge`:
 - **It never uses special abilities.** The planner only ever feeds itself the two *basic* attacks
   (strength and armor); a unit's special is never even considered. The code inside `findPlans` that
   would handle a special (`AiModuleBase.as:161-163`) is unreachable from this planner. [Inference]
-- **Only a light lean toward ganging up.** Each unit still plans on its own. Since issue #31 a plan
-  earns up to 30 points for hitting an enemy that has already lost strength, so the side tends to finish
-  the wounded one; that is far below the +200 for a kill, so it only tips close choices.
+- **A lean toward hitting wounded enemies, but no teamwork.** Each unit still plans on its own. The
+  original damage score already adds 22½ points for each point of strength the target has lost
+  (`AiPlan.as:169-171`); issue #31's focus fire adds at most 30 more. Finishing the wounded one is not
+  always right: in Factions, leaving an enemy unit weakened but alive can be a deliberate strategy, so
+  whether this lean helps is for the measurements to show.
 
 **The "imagined move" trick.** To score "what would this hit actually do?", the AI needs to *try* the
 attack without really changing the board. It does this by running the attack in a **pretend mode**
@@ -178,9 +181,10 @@ runner ([`match-runner.md`](./match-runner.md)). Each fix is tagged `[Inference]
 | The unit taking its turn was in its own friends list. | It was marked down for every step away from its own square. | Leave it out — `AiModuleBase.as:90` |
 | The "rest here or walk closer" check added the enemy term twice and never counted friends. | That choice ignored where friends stood. | Enemies plus friends — `AiPlan.as:242` |
 
-Plus one new term, **focus fire** (`WEIGHT_FOCUS`, `AiPlan.as:46` and `:194`): up to 30 points, in
+Plus one new term, **focus fire** (`WEIGHT_FOCUS`, `AiPlan.as:51` and `:199`): up to 30 points, in
 proportion to the share of strength the target has already lost, on strength and armor attacks alike. Each
-plan's log line shows it as `foc=`. The measured effect of all of these is in
+plan's log line shows it as `foc=`. It is small beside the existing wounded-target part of the damage
+score, so it mostly matters for armor attacks. The measured effect of all of these is in
 [`../misc/Plan-Improve-Battle-AI.md`](../misc/Plan-Improve-Battle-AI.md) → *Measurements*.
 
 The planner driver itself (`AiModuleDredge`) is untouched.

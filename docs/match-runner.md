@@ -31,7 +31,7 @@ From the `bsf-client` folder:
 node scripts\mod-host\runner.js                          # 10 battles, the plain player
 node scripts\mod-host\runner.js --player armor-first      # 10 battles, the second player
 node scripts\mod-host\runner.js --battles 5 --out _build\runner\try-1
-node scripts\mod-host\runner.js --player armor-first --speed 4  # the same, played 4 times faster
+node scripts\mod-host\runner.js --player armor-first --speed 4  # the same, played about twice as fast
 node scripts\mod-host\runner.js --summary-only _build\runner\try-1\runner-results.jsonl
 ```
 
@@ -63,7 +63,8 @@ It also counts the computer's **suicides**: a computer unit that walked up durin
 in a stretch where the computer killed none of ours, and then died to the runner's very next attack. In
 plain terms, it walked into a free kill. Issue #31 uses this count to decide whether the opponent needs a
 rule against it. It undercounts on purpose: a unit the simple player could have killed but did not pick
-is not counted. Result files written before the count existed say "not counted" rather than 0. Last, it counts the `Error #1009` and "Something went
+is not counted. It can also overcount: any computer unit that changed tiles qualifies, so a wounded unit
+stepping back counts too. Result files written before the count existed say "not counted" rather than 0. Last, it counts the `Error #1009` and "Something went
 wrong while faking" lines in the game's own log.
 
 **That count comes from the game's own log, `A-<n>.log.txt`, and only after the game has closed.** The
@@ -128,14 +129,16 @@ something. (Why rolls decide so little has not been looked into.) **So N battles
 Read the summary's "distinct battle traces" before trusting a win rate. Making battles vary is the
 first job of issue #31's Wave 3.
 
-**Can it play faster? Yes, 4 times faster** (added in Wave 2, 2026-10-16). `--speed N` sends the
-bridge's `set_game_speed` once the fighting starts and sets it back to 1 when the battle ends
+**Can it play faster? Yes, about twice as fast at `--speed 4`** (added in Wave 2, 2026-10-16). `--speed N` sends the
+bridge's `set_game_speed` once the fighting starts and sets it back to 1 when the battle ends normally
 ([`mod-bridge.md`](./mod-bridge.md) §5). The game then moves its clock on N times faster each frame and
-shortens the computer's built-in pauses. One trial battle at ×4 took 1.64 seconds a turn, against 3.5 at
+shortens the computer's built-in pauses; some of the game's timers run on real time and do not speed up.
+**If the runner is stopped with Ctrl-C or fails part-way, the game window stays at the higher speed:
+close it** before playing online ([BSF-Client #72](https://github.com/Banner-Saga-Factions/BSF-Client/issues/72)). One trial battle at ×4 took 1.64 seconds a turn, against 3.5 at
 normal speed for the same scripted player: 94 seconds a battle instead of about 210. It finished
 normally, with no `#1009` and no "went wrong while faking" lines. Four more battles at ×4 averaged 1.68
-seconds a turn. ×8 was not tried: what is left of a turn is mostly the runner's own polling and walk
-waits, so it would save less.
+seconds a turn. ×8 was not tried. No battle of the Wave 2 opponent was run at normal speed, so
+"speed changes timing, not decisions" rests on reading the code.
 
 **Is finding a tile by trial and refusal fast enough? Yes. No `battle_reachable` command is needed.**
 A refused move or attack comes back fast enough that trying again costs little. Across the baseline's

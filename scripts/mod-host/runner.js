@@ -398,11 +398,6 @@ async function waitForWalk(session, unitId, tile) {
 // One battle
 // ---------------------------------------------------------------------------
 
-/**
- * A short fingerprint of how a battle went: who acted on each turn, and every
- * unit's strength and armor after it. Two battles with the same fingerprint
- * rolled the same dice — which is the wave's second question.
- */
 /** A unit by id, or null. */
 function unitById(state, id) {
   return (state && state.units || []).find(u => u.id === id) || null;
@@ -438,6 +433,11 @@ function walkedInForNothing(before, now) {
     .map(u => u.id);
 }
 
+/**
+ * A short fingerprint of how a battle went: who acted on each turn, and every
+ * unit's strength and armor after it. Two battles that differ here differed;
+ * two that match very likely played the same, though tiles are not included.
+ */
 function boardFingerprint(state) {
   return (state.units || [])
     .map(u => `${u.id}:${u.alive ? 1 : 0}:${stat(u, 'strength')}/${stat(u, 'armor')}`)

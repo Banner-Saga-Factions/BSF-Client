@@ -161,7 +161,7 @@ Sound is the one subsystem that routinely runs in a **degraded** (reduced-capabi
 
 The downgrade is invisible to the rest of the game because everything downstream only talks to the `ISoundDriver` interface. Startup even gates on the sound system being "ready" (`GameConfig.checkReady:724` waits for `fevPreloader.complete`), but `NullSoundDriver`'s preloader reports complete immediately (`NullFevPreloader.complete` is hardcoded `true`, `NullSoundDriver.as:188`), so a silent client still boots.
 
-Both ANEs are **declared** in the descriptor (`META-INF/AIR/application.xml:145–148` — `air.fmod.ane.FmodContext` and `air.steamworks.ane.SteamworksAneContext`), but the `.ane` binaries themselves are not committed to this patch repo. That is why the dev launcher strips them (see "The AIR SDK 33-vs-51 wall" below) and the client runs on `NullSoundDriver` day to day.
+Both ANEs are **declared** in the descriptor (`META-INF/AIR/application.xml:145–148` — `air.fmod.ane.FmodContext` and `air.steamworks.ane.SteamworksAneContext`), but the `.ane` binaries themselves are not committed to this patch repo. That is why the dev launcher strips them (see "The AIR SDK 33-vs-51 wall" below) and the client runs on `NullSoundDriver` day to day. The packaged bundle is the exception: `scripts/build-anes.ps1` rebuilds both add-ons from the Steam install, and the bundle plays sound (see "Windows self-contained bundle" below).
 
 ### Two copies on one PC — why the second is silent, and what breaks
 
@@ -205,11 +205,18 @@ The prerequisites table above lists "HARMAN AIR SDK 33.1+," but the config that 
 
 The original SWF was built against **AIR 3.7** (`META-INF/AIR/application.xml:2` declares the `air/application/3.7` namespace; the SWF is version 20, stamped 2013). That 2013-era runtime ships with the Steam install and is what a packaged client would normally run on. But the moment you recompile with a modern SDK, three things bite:
 
-1. **The 2013 captive runtime can't run a modern SWF.** A SWF compiled with SDK 51 links against newer APIs the old runtime lacks, so it fails to load with a silent `VerifyError`. The workaround is `scripts/run-adl.ps1`, which launches the compiled SWF under the **SDK 51 debug runtime** (`adl`) instead of the captive one. To do that it rewrites the descriptor's namespace from `3.7` to `51.0` (`run-adl.ps1:112`) and **strips the `<extensions>` block** (`:113`) — which is exactly why running under `adl` drops you to `NullSoundDriver` (no ANEs declared, so the audio fallback above fires). `build.ps1` compiles with `-swf-version=20` (`:67`) and flags this same runtime mismatch inline (`:62–65`).
-2. **You can't package a real audio build for desktop.** `adt` (the packager) **rejects the FMOD and Steamworks ANEs on desktop targets with error 112** (`build.ps1:11–12`), so there is no signed, double-clickable build that has sound. Today the only way to run the rebuilt client is under `adl` — which has no ANEs anyway.
+1. **The 2013 captive runtime can't run a modern SWF.** A SWF compiled with SDK 51 links against newer APIs the old runtime lacks, so it fails to load with a silent `VerifyError`. The workaround is `scripts/run-adl.ps1`, which launches the compiled SWF under the **SDK 51 debug runtime** (`adl`) instead of the captive one. To do that it rewrites the descriptor's namespace from `3.7` to `51.0` and **strips the `<extensions>` block** — which is exactly why running under `adl` drops you to `NullSoundDriver` (no ANEs declared, so the audio fallback above fires). `build.ps1` compiles with `-swf-version=20` and flags this same runtime mismatch in a comment beside it.
+2. **A plain `.air` package can't carry the sound and Steam add-ons, so it has no sound.** `adt` (the packager) stops with **error 112** when asked to put the FMOD and Steamworks ANEs in a `.air` file. Error 112 means "the target does not support native extensions": the `.air` package type never takes add-ons. **This one is solved.** The "captive runtime bundle" package type does take them. See the measured result below.
 3. **The 33→51 jump is *not* the cause of the town crashes.** It is tempting to blame the SDK bump for the gui-SWF crashes, but that was **ruled out** (verified four ways): those crashes are a **symbol-linkage** problem — owned by [`architecture.md`](./architecture.md) → "Resource SWFs and runtime class resolution" — which is version-independent. The gui SWFs ship unchanged as their AIR-33.1 originals; only the app SWF recompiles at 51.
 
-There is an **untested candidate fix** for the packaging wall (points 1–2): rebuild the app SWF with the **original HARMAN AIR SDK 33.1** and package via `adt` with the ANEs, to see whether a same-generation build runs standalone with sound and clears the error-112 rejection. It would **not** touch the town crashes (point 3). The full experiment plan and the four-way SDK-hypothesis verdict are in [`../misc/Plan-Issue-12-Player-vs-AI-Public-Release.md`](../misc/Plan-Issue-12-Player-vs-AI-Public-Release.md).
+**Measured 2026-10-16: points 1 and 2 are cleared by packaging a bundle with SDK 51. No older SDK is needed.** A bundle carries its own copy of the SDK 51 runtime, so point 1's old runtime is never involved. It also carries both add-ons, so point 2 does not arise. `build.ps1 -Target bundle` built one, and it was started from a clean folder outside both the Steam install and the SDK. Results:
+- The automated battle test passed against it (7 of 7).
+- The game log shows FMOD starting and its sound banks loading, with no silent-driver fallback.
+- The owner heard music and battle sounds.
+- With Steam running, the Steam add-on loaded and a real Steam account signed in.
+- Ctrl+Shift+A started an offline practice battle.
+
+The earlier plan to try the original SDK 33.1 rested on reading error 112 as a version mismatch. It was not one, so that experiment was never needed. Point 3 is untouched. Recipe and caveats: "Windows self-contained bundle" below. The experiment's plan is in [`../misc/Plan-Issue-12-Player-vs-AI-Public-Release.md`](../misc/Plan-Issue-12-Player-vs-AI-Public-Release.md).
 
 ## Common JPEXS artifacts and how to fix them
 
@@ -249,7 +256,41 @@ The hard-won, reusable parts of the recipe (these cost a session to rediscover t
 ### Windows (`-target air`)
 
 - Produces a `.air` file. The installer asks the user to install Adobe AIR if not present, then unpacks under `%PROGRAMFILES%`.
-- For a one-click installer, use `-target native` (produces `.exe` on Windows) — bundles the AIR runtime.
+- For a one-click installer, use `-target native` (produces `.exe` on Windows).
+- **A `.air` file cannot carry the sound and Steam add-ons** (error 112). For a build with sound, use the bundle below.
+
+### Windows self-contained bundle (`build.ps1 -Target bundle`)
+
+This produces a game folder that starts from its own `.exe`, with sound. A "captive runtime bundle" is a folder holding the game's `.exe`, its own private copy of the AIR runtime, and both add-ons. It has the same layout as the Steam install's `win32\` folder.
+
+```powershell
+$env:AIR_HOME = "C:\AirSDK\AIRSDK_51.3.2"
+.\scripts\build.ps1 -Target bundle
+```
+
+That one command compiles the game, then runs `scripts/build-anes.ps1`, then packages. `build-anes.ps1` repacks the two add-ons from the Steam install into `_build\anes\`; the Steam folder is only read. The finished folder is `_build\bundle\win32\`. Pass `-GamePath` if the Steam install is somewhere else. Like every package, it is signed, and it uses the certificate under [Signing certificate](#signing-certificate). `-StorePass` skips the password prompt, but use it only with a throwaway certificate, since the command line is saved in your shell history.
+
+**What it needs around it.** The game finds its art and sound in `..\assets` and `..\gui`. A working copy therefore looks like this, with the two folders copied from a Steam install:
+
+```
+<any folder>\assets\
+<any folder>\gui\
+<any folder>\win32\        <- _build\bundle\win32
+```
+
+**Starting it.** `scripts\run-adl.ps1 -Bundle -GamePath <folder>\win32` starts it with the usual test arguments and checks that the game file is ours. The test driver does the same when `BSF_BUNDLE=1` is set: see [`driving-the-client.md`](./driving-the-client.md) → "1. The launch, in order". To start it by hand, run the `.exe` **from inside `win32\`**, with the same arguments. A double-click passes none; that was not tested. Measured 2026-10-16 with `--steam true`: started from inside `win32\`, the log line is `SteamAPI_RestartAppIfNecessary RESULT 219340 false` and the account signs in. Started from another folder (the repository's) it is `true`, and the game quits and Steam opens the copy in the Steam library instead. The likely reason, not measured, is that Steam reads `steam_appid.txt` from the folder the game was started from.
+
+**What is inside, and why.**
+- **32-bit** (`-arch x86`): both add-ons exist only as 32-bit Windows DLLs. The runtime comes from the SDK's `runtimes\air-captive\win` (measured by comparing the files).
+- **The descriptor** is a copy of `META-INF/AIR/application.xml` with the namespace set to the SDK's own, read from `airsdk.xml`. It keeps `<extensions>`, which `run-adl.ps1` strips.
+- **From the Steam install:** `fmodex.dll`, `fmod_event.dll`, `fmod_event_net.dll` (the sound engine the FMOD add-on calls), `steam_api.dll`, `steam_appid.txt`, and `icon\`.
+- **The add-ons**: `build-anes.ps1` zips each one's `catalog.xml` + `library.swf` into a `.swc` (a Flash library file), then has `adt -target ane` rebuild the `.ane` from that `.swc`, the 2013 `extension.xml` (accepted unchanged) and the DLL folder.
+
+**The SDK licence: read it before handing the folder to players.** It is `AIR SDK license.pdf` in the SDK folder (HARMAN's text dated 2019-07-31). Four clauses matter here. These are what the text says, not legal advice:
+- Section 3.3(a)(i) allows distributing the runtime files only as copied in by the build tools, which is what a bundle is. (The clause spells the folder `air-captivate`.)
+- Section 3.3(a)(iv) forbids distributing the build tools themselves, so never ship `adl.exe` or `adt`.
+- Section 4 says a free-tier app shows a HARMAN/Adobe splash screen at start-up.
+- Section 6.1 says "you shall not create or distribute any Developer Application that runs without installation". A zip that is unpacked and run may fall under that. The clause covers creating such a program as well as handing it out, and a breach ends all rights under the licence at once. So decide whether the folder needs an installer before building more on it, not only before publishing.
 
 ### Android (`-target apk`)
 

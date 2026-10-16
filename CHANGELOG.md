@@ -11,6 +11,23 @@ been removed. The current download is on the
 
 ## [Unreleased]
 
+### Our rebuilt game can now be packaged as a folder that starts on its own, with sound
+
+Until now our rebuilt game could only run through a developer tool, and it was silent there. One
+command now builds the game's folder: the game, its own copy of the runtime it needs, and the
+sound and Steam add-ons. You copy the art and sound folders beside it from a Steam install.
+Tested on 2026-10-16:
+- Music and battle sounds play.
+- The offline practice battle starts.
+- With Steam running, a Steam account signs in.
+
+Nothing is published yet: the download comes later, and first the developer kit's licence
+terms on unpacked-and-run programs need a decision.
+
+*Technical:* `scripts/build.ps1 -Target bundle` (captive runtime bundle, `-arch x86`, AIR SDK 51.3.2),
+new `scripts/build-anes.ps1`, `scripts/run-adl.ps1 -Bundle`, `BSF_BUNDLE=1` in
+`tests/lib/game-session.js`. BSF-Custom-Server #47, Wave 2.
+
 ### Every pull request now gets a report on broken links and script problems
 
 This repository had no automatic checks. Each pull request now gets a summary page listing links

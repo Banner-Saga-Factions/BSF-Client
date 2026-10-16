@@ -65,6 +65,10 @@ const DEFAULTS = {
   // 'camp' for the town the great hall and mead house open off. Everything
   // written before this option existed lands in versus, so that stays default.
   landing: process.env.BSF_LANDING || 'versus',
+  // Start a packaged bundle's own .exe instead of the SDK's debug launcher:
+  // BSF_BUNDLE=1, with BSF_GAME_PATH pointing at the bundle's win32 folder.
+  // See scripts/build.ps1 -Target bundle.
+  bundle: process.env.BSF_BUNDLE === '1',
 };
 
 // How long to give each part of the run before calling it a failure. Generous,
@@ -407,6 +411,9 @@ class GameSession {
       '-SteamId', this.options.steamId,
       '-Landing', this.options.landing,
     ];
+    if (this.options.bundle) {
+      args.push('-Bundle');
+    }
     this.note(`starting: powershell ${args.join(' ')}`);
     this.launcher = spawn('powershell.exe', args, { windowsHide: true });
 

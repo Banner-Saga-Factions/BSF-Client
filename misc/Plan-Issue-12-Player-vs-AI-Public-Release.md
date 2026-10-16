@@ -353,6 +353,10 @@ NOT fix the town crashes — symbol linkage is SDK-independent, §2 — it's pur
 **Do:** rebuild with HARMAN AIR SDK 33.1; package via `adt` with the FMOD + Steamworks ANEs; test running
 outside `adl`; confirm audio; investigate the `adt` error-112 ANE rejection. Decide whether to switch the
 build SDK to 33.1.
+> **Result (2026-10-16, BSF-Custom-Server #47 Wave 2):** done without SDK 33.1. Error 112 meant "the
+> `.air` package type cannot carry add-ons", not an SDK mismatch. A captive runtime bundle built with
+> SDK 51 runs on its own with sound and Steam. The build SDK stays at 51. Recipe and measurements:
+> [`../docs/build-workflow.md`](../docs/build-workflow.md) → "Windows self-contained bundle".
 > **Kickoff:** "Issue-12 Wave 4 (shippability / AIR SDK). Per the public-release plan §5: today only `adl`
 > (SDK-51) runs the build and packaged `adt` builds reject the FMOD/Steamworks ANEs (error 112) = no
 > player build + no audio. Try rebuilding with the ORIGINAL HARMAN AIR SDK 33.1 (`scripts/build.ps1`),

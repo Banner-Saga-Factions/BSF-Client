@@ -71,7 +71,7 @@ Whatever cert you sign your **first public build** with, reuse it for **every** 
 - **Different cert between two of _your own_ builds** → the AIR installer refuses to install one over the other ("already installed by a different publisher"); players must uninstall first. This is the main _self-inflicted_ trap — avoid it by never rotating the cert.
 - You can **never** make a build that updates Stoic's original in place. `adt`'s `-migrate` flag (sign with a new cert _plus_ a signature from the old one) is the official bridge for a cert change, but it requires the **old** cert — which you don't have. So migrating from the original is impossible; establish your own cert as the baseline and move on.
 
-**Practical guidance:** generate **one** signing cert with a long validity, back up the `.p12` as a permanent project asset, and store its password where you won't lose it. Losing it re-creates this entire problem against your _own_ prior releases. A CA-issued code-signing cert (instead of self-signed) removes the SmartScreen / "unknown publisher" warnings but is **not** required for the game to run.
+**Practical guidance:** generate **one** signing cert with a long validity, back up the `.p12` as a permanent project asset, and store its password where you won't lose it. Losing it re-creates this entire problem against your _own_ prior releases. A CA-issued code-signing cert (instead of self-signed) is **not** required for the game to run.
 
 ### Mobile
 
@@ -290,7 +290,53 @@ That one command compiles the game, then runs `scripts/build-anes.ps1`, then pac
 - Section 3.3(a)(i) allows distributing the runtime files only as copied in by the build tools, which is what a bundle is. (The clause spells the folder `air-captivate`.)
 - Section 3.3(a)(iv) forbids distributing the build tools themselves, so never ship `adl.exe` or `adt`.
 - Section 4 says a free-tier app shows a HARMAN/Adobe splash screen at start-up.
-- Section 6.1 says "you shall not create or distribute any Developer Application that runs without installation". A zip that is unpacked and run may fall under that. The clause covers creating such a program as well as handing it out, and a breach ends all rights under the licence at once. So decide whether the folder needs an installer before building more on it, not only before publishing.
+- Section 6.1 says "you shall not create or distribute any Developer Application that runs without installation". A zip that is unpacked and run may fall under that. The clause covers creating such a program as well as handing it out, and a breach ends all rights under the licence at once. So decide whether the folder needs an installer before building more on it, not only before publishing. **Decided 2026-10-16: it does.** Players get the folder through a setup file; see [Windows installer](#windows-installer-build-installerps1) below.
+
+### Windows installer (`build-installer.ps1`)
+
+**Why there is one.** Section 6.1 of the SDK licence (quoted above) rules out handing players a folder that "runs without installation". The SDK's own release notes (51.3.2, §6 "Windows builds") recommend a bundle "packaged up using a third party installer mechanism", which is what this is. It uses Inno Setup, a free, widely used installer maker. The comparison with other installer types, and the owner's choices, are on [BSF-Custom-Server #47](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/issues/47).
+
+**Building it.** Install Inno Setup 6.3 or later once (`winget install JRSoftware.InnoSetup`; free for non-commercial use), build the bundle, then build the setup file:
+
+```powershell
+$env:AIR_HOME = "C:\AirSDK\AIRSDK_51.3.2"
+.\scripts\build.ps1 -Target bundle
+.\scripts\build-installer.ps1
+```
+
+The script copies the bundle, plus `assets\` and `gui\` from the Steam install (only read), into `_build\installer-stage\`. It then writes `_build\installer\BSF-Client-Setup-<version>.exe` and prints the file's SHA-256 fingerprint. Its options:
+- `-Version`: the setup's own version, default `1.11.0`. It must be above the original game's `1.10.51`, and the script refuses anything else. The game's descriptor keeps Stoic's number.
+- `-LaunchArgs`: what the shortcut passes to the game. The default, `--steam true --server http://localhost:8082/`, is for local tests. The published line comes from the no-Steam sign-in work.
+- `-PrivacyUrl`: shown before installing. Licence section 6.4 needs a published privacy policy, with its address shown inside the game as well, which the pre-install page alone does not do ([BSF-Custom-Server #377](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/issues/377)). Until then it is a placeholder.
+- `-GamePath`: the Steam install's `win32` folder, as for `build.ps1`.
+
+**Rebuild the bundle after every commit.** The commit check recompiles the game file, so a bundle built before a commit is out of date. The script refuses a bundle whose game file is older than the last compile. It cannot see source edits that were never compiled.
+
+**What the setup file does.**
+- It installs for the current user only, with no admin prompt, into `%LOCALAPPDATA%\Programs\tbs_factions_strand`. The player can change the folder on a first install; an upgrade reuses it.
+- It adds a Start-menu entry "The Banner Saga Factions (Community Server)", an optional desktop shortcut (unticked by default), an uninstaller, and a line in "Apps & features".
+- The shortcuts start the game **from inside `win32\`**, for the Steam reason given in "Windows self-contained bundle" above.
+- Before installing, a page shows the privacy-policy address and a short note explaining the HARMAN logo. Licence section 4 requires that logo on the free tier, and section 3.2 forbids removing it.
+- Running a newer setup installs over the old copy in the same folder. A fixed ID inside `installer/bsf-factions.iss` ties the versions together. Never change it.
+- Uninstalling removes the files the setup installed, the shortcuts and the "Apps & features" entry, and nothing else. Saved games and the game's logs live in `%APPDATA%\TheBannerSagaFactions`, and they are shared with a Steam copy, because both use the same app ID (see [Distribution & certificate identity](#distribution--certificate-identity)). They are never touched.
+- It never includes the SDK's tools (`adl`, `adt`), the test helper in `mods\`, or `bk-app.game.air.swf`. Both the script and the installer script leave them out, and the script also stops if `adl` or `adt` reached its staging folder.
+- The setup file is **not signed**, so Windows SmartScreen stops it when it was downloaded. See below.
+
+**Measured on 2026-10-16** (setup 1.11.0, 777,414,682 bytes, from a bundle signed with a throwaway test certificate):
+- Installing with the defaults showed no admin prompt. The uninstall entry is under the current user only.
+- With Steam running, the Start-menu shortcut started the installed copy. Its log shows `SteamAPI_RestartAppIfNecessary RESULT 219340 false`, the art and sound came from the installed folders, and `FmodSoundDriver initialized` appeared. A Steam account signed in to a local server, the HARMAN logo showed, and music played.
+- The game wrote **no files** inside the install folder during that run. Its log went to `%APPDATA%\TheBannerSagaFactions\Local Store\logs\`.
+- Running the same setup again over the installed copy reinstalled it in place, in the same folder, with the shortcut kept. It took about 50 seconds.
+- Uninstalling removed the folder, both shortcuts and the "Apps & features" entry. The Steam install was unchanged (every file had the same size and date), and the saves were byte-for-byte the same.
+
+**What a player sees from SmartScreen** (measured with the setup file marked as downloaded):
+1. A window titled **"Windows protected your PC"**: "Microsoft Defender SmartScreen prevented an unrecognized app from starting. Running this app might put your PC at risk." The only button is **Don't run**.
+2. Clicking **More info** shows "App: BSF-Client-Setup-1.11.0.exe" and "Publisher: Unknown publisher", and adds a **Run anyway** button.
+3. **Run anyway** starts the setup.
+
+Release notes must explain this and give the SHA-256 fingerprint, so players can check that the file is the one we built.
+
+**Before publishing**, which is a separate step: build the bundle with the real certificate rather than a test one (the setup file itself stays unsigned), and pass the published launch line and privacy-policy address.
 
 ### Android (`-target apk`)
 

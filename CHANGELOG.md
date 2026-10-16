@@ -25,6 +25,16 @@ about how the opponent decides has changed.
 `ModBattleControl.describeUnit` adds a read-only `size`; plan rewritten in
 `misc/Plan-Improve-Battle-AI.md`. BSF-Client #31, Wave 1.
 [#71](https://github.com/Banner-Saga-Factions/BSF-Client/pull/71).
+### Our rebuilt game now has a Windows installer
+
+The licence for the toolkit the game is built with does not allow handing out a game that runs
+without being installed. So our rebuilt game now comes as one setup file. It installs for the
+current user without asking for admin rights, and adds a Start-menu entry and an uninstaller.
+Uninstalling leaves saved games and any Steam copy alone. Tested on 2026-10-16: install, play
+with sound, reinstall over an installed copy, and uninstall. Nothing is published yet.
+
+*Technical:* new `installer/bsf-factions.iss` (Inno Setup 6.3 or later) and `scripts/build-installer.ps1`;
+see `docs/build-workflow.md` → "Windows installer". BSF-Custom-Server #47, Wave 3a.
 
 ### Our rebuilt game can now be packaged as a folder that starts on its own, with sound
 

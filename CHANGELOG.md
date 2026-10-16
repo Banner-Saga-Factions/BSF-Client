@@ -11,6 +11,20 @@ been removed. The current download is on the
 
 ## [Unreleased]
 
+### A helper that plays practice battles by itself, to measure how strong the computer opponent is
+
+Making the computer opponent stronger (issue #31) needs a number to judge it by. A new helper, the
+match runner, starts the real game, plays one side of offline practice battles with a fixed simple
+strategy, and counts who wins. Its first runs showed that a second battle starts without restarting
+the game, that every battle rolls new dice, and that the unchanged opponent beat the simple player in
+all 8 baseline battles. So a second player, one that also uses the armor attack, was added to measure
+against. The game's battle report now includes each unit's size so the runner aims correctly. Nothing
+about how the opponent decides has changed.
+
+*Technical:* new `scripts/mod-host/runner.js` and `docs/match-runner.md`;
+`ModBattleControl.describeUnit` adds a read-only `size`; plan rewritten in
+`misc/Plan-Improve-Battle-AI.md`. BSF-Client #31, Wave 1.
+[#71](https://github.com/Banner-Saga-Factions/BSF-Client/pull/71).
 ### Our rebuilt game now has a Windows installer
 
 The licence for the toolkit the game is built with does not allow handing out a game that runs

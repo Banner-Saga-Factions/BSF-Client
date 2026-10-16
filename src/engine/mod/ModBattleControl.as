@@ -284,6 +284,13 @@ package engine.mod
             "playerControlled":entity.playerControlled,
             "alive":entity.alive,
             "tile":null,
+            // How many tiles the unit covers: a varl stands on two by two, a
+            // human on one. "tile" is the corner with the smallest x and y. A
+            // helper working out where to stand to reach a unit needs both.
+            "size":{
+               "width":entity.width,
+               "length":entity.length
+            },
             "stats":{}
          };
          if(entity.tile != null && entity.tile.location != null)

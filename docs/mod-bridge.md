@@ -206,7 +206,7 @@ field at all.
  "turn":{"number":7,"entityId":"…","playerControlled":true,"committed":false,"complete":false,
          "moved":false,"ability":null},
  "units":[{"id":"…","name":"…","team":"…","playerControlled":true,"alive":true,
-           "tile":{"x":4,"y":2},
+           "tile":{"x":4,"y":2},"size":{"width":2,"length":2},
            "stats":{"strength":{"current":9,"base":12},"armor":{"current":11,"base":9}, …}}]}
 ```
 
@@ -215,13 +215,20 @@ comes out of nowhere. Read `moved` precisely — it means **the unit's move has 
 it went anywhere. Attacking confirms the move whether or not the unit left its tile (the on-screen
 execute button does the same), so a unit that stood still and swung reports `"moved":true`.
 
-Three things about the unit list are worth knowing before you write assertions against it:
+A few things about the unit list are worth knowing before you write assertions against it:
 
 - **Scenery is filtered out.** Props such as `prop+pole03` are alive board entities with a team but no
   combat stats, and reading a stat off one throws. They are skipped the same way the offline AI skips
   them — anything without an ARMOR stat is not a combatant.
 - **Dead units are kept.** The AI drops them; this does not. A checker watching for a crash wants to see
   the casualty rather than have it disappear.
+- **`tile` is one corner, and `size` says how far the unit spreads from it.** A varl covers two tiles by
+  two, a human one. `tile` is the corner with the smallest `x` and `y`, so a varl at `4,2` with
+  `{"width":2,"length":2}` also stands on `5,2`, `4,3` and `5,3`. Anything working out whether one unit
+  can reach another needs both, because the game measures attack range as the gap between the two blocks
+  of tiles, not between their corners. Added 2026-10-16 for the match runner
+  ([`match-runner.md`](./match-runner.md)), whose first version moved to a tile it could not attack from
+  on 4 of its first 28 turns without it.
 - **Each stat gives `current` and `base`** — the same two numbers the on-screen stat panel shows, the
   second being what the unit was built with before buffs and damage. `state` is the battle's state-machine
   name, matching what the game log prints.
@@ -491,6 +498,8 @@ and the host's last lines are read before it is killed (§4).
   when to look at the screen instead.
 - `scripts/mod-host/host.js` and `scripts/install-mod-host.ps1` — a small working host, and the script
   that puts it where the game will find it.
+- [`match-runner.md`](./match-runner.md) — a helper that plays whole battles over these commands and
+  counts who wins.
 - [`offline-ai.md`](./offline-ai.md) — the `start_ai_battle` command and the spectator flag, from the
   battle side.
 - [`client-overview.md`](./client-overview.md) → "What our fork adds" — the mod bridge as one of the

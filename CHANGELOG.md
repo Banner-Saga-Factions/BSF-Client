@@ -14,8 +14,9 @@ been removed. The current download is on the
 ### Our rebuilt game can now be packaged as a folder that starts on its own, with sound
 
 Until now our rebuilt game could only run through a developer tool, and it was silent there. One
-command now builds a complete game folder: the game, its own copy of the runtime it needs, and the
-sound and Steam add-ons. You start it by double-clicking. Tested on 2026-10-16:
+command now builds the game's folder: the game, its own copy of the runtime it needs, and the
+sound and Steam add-ons. The art and sound folders are copied beside it from a Steam install.
+Tested on 2026-10-16:
 - Music and battle sounds play.
 - The offline practice battle starts.
 - With Steam running, a Steam account signs in.

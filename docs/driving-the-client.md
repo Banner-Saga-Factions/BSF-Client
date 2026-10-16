@@ -863,8 +863,8 @@ board is still" rather than a direct reading of it.
 
 - [`mod-bridge.md`](./mod-bridge.md) — the message contract, the commands, and what a helper program can
   and cannot see.
-- [`build-workflow.md`](./build-workflow.md) — building the SWF, and why the client must run under the
-  modern debug runtime with no audio extension.
+- [`build-workflow.md`](./build-workflow.md) — building the SWF, why the client runs under the
+  modern debug runtime with no audio extension, and the packaged bundle, which has sound.
 - [`offline-ai.md`](./offline-ai.md) — what the computer opponent does on its turn, and what it can't do.
 - [`battle-engine.md`](./battle-engine.md) — the turn state machine whose names appear in the trace above.
 - `misc/Plan-Issue-12-Player-vs-AI-Public-Release.md` — the open blockers, including the damage-overlay

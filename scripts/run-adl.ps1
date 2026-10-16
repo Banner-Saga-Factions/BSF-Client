@@ -53,6 +53,13 @@ if ($Bundle) {
     foreach ($p in @($GamePath, $launchExe)) {
         if (-not (Test-Path $p)) { Write-Error "Not found: $p"; exit 1 }
     }
+    # The shipped 2013 game has an .exe of the same name, but its runtime cannot load our SWF and
+    # fails without a word. Its descriptor declares AIR 3.7; a bundle's declares the SDK's version.
+    $bundleDesc = Join-Path $GamePath "META-INF\AIR\application.xml"
+    if (-not (Test-Path $bundleDesc) -or (Get-Content -Raw $bundleDesc) -match 'air/application/3\.7') {
+        Write-Error "'$GamePath' is not a bundle (it looks like the shipped game). Point -GamePath at a copy of _build\bundle\win32."
+        exit 1
+    }
 } else {
     if (-not $env:AIR_HOME) { Write-Error "AIR_HOME is not set. Point it at the AIR SDK 51 root."; exit 1 }
     $adl = Join-Path $env:AIR_HOME "bin\adl.exe"
@@ -121,12 +128,15 @@ if ($nameCount -gt 1) {
 #   2. Strip the <extensions> block so adl does not demand the FMOD/Steamworks ANEs via -extdir; the
 #      code falls back to NullSoundDriver (sound) and NullSteamworks (Steam auth) when those
 #      extensions are absent. (Discord auth lives in PreAuthState, not a Steamworks subclass.)
-$desc = Get-Content -Raw $srcDesc
-$desc = $desc -replace 'air/application/3\.7', 'air/application/51.0'
-$desc = [regex]::Replace($desc, '(?s)\s*<extensions>.*?</extensions>', '')
-$utf8 = New-Object System.Text.UTF8Encoding($false)
-[IO.File]::WriteAllText($testDesc, $desc, $utf8)
-Write-Host "Wrote adl descriptor: $testDesc  (namespace 51.0, <extensions> stripped)" -ForegroundColor Cyan
+# A bundle carries its own descriptor, so it needs none of this.
+if (-not $Bundle) {
+    $desc = Get-Content -Raw $srcDesc
+    $desc = $desc -replace 'air/application/3\.7', 'air/application/51.0'
+    $desc = [regex]::Replace($desc, '(?s)\s*<extensions>.*?</extensions>', '')
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+    [IO.File]::WriteAllText($testDesc, $desc, $utf8)
+    Write-Host "Wrote adl descriptor: $testDesc  (namespace 51.0, <extensions> stripped)" -ForegroundColor Cyan
+}
 
 # The client cannot get past login without the server, whichever landing is asked for.
 $serverUp = Test-NetConnection -ComputerName localhost -Port 8082 -InformationLevel Quiet -WarningAction SilentlyContinue
@@ -175,6 +185,14 @@ if ($Bundle) {
     Write-Host "Launching the bundle: $launchExe" -ForegroundColor Green
     Write-Host "In-game: press Ctrl+Shift+A for the player-vs-AI battle (only after your party has loaded)." -ForegroundColor DarkGray
     Write-Host "The log is $env:APPDATA\TheBannerSagaFactions\Local Store\logs\A-0.log.txt - locked until the game exits." -ForegroundColor Yellow
+    # Windows PowerShell 5.1 joins this list with spaces and adds no quotes, so an argument that is
+    # empty or holds a space or quote mark would vanish or split in two. Refuse it rather than
+    # start a game that signs in as the wrong name.
+    $badArg = $gameArgs | Where-Object { $_ -eq '' -or $_ -match '[\s"]' } | Select-Object -First 1
+    if ($null -ne $badArg) {
+        Write-Error "-Bundle cannot pass an argument that is empty or holds a space or quote mark: '$badArg'"
+        exit 1
+    }
     $game = Start-Process -FilePath $launchExe -ArgumentList $gameArgs -WorkingDirectory $GamePath -PassThru
     $game.WaitForExit()
     Write-Host "The game exited (code $($game.ExitCode))." -ForegroundColor Yellow

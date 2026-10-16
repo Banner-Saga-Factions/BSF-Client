@@ -33,7 +33,9 @@ param(
     [switch]$Package,                           # opt-in: also build the signed .air/.apk/.ipa via adt
     [string]$KeystorePath = "SIGNING_KEY.p12",  # TODO: replace with real cert path
     # The certificate's password. Leave it out and adt asks for it; pass it only for a throwaway
-    # self-signed certificate, since a command line is saved in the shell's history.
+    # self-signed certificate, since a command line is saved in the shell's history. Avoid the
+    # characters & | < > ^ %: adt starts through a .bat file, and the Windows command shell
+    # would read them as its own instructions.
     [string]$StorePass   = "",
     # bundle only: the Steam install's win32 folder. It is only read, never changed: the add-ons,
     # the sound and Steam DLLs and the icons come from there and sit beside our compiled game.

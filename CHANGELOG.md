@@ -15,7 +15,7 @@ been removed. The current download is on the
 
 Until now our rebuilt game could only run through a developer tool, and it was silent there. One
 command now builds the game's folder: the game, its own copy of the runtime it needs, and the
-sound and Steam add-ons. The art and sound folders are copied beside it from a Steam install.
+sound and Steam add-ons. You copy the art and sound folders beside it from a Steam install.
 Tested on 2026-10-16:
 - Music and battle sounds play.
 - The offline practice battle starts.

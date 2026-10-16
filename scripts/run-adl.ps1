@@ -57,7 +57,7 @@ if ($Bundle) {
     # fails without a word. Its descriptor declares AIR 3.7; a bundle's declares the SDK's version.
     $bundleDesc = Join-Path $GamePath "META-INF\AIR\application.xml"
     if (-not (Test-Path $bundleDesc) -or (Get-Content -Raw $bundleDesc) -match 'air/application/3\.7') {
-        Write-Error "'$GamePath' is not a bundle (it looks like the shipped game). Point -GamePath at a copy of _build\bundle\win32."
+        Write-Error "'$GamePath' is not a bundle. Point -GamePath at a copy of _build\bundle\win32."
         exit 1
     }
 } else {
@@ -182,9 +182,6 @@ if ($Bundle) {
     # A bundle's .exe writes nothing to the console, so there is no launcher copy of the log here:
     # the game's own log is the only one. Wait for the game, so a caller (the test driver) sees
     # this script end when the game ends, as it does under adl.
-    Write-Host "Launching the bundle: $launchExe" -ForegroundColor Green
-    Write-Host "In-game: press Ctrl+Shift+A for the player-vs-AI battle (only after your party has loaded)." -ForegroundColor DarkGray
-    Write-Host "The log is $env:APPDATA\TheBannerSagaFactions\Local Store\logs\A-0.log.txt - locked until the game exits." -ForegroundColor Yellow
     # Windows PowerShell 5.1 joins this list with spaces and adds no quotes, so an argument that is
     # empty or holds a space or quote mark would vanish or split in two. Refuse it rather than
     # start a game that signs in as the wrong name.
@@ -193,6 +190,9 @@ if ($Bundle) {
         Write-Error "-Bundle cannot pass an argument that is empty or holds a space or quote mark: '$badArg'"
         exit 1
     }
+    Write-Host "Launching the bundle: $launchExe" -ForegroundColor Green
+    Write-Host "In-game: press Ctrl+Shift+A for the player-vs-AI battle (only after your party has loaded)." -ForegroundColor DarkGray
+    Write-Host "The log is $env:APPDATA\TheBannerSagaFactions\Local Store\logs\A-0.log.txt - locked until the game exits." -ForegroundColor Yellow
     $game = Start-Process -FilePath $launchExe -ArgumentList $gameArgs -WorkingDirectory $GamePath -PassThru
     $game.WaitForExit()
     Write-Host "The game exited (code $($game.ExitCode))." -ForegroundColor Yellow

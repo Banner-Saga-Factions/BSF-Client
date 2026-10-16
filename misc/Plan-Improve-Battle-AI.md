@@ -170,7 +170,8 @@ through `scripts/verify-and-commit.ps1`. Each wave adds rows to *Measurements* a
   - Findings 1–4: the range test includes both ends like `BattleAbilityValidation`, a kill counts at
     `>=`, the moving unit is left out of `friends`, and the rest-or-advance check adds enemies and friends.
   - Focus fire: `WEIGHT_FOCUS = 30` × the share of strength the target has lost, on strength and armor
-    attacks, kept far below `WEIGHT_KILL` so a real kill still wins. Shown as `foc=` in the plan log line.
+    attacks, kept far below `WEIGHT_KILL` (the weights are summed, so this alone does not guarantee a
+    kill wins). Shown as `foc=` in the plan log line.
 - **Added because battles were too slow to measure** (the owner's request): a developer fast-forward.
   `ModGameSpeed.as` (new), one line in a new `GameWrapper.as` overlay that scales each frame's elapsed
   time, the computer's two pauses in a new `BattleStateTurnAi.as` overlay, the bridge command

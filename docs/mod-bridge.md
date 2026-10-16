@@ -177,7 +177,8 @@ about twice as fast. Two limits:
 - **It lasts until it is set again or the game restarts, on every screen.** The offline check runs only
   when the speed is set, so a speed left behind carries into whatever comes next, a later online battle
   included. Setting it back is the host's job; the match runner does it after every battle that ends
-  normally, but not when it is stopped with Ctrl-C or fails part-way. Close the game in that case
+  normally. After a failure it closes the game, which ends the speed too; Ctrl-C does neither, so close
+  the game in that case
   ([BSF-Client #72](https://github.com/Banner-Saga-Factions/BSF-Client/issues/72)).
 
 A bad value answers `scale must be a whole number from 1 to 8`.

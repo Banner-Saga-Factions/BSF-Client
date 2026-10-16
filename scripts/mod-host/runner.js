@@ -39,7 +39,7 @@
 //   node scripts\mod-host\runner.js                 # 10 battles
 //   node scripts\mod-host\runner.js --battles 5
 //   node scripts\mod-host\runner.js --player armor-first
-//   node scripts\mod-host\runner.js --speed 4         # play each battle 4x faster
+//   node scripts\mod-host\runner.js --speed 4         # play each battle about 2x faster
 //   node scripts\mod-host\runner.js --out _build\runner\my-run
 //   node scripts\mod-host\runner.js --summary-only _build\runner\my-run\runner-results.jsonl
 //
@@ -434,8 +434,7 @@ function walkedInForNothing(before, now) {
 }
 
 /**
- * A short fingerprint of how a battle went: who acted on each turn, and every
- * unit's strength and armor after it. Two battles that differ here differed;
+ * A short fingerprint of a board: every unit's alive flag, strength and armor. Two battles that differ here differed;
  * two that match very likely played the same, though tiles are not included.
  */
 function boardFingerprint(state) {

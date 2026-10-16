@@ -133,7 +133,7 @@ first job of issue #31's Wave 3.
 bridge's `set_game_speed` once the fighting starts and sets it back to 1 when the battle ends normally
 ([`mod-bridge.md`](./mod-bridge.md) §5). The game then moves its clock on N times faster each frame and
 shortens the computer's built-in pauses; some of the game's timers run on real time and do not speed up.
-**If the runner is stopped with Ctrl-C or fails part-way, the game window stays at the higher speed:
+**If the runner is stopped with Ctrl-C, the game window can stay open at the higher speed:
 close it** before playing online ([BSF-Client #72](https://github.com/Banner-Saga-Factions/BSF-Client/issues/72)). One trial battle at ×4 took 1.64 seconds a turn, against 3.5 at
 normal speed for the same scripted player: 94 seconds a battle instead of about 210. It finished
 normally, with no `#1009` and no "went wrong while faking" lines. Four more battles at ×4 averaged 1.68

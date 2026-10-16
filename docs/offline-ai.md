@@ -128,7 +128,7 @@ drives a planner called `AiModuleDredge`:
   would handle a special (`AiModuleBase.as:161-163`) is unreachable from this planner. [Inference]
 - **A lean toward hitting wounded enemies, but no teamwork.** Each unit still plans on its own. The
   original damage score already adds 22½ points for each point of strength the target has lost
-  (`AiPlan.as:169-171`); issue #31's focus fire adds at most 30 more. Finishing the wounded one is not
+  (`AiPlan.as:170-172`); issue #31's focus fire adds at most 30 more. Finishing the wounded one is not
   always right: in Factions, leaving an enemy unit weakened but alive can be a deliberate strategy, so
   whether this lean helps is for the measurements to show.
 

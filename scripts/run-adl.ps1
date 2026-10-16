@@ -39,13 +39,26 @@ param(
     # completed_tutorial = 0 to the tutorial instead, which looks like the wrong screen rather than a
     # refusal. Check the accounts table before blaming the launcher.
     [ValidateSet('versus', 'camp')]
-    [string]$Landing = 'versus'
+    [string]$Landing = 'versus',
+    # LAUNCH A PACKAGED BUNDLE INSTEAD OF adl. Point -GamePath at the win32 folder that
+    # build.ps1 -Target bundle made, and the game starts from its own .exe there, with its own
+    # runtime and with sound - the way a player would start it. Same arguments, same check that
+    # the installed game file is ours. Without this switch nothing changes.
+    [switch]$Bundle
 )
 
-if (-not $env:AIR_HOME) { Write-Error "AIR_HOME is not set. Point it at the AIR SDK 51 root."; exit 1 }
-$adl = Join-Path $env:AIR_HOME "bin\adl.exe"
-foreach ($p in @($adl, $GamePath)) {
-    if (-not (Test-Path $p)) { Write-Error "Not found: $p"; exit 1 }
+if ($Bundle) {
+    # The descriptor's <filename> names the .exe; the Steam build and ours share it.
+    $launchExe = Join-Path $GamePath "The Banner Saga Factions.exe"
+    foreach ($p in @($GamePath, $launchExe)) {
+        if (-not (Test-Path $p)) { Write-Error "Not found: $p"; exit 1 }
+    }
+} else {
+    if (-not $env:AIR_HOME) { Write-Error "AIR_HOME is not set. Point it at the AIR SDK 51 root."; exit 1 }
+    $adl = Join-Path $env:AIR_HOME "bin\adl.exe"
+    foreach ($p in @($adl, $GamePath)) {
+        if (-not (Test-Path $p)) { Write-Error "Not found: $p"; exit 1 }
+    }
 }
 $swf = Join-Path $GamePath "app.game.air.swf"
 if (-not (Test-Path $swf)) {
@@ -154,6 +167,19 @@ if ($Landing -eq 'versus') {
 }
 $gameArgs += @("--versus_countdown", "0")
 Write-Host "Landing: $Landing" -ForegroundColor Cyan
+
+if ($Bundle) {
+    # A bundle's .exe writes nothing to the console, so there is no launcher copy of the log here:
+    # the game's own log is the only one. Wait for the game, so a caller (the test driver) sees
+    # this script end when the game ends, as it does under adl.
+    Write-Host "Launching the bundle: $launchExe" -ForegroundColor Green
+    Write-Host "In-game: press Ctrl+Shift+A for the player-vs-AI battle (only after your party has loaded)." -ForegroundColor DarkGray
+    Write-Host "The log is $env:APPDATA\TheBannerSagaFactions\Local Store\logs\A-0.log.txt - locked until the game exits." -ForegroundColor Yellow
+    $game = Start-Process -FilePath $launchExe -ArgumentList $gameArgs -WorkingDirectory $GamePath -PassThru
+    $game.WaitForExit()
+    Write-Host "The game exited (code $($game.ExitCode))." -ForegroundColor Yellow
+    exit 0
+}
 
 # root-dir = the install dir, so <content>app.game.air.swf</content> and all game assets resolve there.
 Write-Host "Launching under adl (root = $GamePath) ..." -ForegroundColor Green

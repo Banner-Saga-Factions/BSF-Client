@@ -36,8 +36,23 @@ the initiative bar, the way clicking behaves — is the same in both.
    build can't answer your requests — check you have nothing else running on Node first.
 2. **Launch the client** with `bsf-client\scripts\run-adl.ps1`. It builds a temporary descriptor and
    runs the compiled SWF under the modern debug runtime. It changes nothing in the Steam install.
-3. **Expect no sound.** The audio extension is stripped for this launcher, so the game falls back to a
+3. **Expect no sound under `adl`.** The audio extension is stripped for this launcher, so the game falls back to a
    silent driver and logs three `Error #1508` lines. That is normal here, not a fault.
+
+**To test with sound, or the way a player would start the game, launch the packaged bundle instead.**
+`build.ps1 -Target bundle` makes a self-contained game folder: [`build-workflow.md`](./build-workflow.md)
+→ "Windows self-contained bundle". Then pass `-Bundle` to the same launcher:
+
+```powershell
+.\scripts\run-adl.ps1 -Bundle -GamePath "$env:USERPROFILE\BSF-bundle-test\win32"
+```
+
+It uses the same arguments and the same "is this our build?" check, and starts the bundle's own `.exe`
+from its own folder. The bundle writes nothing to the console, so the game's own log (§5) is the only
+log. The test driver and `tests/first-battle.test.js` reach it with `BSF_BUNDLE=1` and `BSF_GAME_PATH`
+set to that `win32` folder. Measured 2026-10-16: the battle test passes 7 of 7 against the bundle.
+**If the sound seems missing, check Windows' own volume settings first.** In the first listening test
+the game logged a healthy sound engine while the PC's sound was off.
 
 The launcher's default arguments include `--versus_start`, which **puts you straight into matchmaking**
 rather than at camp. On a single-player test machine that search never finds anyone, which is harmless
@@ -518,7 +533,8 @@ code we compile, and our launcher now drives it (§1). Measured, it gets as far 
 into one battle and both declaring themselves ready, and no further: neither sees the other as ready, and
 the initiative bar dies on the way with a type-coercion error in the resource-SWF blind spot below. The
 shipped copy still completes two-player battles. Beyond that, our build differs in runtime (modern AIR
-rather than the shipped 2013 one) and in the missing extensions: no sound, no Steam.
+rather than the shipped 2013 one) and, under `adl`, in the missing extensions: no sound, no Steam. The
+packaged bundle (§1) has both.
 
 So: **run the bridge and single-client screen work against our build, and keep two-player on the shipped
 copy until the fault above is fixed.** The long-run direction is unchanged — our build is where this is

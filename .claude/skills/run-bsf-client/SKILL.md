@@ -41,6 +41,10 @@ folder.
 If any of those live elsewhere, say so with `BSF_GAME_PATH`, `BSF_SERVER_URL`,
 `BSF_USERNAME`, `BSF_STEAM_ID` rather than editing anything.
 
+**To drive the packaged bundle instead** (its own runtime, with sound), set `BSF_BUNDLE=1`
+and point `BSF_GAME_PATH` at the bundle's `win32` folder. Everything else here works
+unchanged. See `docs/build-workflow.md` → "Windows self-contained bundle".
+
 ## Setup: install our build over the shipped one
 
 **Do this first, and check it every time.** The Steam folder holds the shipped game

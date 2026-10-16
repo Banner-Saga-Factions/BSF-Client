@@ -83,8 +83,8 @@ Both players are fixed on purpose. A yardstick that changes is no yardstick.
 less, it uses the armor attack instead, because armor soaks up a strength hit (`Op_DamageStr` in the
 decompile uses armor as the defence). **It has not run yet**, so whether it is a fair yardstick is
 unproven. One thing to know before trusting it: in the 8-battle baseline's game log the computer chose
-162 strength attacks and 29 armor attacks, and 134 of those 191 were at level 2 or 3, the game's higher
-levels of an attack. Both scripted players only ever use level 1.
+162 strength attacks and 29 armor attacks, and 134 of those 191 were at level 2 or higher, the game's
+higher levels of an attack. Both scripted players only ever use level 1.
 
 How it finds a tile to attack from: it works out every tile within its movement from which the game's
 own range rule says the target can be hit. That rule measures the gap between the two blocks of tiles
@@ -111,10 +111,11 @@ armor at that moment. Both players and the opponent are deterministic, so differ
 differing dice.
 
 **Is finding a tile by trial and refusal fast enough? Yes. No `battle_reachable` command is needed.**
-A refused move or attack nearly always comes back in well under a tenth of a second. Across the baseline's 253 turns, a turn took
-a median of 4 commands and at worst 26. Most of a turn's time is spent waiting for the unit to finish walking (about
-two tiles a second), not choosing. What *did* need fixing was not speed but aim. Without knowing how big
-each unit is, 4 of the first 28 turns moved to a tile and then could not attack from it. So
+A refused move or attack comes back fast enough that trying again costs little. Across the baseline's
+253 player turns, a turn took a median of 4 commands and at worst 26. Most of a turn's time is spent
+waiting for the unit to finish walking (about two tiles a second), not choosing. What *did* need fixing
+was not speed but aim. Without knowing how big each unit is, 4 of the first 28 player turns moved to a
+tile and then could not attack from it. So
 `battle_state` now reports each unit's `size` ([`mod-bridge.md`](./mod-bridge.md) §5), and with it
 wasted moves dropped to 0 (0 of 86 in a probe run, 0 of 253 in the baseline).
 
@@ -122,12 +123,14 @@ wasted moves dropped to 0 (0 of 86 in a probe run, 0 of 253 in the baseline).
 
 - **Do not close the game while a unit is walking.** It hangs the game on the way out (issue #36). On a
   normal run the runner waits for a walk to finish before ending a turn, and closes only on a still
-  board. **A run that fails partway does not wait:** it closes the game wherever it stands, and a hung
-  game is forced shut after about 20 seconds, which loses the game's own log.
-- **A run that stops early still leaves a summary.** `runner-summary.txt` then starts with a line
-  beginning "RUN STOPPED EARLY". The per-battle lines are written as each battle ends, so
-  `--summary-only <results file>` works on any run. Pressing Ctrl-C restores the game's helper setting
-  and exits, but the code does not close the game, so look for a leftover game window.
+  board. **A run that fails partway does not wait:** it closes the game wherever it stands, and a game
+  that has not closed 20 seconds after being asked is forced shut, which may leave its own log cut
+  short. A cut-short log is still counted, so check the summary's "game closed" line for `BY FORCE`.
+- **A run that fails with an error still leaves a summary.** `runner-summary.txt` then starts with a
+  line beginning "RUN STOPPED EARLY". **Ctrl-C and a killed process leave none.** The per-battle lines
+  are written as each battle ends, so `--summary-only <results file>` gives the totals for any run that
+  finished at least one battle. Ctrl-C restores the game's helper setting and exits, but the code does
+  not close the game, so look for a leftover game window.
 - **Use a new `--out` folder each time.** The runner refuses a folder that already holds results.
 - **A battle with no winner after 400 turns is recorded as `unfinished`.** It is not counted for either
   side. Change the cap with `--turn-cap`.

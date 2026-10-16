@@ -44,8 +44,9 @@
 //
 // WHAT IT WRITES, in the output folder (default _build\runner\<date-time>):
 //   runner-results.jsonl  one line per battle: winner, turns, survivors per side
-//   runner-summary.txt    the totals, also printed at the end (written even if the
-//                         run stops early, with a line saying so)
+//   runner-summary.txt    the totals, also printed at the end (written when the run
+//                         fails with an error, with a line saying so; not on Ctrl-C
+//                         or a kill)
 //   runner-turns.jsonl    one line per player turn: what it tried and how long it took
 // plus the session's own transcript and run log in _build\tests\.
 //
@@ -547,8 +548,12 @@ async function startGame() {
   } catch (err) {
     // The caller only gets the session back on success, so close it here: a
     // timed-out wait would otherwise leave the game window open and keep this
-    // process alive.
-    await session.stop();
+    // process alive. If closing fails too, the start-up error is the one to report.
+    try {
+      await session.stop();
+    } catch (stopErr) {
+      say(`closing the game after the failed start-up also failed: ${stopErr.message}`);
+    }
     throw err;
   }
   return session;
@@ -562,9 +567,9 @@ async function startGame() {
  * "#1009 x0" for a log that could never have contained one. The game's own log
  * is A-<n>.log.txt, locked until the game exits and renumbered on every start
  * (driving-the-client.md §5), so this reads every one written since the run
- * began. It also counts the three "Error #1508" lines every run under adl
- * prints for the missing sound extension: seeing them proves the right log was
- * read, and their absence says the count beside them means nothing.
+ * began. It also counts the "Error #1508" lines that a game under adl usually
+ * prints three times for the missing sound extension, as a hint that the right
+ * log was read.
  */
 function countLogFlags(runStartedAt, gamesStarted) {
   const dir = path.join(process.env.APPDATA || '', 'TheBannerSagaFactions', 'Local Store', 'logs');
@@ -600,8 +605,9 @@ function countLogFlags(runStartedAt, gamesStarted) {
   if (totals.found === 0) {
     totals.reason = `no game log in ${dir} written since the run began mentions a practice battle`;
   } else if (totals.found !== gamesStarted) {
-    // A game closed by force writes no log, a locked one is skipped above, and a
-    // game the owner started by hand during the run would be counted too.
+    // A game closed by force may leave a log cut short or none, a locked one is
+    // skipped above, and a game the owner started by hand during the run would be
+    // counted too.
     totals.warning = `found ${totals.found} game logs for ${gamesStarted} games the runner started`;
   }
   return totals;
@@ -679,6 +685,7 @@ async function main() {
   let session = null;
   let gamesStarted = 0;
   let failure = null;
+  let closeFailure = null;
   let previousBattleId;
   let restartNext = false;
 
@@ -741,8 +748,13 @@ async function main() {
     // After a normal run nothing is walking: every battle above ends on a
     // finished board or on our own turn with a still board. After a failure the
     // game is closed wherever it stands, which can hang it on the way out
-    // (issue #36); the session then forces it closed.
-    await stopSession();
+    // (issue #36); the session then forces it closed. A failure while closing is
+    // kept apart so that it cannot hide the run's own error or skip the summary.
+    try {
+      await stopSession();
+    } catch (err) {
+      closeFailure = err;
+    }
   }
 
   const flags = countLogFlags(runStartedAt, gamesStarted);
@@ -750,6 +762,9 @@ async function main() {
     ...(failure
       ? [`RUN STOPPED EARLY after ${results.length} of ${opts.battles} battles: ` +
         `${String(failure.message).split('\n')[0]}`]
+      : []),
+    ...(closeFailure
+      ? [`CLOSING THE GAME FAILED: ${String(closeFailure.message).split('\n')[0]}`]
       : []),
     summarise(results),
     summariseTurns(allTurns),
@@ -766,6 +781,7 @@ async function main() {
   fs.writeFileSync(summaryPath, summary + '\n');
   console.log('\n' + summary);
   if (failure) throw failure;
+  if (closeFailure) throw closeFailure;
 }
 
 main().catch(err => {

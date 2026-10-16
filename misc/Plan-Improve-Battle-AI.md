@@ -55,7 +55,7 @@ Before the baseline, four probe battles with the `strength` player all went to t
 of its 6 units left. That is what prompted the yardstick change above.
 
 **Check before relying on `armor-first`.** In the baseline run's game log, 134 of the computer's 191
-attack choices were at level 2 or 3, and 162 were strength attacks against 29 armor attacks. Both
+attack choices were at level 2 or higher, and 162 were strength attacks against 29 armor attacks. Both
 scripted players only use level 1. So armor soaking up strength hits may not be the whole reason the
 plain player loses, and `armor-first` may not close the gap. Wave 2's `armor-first` baseline will show it.
 
@@ -140,8 +140,9 @@ through `scripts/verify-and-commit.ps1`. Each wave adds rows to *Measurements* a
   - **Each battle gets new dice.** An offline battle has no id (`battleId` is null), so the game seeds
     its dice from its clock. Every battle's trace differed.
   - **Trial and refusal is fast enough; no `battle_reachable` command is needed.** A refusal comes
-    back in well under a tenth of a second nearly every time, and a turn takes a median of 4 commands (worst 26, over 253 turns).
-    What it did need was each unit's size, without which 4 of the first 28 turns went to a tile the unit could not attack from.
+    back fast enough that trying again costs little, and a turn takes a median of 4 commands (worst 26, over 253 player turns).
+    What it did need was each unit's size, without which 4 of the first 28 player turns went to a tile the unit could not
+    attack from.
   - **The plain scripted player is too weak to measure against**, which revised the bar (above).
 - **Branch:** `feat/ai-match-runner-31`.
 

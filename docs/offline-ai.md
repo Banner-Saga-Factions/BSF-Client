@@ -126,7 +126,8 @@ There are two brains, and a switch picks between them (`ModAiBrain`, set over th
 `set_ai_brain`: [`mod-bridge.md`](./mod-bridge.md) §5). **`dredge`** is everything above. **`search`**
 (`AiModuleSearch`, `engine/battle/fsm/aimodule/AiModuleSearch.as`) thinks the same way, then, before it
 commits, asks of its best plans: *"if I do this, what is the worst the enemy who acts next can do back
-to me?"* Steps 1 to 3 are unchanged; only step 4's choice is different:
+to me?"* **`search` is the default** since Wave 4 measured it (below); `dredge` stays one bridge
+command away. Steps 1 to 3 are unchanged; only step 4's choice is different:
 
 1. Take the **6 best different plans**. Plans that end on the same tile with the same ability, level
    and target count once, because the planner makes the same "rest" plan once for every enemy.
@@ -322,7 +323,7 @@ The full player-vs-AI public-release picture (all the crash fixes and open items
   2026-08-19, it works from the matchmaking screen, and the key does no checking of where you are. The
   real constraint runs the other way: press it only **after your party has loaded**, or it fails on a
   missing reference. (This is our own added key, so it exists in a build made from this repository, not
-  in the shipped Steam copy.) The key plays at normal speed against the build's default brain. To pick
+  in the shipped Steam copy.) The key plays at normal speed against the default brain, `search`. To pick
   the brain and the speed, start the battle from a helper script instead:
   [`match-runner.md`](./match-runner.md) §1, "Playing it yourself against a chosen brain".
 

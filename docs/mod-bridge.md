@@ -186,7 +186,7 @@ A bad value answers `scale must be a whole number from 1 to 8`.
 
 **`set_ai_brain` picks how the offline computer opponent thinks** (added for issue #31, Wave 4, so the
 match runner can compare two brains on one build). `dredge` is the planner the game shipped with, plus
-issue #31's fixes; `search` adds a one-move look-ahead ([`offline-ai.md`](./offline-ai.md) §4, "The
+issue #31's fixes; `search`, the default, adds a one-move look-ahead ([`offline-ai.md`](./offline-ai.md) §4, "The
 look-ahead brain"). The game reads the setting as each computer turn starts, so a change takes effect
 from the next computer turn. It is allowed at any time: only an offline battle has a computer opponent.
 Like the speed, it lasts until it is set again or the game restarts. Any other value answers

@@ -24,8 +24,12 @@ package engine.mod
 
       public static const SEARCH:String = "search";
 
-      /** True for the look-ahead brain. */
-      public static var lookahead:Boolean = false;
+      /**
+       * True for the look-ahead brain, the default since Wave 4: on one build, 4 battles per brain
+       * on each test account, it kept as many or more of its units alive with no new errors
+       * (misc/Plan-Improve-Battle-AI.md, Measurements).
+       */
+      public static var lookahead:Boolean = true;
 
       public function ModAiBrain()
       {

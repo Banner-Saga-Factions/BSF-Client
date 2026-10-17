@@ -59,7 +59,7 @@ Two settings decide what a battle is like, and they mix freely:
 - **The computer's brain**, `--brain`. `dredge` is the planner the game shipped with, plus issue #31's
   fixes. `search` is the same planner plus a one-move look-ahead: before it commits, it asks what the
   enemy who acts next could do back to it ([`offline-ai.md`](./offline-ai.md) §4, "The look-ahead
-  brain"). Leave `--brain` out and the run keeps whatever the game is set to, and writes that down. The
+  brain"). `search` is the game's default. Leave `--brain` out and the run keeps whatever the game is set to, and writes that down. The
   brain is switched before each battle starts, so one build can measure both.
 - **The speed**, `--speed`, from 1 (normal) to 8. It changes how fast the battle plays on screen, not
   what either side decides. ×4 is about twice as fast in practice (§4).
@@ -97,8 +97,8 @@ set times, and you click everything else.
    ([BSF-Client #72](https://github.com/Banner-Saga-Factions/BSF-Client/issues/72)). The brain, too,
    lasts until the game restarts.
 
-Without a script, `Ctrl+Shift+A` starts a practice battle at normal speed, against the build's default
-brain ([`offline-ai.md`](./offline-ai.md) §7, "Try it yourself").
+Without a script, `Ctrl+Shift+A` starts a practice battle at normal speed, against the default brain,
+`search` ([`offline-ai.md`](./offline-ai.md) §7, "Try it yourself").
 
 ## 2. What it writes
 

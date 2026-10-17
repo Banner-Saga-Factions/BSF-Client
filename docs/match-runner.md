@@ -125,7 +125,11 @@ fingerprint differed (3 of 3 in a probe run, then 8 of 8 in the baseline).
 battles 1 and 3 of the 4-battle `armor-first` baseline, and 4 of the 5 battles on the Wave 2 build.
 All four baseline battles matched for their first 14 turns. Damage is mostly fixed arithmetic and both
 sides choose by fixed rules, so a different seed changes a battle only when a roll actually decides
-something. (Why rolls decide so little has not been looked into.) **So N battles are not N independent samples.**
+something. Rolls rarely do: a basic strength attack rolls the dice only when the target's armor would
+bring the hit to 0 or below, and then only as a chance to miss (`Op_DamageStr.as:126-141`). The other
+places in the battle code that roll are particular abilities (`OpDef_ExecAbility`, `Op_BloodyFlail`,
+`Op_SlagAndBurnTileCross`) that these runs' basic attacks never use. Found in the Wave 2 review.
+**So N battles are not N independent samples.**
 Read the summary's "distinct battle traces" before trusting a win rate. Making battles vary is the
 first job of issue #31's Wave 3.
 

@@ -117,13 +117,13 @@ player's choices, but each battle's dice come from the clock.
 **Wave 4 compared both brains on one build (2026-10-17)**, switched over the bridge before each battle,
 with 3a's and 3b's seeds. The look-ahead (`search`) matched or beat the planner without it (`dredge`) on
 computer survivors on both accounts: 3.25 against 0.50 on `test2`, 3.75 against 3.25 on `443456`. It
-had no suicides against 3 for `dredge`, and no errors: no `#1009`, no "went wrong while faking", and no
+had no suicides in the 8 measured battles against 3 for `dredge` (the one-battle smoke run of the same build had 1), and no errors: no `#1009`, no "went wrong while faking", and no
 failed look-ahead in 233 computer turns. It changed the normal choice on 12 of 110 turns on `test2` and
 4 of 123 on `443456`. **Read the `test2` gap with care:** the same `dredge` brain on the same seed won
 4 of 4 with 3.50 survivors in 3b's run, and 1 of 4 with 0.50 here. Nothing in `dredge` changed between
 the two (the seam only moves "take the top plan" into its own function). So 4 battles on `test2` swing
 widely, and that account's gap is mostly noise. The `443456` gap is small. What the runs do show is
-that the look-ahead costs nothing measurable and breaks nothing.
+that the look-ahead breaks nothing and costs about a quarter of a second per computer turn.
 
 ## What reading the code found (2026-10-16; findings 1–4 fixed and measured in Wave 2)
 
@@ -346,14 +346,14 @@ judged mainly by **computer survivors**, the bar's tie-breaker.
   4. **The reply's route is found on a board that is not told about our imagined move**, since the
      unit's move events are muted while imagining. Distances use the imagined position, but the tile
      we leave still counts as taken. Filed for Wave 4b (point 5) by the owner.
-  5. **We know who replies.** `battleFsm.order.aliveOrder` starts with the unit taking its turn, then
-     alternates sides. In the smoke battle, each reply came from the unit that took the next turn.
+  5. **We know who replies.** `battleFsm.order.aliveOrder` starts with the unit taking its turn, and the
+     first entry on the other team is the next enemy to act.
 - **Measured** (rows in *Measurements*): the stop rule is met. `search` matched or beat `dredge` on
   computer survivors on both accounts, with no new errors, so `ModAiBrain` defaults to `search` in the
   wave's last commit. Each look takes about 40 ms, so about a quarter of a second per computer turn.
 - **The owner played it (2026-10-17)**, one battle on `443456` against the default build (no helper
   connected, so the default brain): the owner won in 46 turns. The game log shows the look-ahead on
-  all 23 computer turns (131 plans looked at), one changed choice, and no errors.
+  22 of its 23 computer turns (the 23rd had no plan to look at; 131 plans looked at), one changed choice, and no errors.
 - **Next:** Wave 4b below, or close #31 (owner's call).
 - **Branch:** `feat/ai-lookahead-31`, stacked on `feat/ai-specials-31`. **Model:** Opus, high.
 

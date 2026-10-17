@@ -224,7 +224,7 @@ the server logged only its keep-alive poll, and not one battle route.
 > cheating. The safety property belongs to the offline battle, not to these commands.
 
 **No battle command ever throws at the host.** A fault comes back as a described refusal rather than an
-`ERROR` line. The reply shapes differ, though: the four commands that *do* something answer
+`ERROR` line. The reply shapes differ, though: the six commands that *do* something answer
 `{"ok":true,…}` or `{"ok":false,"reason":"…"}`, while `battle_state` answers a description with no `ok`
 field at all.
 
@@ -300,7 +300,7 @@ again would make the engine log a re-termination error the host did nothing wron
 > answered `{"ok":true,"turn":1,"next":2,"state":"BattleStateTurnLocal"}` and the battle carried on
 > normally for three more turns afterwards. Both are correct, because there is a **window**: the computer
 > commits its turn only when `performAction` runs, which is scheduled half a second after its walk
-> *finishes* (`BattleStateTurnAi.as:39-43`). Ask early and you take the turn away from it; ask late and
+> *finishes* (`BattleStateTurnAi.as:51`). Ask early and you take the turn away from it; ask late and
 > you get the refusal. A host cannot easily control which, so **do not build a test on either outcome** —
 > handle both replies.
 >

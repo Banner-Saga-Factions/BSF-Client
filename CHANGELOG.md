@@ -18,8 +18,8 @@ Before it commits, it now also asks what the enemy who acts next could do back t
 move down by that much. So it is less likely to leave a unit where the next enemy can finish it. The
 old way of thinking is still there behind a developer switch, which the match runner uses to compare
 the two on the same build. In 4 test battles per brain on each of two test accounts, the new one kept
-more of its units alive (3.25 of 6 against 0.50 on one account, 3.75 against 3.25 on the other),
-walked into none of the free kills the runner counts, and showed no errors. The first account's numbers swing widely from run to
+as many or more of its units alive (3.25 of 6 against 0.50 on one account, 3.75 against 3.25 on the other),
+walked into none of the free kills the runner counts in those battles, and showed no errors. The first account's numbers swing widely from run to
 run, so most of that gap is chance. The docs now also say how to start practice battles with a chosen
 brain and speed, against the match runner's scripted player or by hand.
 

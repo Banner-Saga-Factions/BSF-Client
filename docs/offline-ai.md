@@ -162,15 +162,19 @@ move lives in. Instead the reply uses the game's attack rule, read off the prete
 (`BattleEntity.setPos` does nothing then), so the unit is moved *before* pretend mode starts and moved
 back *after* it ends, the order `getStatChange` already uses.
 
-**The weights.** The reply is scored in the planner's own points, so it can be taken straight off a
-plan's score:
+**The weights.** The reply is scored in points similar to the planner's own, and taken off a plan's
+score. They are not the same: the planner doubles the damage term when its hit takes the target to or
+below the damage, adds a bonus for strength already lost, and subtracts for the target's miss chance;
+the reply has none of those, so threats against us count a little less than our own hits do. The
+reply also ignores `MIN_STRENGTH_ATTACK`, `NEVER_MISS`, damage resistance, and, for an armor attack,
+current stats (it reads base):
 
 | Term | Points | Where it comes from |
 | ---- | ------ | ------------------- |
 | Strength the reply takes from one of ours | 45 per point, times the chance it lands | `AiPlan`'s strength damage weight |
 | The reply kills one of ours (damage ≥ its strength) | + 200 + its willpower ÷ 3 + strength + armor-break + armor ÷ 2, times the chance it lands | `AiPlan.computeWeight`'s kill bonus |
 | Armor the reply takes from one of ours | 20 per point | `AiPlan`'s armor damage weight |
-| How much of the reply comes off the plan | `WEIGHT_REPLY` = 1 (all of it) | Wave 4's starting value; 0.5 is the one retune the plan allows if it turns timid |
+| How much of the reply comes off the plan | `WEIGHT_REPLY` = 1 (all of it) | Wave 4's starting value |
 
 The older "danger from enemies in reach" term (§4, step 3) stays: it covers every enemy roughly, where
 the reply covers the next one exactly.

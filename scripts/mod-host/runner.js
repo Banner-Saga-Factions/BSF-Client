@@ -724,10 +724,14 @@ async function chooseBrain(session, opts) {
     if (opts.brain) {
       throw new Error(`the game would not switch to the ${opts.brain} brain: ${err.message}`);
     }
+    if (!/unknown command/.test(err.message)) {
+      throw new Error(`could not ask the game which brain it uses: ${err.message}`);
+    }
     return 'unknown (this build has no set_ai_brain)';
   }
   if (!answer || !answer.ok) {
-    throw new Error(`the game would not switch to the ${opts.brain} brain: ${answer && answer.reason}`);
+    const what = opts.brain ? `switch to the ${opts.brain} brain` : 'say which brain it uses';
+    throw new Error(`the game would not ${what}: ${answer && answer.reason}`);
   }
   return answer.brain;
 }

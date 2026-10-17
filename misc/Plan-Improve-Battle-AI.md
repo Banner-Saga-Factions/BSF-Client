@@ -385,6 +385,15 @@ logs; not yet fixed:
    imagined one. Distances use the imagined position, so only the route is wrong. Read from code, not
    measured. A fix moves the unit's place in that map for the length of the look, without telling the
    on-screen view, and puts it back in the same `finally`.
+6. **The look-ahead's reply score leaves out some of the game's attack rules** (found by the Wave 4
+   review; the reply is a little off, never wrong in kind). It ignores `MIN_STRENGTH_ATTACK`,
+   `NEVER_MISS`, the target's damage resistance, and, for an armor attack, current stats (it reads base
+   values). `calculatePunctureBonus` can go negative against a buffed target, where `Op_DamageStr` only
+   adds it when above 0. And the planner doubles its strength term when a hit takes the target to or
+   below the damage, adds bonuses for strength and armor already lost, and subtracts for miss chance;
+   the reply has none of these, so a threat against us can count for much less than the same hit by
+   us. Left alone in Wave 4 so the measured runs match the code. A fix is to clamp the puncture bonus
+   at 0 and score the reply with the planner's own weight functions, then re-measure.
 
 **Proposed changes**, measured with the same 4-battle runs on both accounts plus two new runner counts,
 "stalled computer turns" (no move and no action while enemies remain) and "boxed-in computer turns" (no
@@ -400,6 +409,7 @@ route to any enemy):
 - if those are not enough, a "don't block" check on the best 2–3 plans: does the end tile cut a friend
   who has not yet acted off from its best target?
 - point 5: tell the board's tile map where the imagined unit stands during the look-ahead.
+- point 6: close the gaps between the reply score and the game's attack rule, then re-measure.
 
 It changes the planner both brains share, so it is its own wave, stacked on `feat/ai-lookahead-31`
 (Opus, high), and not part of Wave 4's comparison.

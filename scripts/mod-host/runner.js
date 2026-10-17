@@ -4,10 +4,10 @@
 // WHAT THIS IS FOR. Issue #31 is about making the computer opponent stronger.
 // "Stronger" needs a number, and this is where the number comes from. The runner
 // starts the real game, starts a practice battle, plays the player's side with a
-// fixed and deliberately simple strategy, writes down how the battle ended, and
+// deliberately simple strategy, writes down how the battle ended, and
 // goes again. Run it before and after a change to the opponent, and compare.
 //
-// THE PLAYER IT PLAYS. Fixed and simple, so that it stays the same yardstick
+// THE PLAYER IT PLAYS. Simple, so that it stays the same yardstick
 // from one measurement to the next:
 //   1. Hit the weakest enemy it can reach this turn (lowest strength first),
 //      with the basic strength attack.
@@ -20,13 +20,14 @@
 // 2026-10-16, the plain player lost 8 battles of 8 to the unchanged computer
 // opponent; docs/match-runner.md §3 has how armor-first fared.
 //
-// VARIETY. Both sides choosing by fixed rules made battles replay move for move
+// VARIETY. Both sides choosing by fixed rules made battles replay turn for turn
 // (docs/match-runner.md §4), so N battles were not N samples. With --variety P
 // (default 25), at each choice the player makes (which enemy, which tile to
 // attack from, which tile to step to) it takes its second-best option instead
 // of its best, P times in 100, and it breaks exact ties at random. The random
-// numbers come from --seed, written on every result, so any run, or any one
-// battle of it, can be played again exactly. --variety 0 is the old fixed play.
+// numbers come from --seed, written on every result. A seed does not yet bring a
+// run back exactly (docs/match-runner.md §3 says why). --variety 0 is the old
+// fixed play.
 //
 // "Can reach" is worked out with the game's own range rule and then put to the
 // game: a move or an attack it would not allow comes back refused with a
@@ -49,9 +50,10 @@
 //   node scripts\mod-host\runner.js --battles 5
 //   node scripts\mod-host\runner.js --player armor-first
 //   node scripts\mod-host\runner.js --speed 4         # play each battle about 2x faster
-//   node scripts\mod-host\runner.js --seed 1234       # repeat an earlier run's choices
+//   node scripts\mod-host\runner.js --seed 1234       # start the random choices from this seed
 //   node scripts\mod-host\runner.js --variety 0       # the old fixed play, no randomness
 //   node scripts\mod-host\runner.js --steam-id 443456 # sign in as another local account
+//   node scripts\mod-host\runner.js --steam-id 443456 --username NAME   # also set the name it signs in with
 //   node scripts\mod-host\runner.js --out _build\runner\my-run
 //   node scripts\mod-host\runner.js --summary-only _build\runner\my-run\runner-results.jsonl
 //
@@ -89,7 +91,7 @@ const PATIENCE = {
 // two sides both refusing to engage cannot hold a run up for ever.
 const DEFAULT_TURN_CAP = 400;
 
-// The fixed players the runner can play (see the top of this file).
+// The players the runner can play (see the top of this file).
 const PLAYERS = ['strength', 'armor-first'];
 
 // The fastest the game's developer fast-forward allows (ModGameSpeed.MAX_SCALE).
@@ -153,7 +155,10 @@ function parseArgs(argv) {
       opts.steamId = next();
       if (!/^\d+$/.test(opts.steamId)) throw new Error(`--steam-id needs digits, not "${opts.steamId}"`);
     }
-    else if (arg === '--username') opts.username = next();
+    else if (arg === '--username') {
+      opts.username = next();
+      if (!opts.username) throw new Error('--username needs a name');
+    }
     else if (arg === '--out') opts.out = next();
     else if (arg === '--turn-cap') opts.turnCap = wholeNumber();
     else if (arg === '--summary-only') opts.summaryOnly = next();
@@ -198,7 +203,7 @@ function seededRandom(seed) {
   };
 }
 
-/** Battle n's own seed, so one battle can be replayed without the ones before it. */
+/** Battle n's own seed: each battle of a run gets a different one. */
 function battleSeed(runSeed, index) {
   return (runSeed + Math.imul(index, 0x9E3779B1)) >>> 0;
 }
@@ -357,7 +362,8 @@ async function playTurn(session, state, opts, choose) {
   }
 
   // Weakest first; nearest breaks a tie, then a random tie key (VARIETY), then
-  // the id, so the choice never depends on the order the game lists units in.
+  // the id. (The keys are dealt out in the order the game lists units, which
+  // changes from launch to launch: docs/match-runner.md §3.)
   // Then, now and again, the second-weakest goes first instead.
   const enemyKey = choose.tieKeys(enemies);
   const byWeakness = choose.nearBest(enemies.slice().sort((a, b) =>
@@ -704,7 +710,7 @@ function simpleHash(text) {
 async function startGame(opts) {
   // Pin the landing: see first-battle.test.js for why it matters. The account is
   // the session's default (test2) unless --steam-id or --username says otherwise;
-  // the server finds the account by the id, so the name is only for show.
+  // the server finds the account by the id, and sign-in saves the name it is given.
   const account = {};
   if (opts.steamId) account.steamId = opts.steamId;
   if (opts.username) account.username = opts.username;

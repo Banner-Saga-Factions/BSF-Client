@@ -14,9 +14,10 @@ been removed. The current download is on the
 ### The match runner's practice battles now play out differently each time
 
 The match runner measures the computer opponent by playing practice battles against it. Its battles kept
-replaying move for move, so eight battles were really one or two. Its scripted player now sometimes takes
+replaying turn for turn, so four battles were really two or three. Its scripted player now sometimes takes
 its second-best option instead of its best, and breaks ties at random. The random choices come from a
-recorded number, so any run can be repeated exactly. The old fixed play is still one switch away. The
+recorded number, but a repeat run can still differ, because the game lists its units in a different order
+each time it starts. The old fixed play is still one switch away. The
 runner can also sign in as another local test account, whose units have special abilities to test with.
 In two runs of eight, every battle differed. Nothing about how the opponent decides has changed.
 

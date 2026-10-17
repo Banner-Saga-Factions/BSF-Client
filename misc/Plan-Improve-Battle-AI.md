@@ -345,13 +345,16 @@ judged mainly by **computer survivors**, the bar's tie-breaker.
      So it is moved before pretend mode starts and moved back after it ends, as `getStatChange` does.
   4. **The reply's route is found on a board that is not told about our imagined move**, since the
      unit's move events are muted while imagining. Distances use the imagined position, but the tile
-     we leave still counts as taken. Accepted as a small error.
+     we leave still counts as taken. Filed for Wave 4b (point 5) by the owner.
   5. **We know who replies.** `battleFsm.order.aliveOrder` starts with the unit taking its turn, then
      alternates sides. In the smoke battle, each reply came from the unit that took the next turn.
 - **Measured** (rows in *Measurements*): the stop rule is met. `search` matched or beat `dredge` on
   computer survivors on both accounts, with no new errors, so `ModAiBrain` defaults to `search` in the
   wave's last commit. Each look takes about 40 ms, so about a quarter of a second per computer turn.
-- **Next:** the owner plays it as the final check. #31 can then close, or go on to Wave 4b below.
+- **The owner played it (2026-10-17)**, one battle on `443456` against the default build (no helper
+  connected, so the default brain): the owner won in 46 turns. The game log shows the look-ahead on
+  all 23 computer turns (131 plans looked at), one changed choice, and no errors.
+- **Next:** Wave 4b below, or close #31 (owner's call).
 - **Branch:** `feat/ai-lookahead-31`, stacked on `feat/ai-specials-31`. **Model:** Opus, high.
 
 ### Wave 4b (proposed 2026-10-17): units that get stuck, or box in a friend
@@ -375,6 +378,13 @@ logs; not yet fixed:
    It ended the turn where it stood.
 4. **The route-finder aims only at the tiles touching the target** (`BattleMove.pathToRect`), within
    the unit's move plus 20. If none is free, it returns no route at all, not a partial one.
+5. **The look-ahead's reply routes over a stale board** (Wave 4 finding 4, filed here by the owner).
+   While imagining, the unit's move events are muted, so the board's map of who stands where
+   (`BattleBoardTiles`) still shows it on the tile it would leave and not on the tile it would reach.
+   So the replying enemy may be judged unable to pass the vacated tile, or able to walk through the
+   imagined one. Distances use the imagined position, so only the route is wrong. Read from code, not
+   measured. A fix moves the unit's place in that map for the length of the look, without telling the
+   on-screen view, and puts it back in the same `finally`.
 
 **Proposed changes**, measured with the same 4-battle runs on both accounts plus two new runner counts,
 "stalled computer turns" (no move and no action while enemies remain) and "boxed-in computer turns" (no
@@ -389,6 +399,7 @@ route to any enemy):
   it free, counting tiles a 2×2 friend could use;
 - if those are not enough, a "don't block" check on the best 2–3 plans: does the end tile cut a friend
   who has not yet acted off from its best target?
+- point 5: tell the board's tile map where the imagined unit stands during the look-ahead.
 
 It changes the planner both brains share, so it is its own wave, stacked on `feat/ai-lookahead-31`
 (Opus, high), and not part of Wave 4's comparison.

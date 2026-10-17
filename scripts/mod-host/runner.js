@@ -18,7 +18,16 @@
 // use the armor attack instead. Armor soaks up a strength hit (damage is
 // roughly the attacker's strength minus the target's armor). Measured
 // 2026-10-16, the plain player lost 8 battles of 8 to the unchanged computer
-// opponent; whether this second player is a fairer yardstick is not measured yet.
+// opponent; docs/match-runner.md §3 has how armor-first fared.
+//
+// VARIETY. Both sides choosing by fixed rules made battles replay move for move
+// (docs/match-runner.md §4), so N battles were not N samples. With --variety P
+// (default 25), at each choice the player makes (which enemy, which tile to
+// attack from, which tile to step to) it takes its second-best option instead
+// of its best, P times in 100, and it breaks exact ties at random. The random
+// numbers come from --seed, written on every result, so any run, or any one
+// battle of it, can be played again exactly. --variety 0 is the old fixed play.
+//
 // "Can reach" is worked out with the game's own range rule and then put to the
 // game: a move or an attack it would not allow comes back refused with a
 // reason, and the runner tries the next option. The arithmetic only decides
@@ -40,6 +49,9 @@
 //   node scripts\mod-host\runner.js --battles 5
 //   node scripts\mod-host\runner.js --player armor-first
 //   node scripts\mod-host\runner.js --speed 4         # play each battle about 2x faster
+//   node scripts\mod-host\runner.js --seed 1234       # repeat an earlier run's choices
+//   node scripts\mod-host\runner.js --variety 0       # the old fixed play, no randomness
+//   node scripts\mod-host\runner.js --steam-id 443456 # sign in as another local account
 //   node scripts\mod-host\runner.js --out _build\runner\my-run
 //   node scripts\mod-host\runner.js --summary-only _build\runner\my-run\runner-results.jsonl
 //
@@ -85,6 +97,10 @@ const PLAYERS = ['strength', 'armor-first'];
 // either side decides; docs/match-runner.md §4 says what the first trial showed.
 const MAX_SPEED = 8;
 
+// The chance, in percent, that the player takes its second-best option at a
+// choice (see VARIETY at the top of this file).
+const DEFAULT_VARIETY = 25;
+
 // ---------------------------------------------------------------------------
 // Arguments
 // ---------------------------------------------------------------------------
@@ -97,6 +113,12 @@ function parseArgs(argv) {
     summaryOnly: null,
     player: 'strength',
     speed: 1,
+    // Picked from the clock in main() when not given, and printed.
+    seed: null,
+    variety: DEFAULT_VARIETY,
+    // null leaves the session's own default account (test2, 123456).
+    steamId: null,
+    username: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -116,7 +138,22 @@ function parseArgs(argv) {
       }
       return parseInt(text, 10);
     };
+    // A whole number from 0 up to `most`.
+    const countFromZero = most => {
+      const text = next();
+      if (!/^\d+$/.test(text) || Number(text) > most) {
+        throw new Error(`${arg} needs a whole number from 0 to ${most}, not "${text}"`);
+      }
+      return Number(text);
+    };
     if (arg === '--battles') opts.battles = wholeNumber();
+    else if (arg === '--seed') opts.seed = countFromZero(0xFFFFFFFF);
+    else if (arg === '--variety') opts.variety = countFromZero(100);
+    else if (arg === '--steam-id') {
+      opts.steamId = next();
+      if (!/^\d+$/.test(opts.steamId)) throw new Error(`--steam-id needs digits, not "${opts.steamId}"`);
+    }
+    else if (arg === '--username') opts.username = next();
     else if (arg === '--out') opts.out = next();
     else if (arg === '--turn-cap') opts.turnCap = wholeNumber();
     else if (arg === '--summary-only') opts.summaryOnly = next();
@@ -142,6 +179,52 @@ function say(message) {
 }
 
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+// ---------------------------------------------------------------------------
+// Repeatable randomness
+// ---------------------------------------------------------------------------
+
+/**
+ * Random numbers from 0 up to 1 that always come out the same for the same
+ * seed (the small "mulberry32" generator), unlike Math.random.
+ */
+function seededRandom(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Battle n's own seed, so one battle can be replayed without the ones before it. */
+function battleSeed(runSeed, index) {
+  return (runSeed + Math.imul(index, 0x9E3779B1)) >>> 0;
+}
+
+/**
+ * How the player picks among options for one battle. With variety 0 there is
+ * no randomness at all: ties keep the old fixed order and the best option is
+ * always tried first.
+ */
+function makeChooser(seed, variety) {
+  const random = variety > 0 ? seededRandom(seed) : null;
+  return {
+    /** One random number per item, to break exact ties; all 0 with variety off. */
+    tieKeys(items) {
+      const keys = new Map();
+      for (const item of items) keys.set(item, random ? random() : 0);
+      return item => keys.get(item);
+    },
+    /** The list as ranked, or with its first two swapped, `variety` times in 100. */
+    nearBest(list) {
+      if (!random || list.length < 2) return list;
+      if (random() * 100 >= variety) return list;
+      return [list[1], list[0], ...list.slice(2)];
+    },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Reading the board
@@ -233,7 +316,7 @@ function tilesWithin(me, movement) {
  * the record answers the wave's third question: is finding a tile by trial and
  * refusal fast enough?
  */
-async function playTurn(session, state, opts) {
+async function playTurn(session, state, opts, choose) {
   const started = Date.now();
   const record = {
     turn: state.turn.number,
@@ -273,12 +356,15 @@ async function playTurn(session, state, opts) {
     return record;
   }
 
-  // Weakest first; nearest breaks a tie, so the choice never depends on the
-  // order the game happens to list units in.
-  const byWeakness = enemies.slice().sort((a, b) =>
+  // Weakest first; nearest breaks a tie, then a random tie key (VARIETY), then
+  // the id, so the choice never depends on the order the game lists units in.
+  // Then, now and again, the second-weakest goes first instead.
+  const enemyKey = choose.tieKeys(enemies);
+  const byWeakness = choose.nearBest(enemies.slice().sort((a, b) =>
     (stat(a, 'strength') - stat(b, 'strength')) ||
     (rangeBetween(footprint(me), footprint(a)) - rangeBetween(footprint(me), footprint(b))) ||
-    (a.id < b.id ? -1 : 1));
+    (enemyKey(a) - enemyKey(b)) ||
+    (a.id < b.id ? -1 : 1)));
 
   // The basic attack's reach. The game reports a unit's range as one number;
   // a bow cannot shoot a unit standing right next to it, so anything that
@@ -313,18 +399,20 @@ async function playTurn(session, state, opts) {
 
   // 1. The weakest enemy reachable this turn: from where we stand, or after
   // one move. The tiles tried are those the game's own range rule says hit
-  // the enemy, the shortest walk first.
+  // the enemy, the shortest walk first (now and again the second-shortest).
   for (const enemy of byWeakness) {
     if (await attack(enemy)) break;
     const target = footprint(enemy);
-    const tiles = candidates
-      .filter(t => {
-        const r = rangeBetween(footprint(me, t), target);
-        return r >= minRange && r <= maxRange;
-      })
+    const inRange = candidates.filter(t => {
+      const r = rangeBetween(footprint(me, t), target);
+      return r >= minRange && r <= maxRange;
+    });
+    const tileKey = choose.tieKeys(inRange);
+    const tiles = choose.nearBest(inRange
       .sort((a, b) =>
         (gridDistance(me.tile, a) - gridDistance(me.tile, b)) ||
-        (a.x - b.x) || (a.y - b.y));
+        (tileKey(a) - tileKey(b)) ||
+        (a.x - b.x) || (a.y - b.y)));
     for (const tile of tiles) {
       const moved = await ask('battle_move', tile);
       if (!moved.ok) continue;
@@ -344,18 +432,22 @@ async function playTurn(session, state, opts) {
 
   // 2. Nobody reachable: step toward the nearest enemy — the tile that leaves
   // the smallest gap, the shortest walk breaking a tie, and only ever closer.
+  // Now and again the second-best such tile is tried first.
   if (!record.action && !record.moved && candidates.length > 0) {
     const gapFrom = tile =>
       Math.min(...enemies.map(e => rangeBetween(footprint(me, tile), footprint(e))));
     const here = gapFrom(me.tile);
-    const tiles = candidates
+    const closer = candidates
       .map(t => ({ t, gap: gapFrom(t) }))
-      .filter(c => c.gap < here)
+      .filter(c => c.gap < here);
+    const stepKey = choose.tieKeys(closer);
+    const tiles = choose.nearBest(closer
       .sort((a, b) =>
         (a.gap - b.gap) ||
         (gridDistance(me.tile, a.t) - gridDistance(me.tile, b.t)) ||
+        (stepKey(a) - stepKey(b)) ||
         (a.t.x - b.t.x) || (a.t.y - b.t.y))
-      .map(c => c.t);
+      .map(c => c.t));
     for (const tile of tiles) {
       const moved = await ask('battle_move', tile);
       if (moved.ok) {
@@ -459,11 +551,16 @@ async function playBattle(session, index, opts, previousBattleId) {
     secondsToDeploy: null,
     seconds: null,
     speed: opts.speed,
+    account: session.options.steamId,
+    seed: opts.seed,
+    battleSeed: battleSeed(opts.seed, index),
+    variety: opts.variety,
     computerSuicides: 0,
     suicides: [],
     trace: [],
   };
   const started = Date.now();
+  const choose = makeChooser(record.battleSeed, opts.variety);
 
   const accepted = await session.send('start_ai_battle');
   if (accepted !== 'ok') {
@@ -558,7 +655,7 @@ async function playBattle(session, index, opts, previousBattleId) {
     const suspects = walkedInForNothing(before, state);
     before = state;
 
-    const turn = await playTurn(session, state, opts);
+    const turn = await playTurn(session, state, opts, choose);
     turn.battle = index;
     turnLog.push(turn);
     record.playerTurns++;
@@ -604,9 +701,14 @@ function simpleHash(text) {
 // The run
 // ---------------------------------------------------------------------------
 
-async function startGame() {
-  // Pin the landing: see first-battle.test.js for why it matters.
-  const session = new GameSession({ name: 'runner', landing: 'versus' });
+async function startGame(opts) {
+  // Pin the landing: see first-battle.test.js for why it matters. The account is
+  // the session's default (test2) unless --steam-id or --username says otherwise;
+  // the server finds the account by the id, so the name is only for show.
+  const account = {};
+  if (opts.steamId) account.steamId = opts.steamId;
+  if (opts.username) account.username = opts.username;
+  const session = new GameSession({ name: 'runner', landing: 'versus', ...account });
   try {
     await session.start();
     await session.waitFor(
@@ -703,8 +805,11 @@ function summarise(results) {
   const compWon = results.filter(r => r.winner === 'computer');
   const ids = results.map(r => r.battleId);
   const prints = results.map(r => r.fingerprint);
+  // Older result files lack these fields; say "-" rather than guess.
+  const values = f => [...new Set(results.map(r => r[f] === undefined ? '-' : r[f]))].join(', ');
   const lines = [
     `battles: ${n}   scripted player: ${[...new Set(results.map(r => r.player || 'strength'))].join(', ')}`,
+    `account: ${values('account')}   seed: ${values('seed')}   variety (%): ${values('variety')}`,
     `computer won: ${computerWins}   player won: ${playerWins}   ` +
       `unfinished/unclear: ${n - decided}`,
     `computer win rate: ${decided ? (100 * computerWins / decided).toFixed(0) : '-'}% of decided battles`,
@@ -762,6 +867,8 @@ async function main() {
   }
   fs.mkdirSync(outDir, { recursive: true });
   opts.outDir = outDir;
+  if (opts.seed === null) opts.seed = Date.now() >>> 0;
+  say(`seed ${opts.seed}, variety ${opts.variety}% (pass --seed ${opts.seed} to repeat this run)`);
   const turnsPath = path.join(outDir, 'runner-turns.jsonl');
   const summaryPath = path.join(outDir, 'runner-summary.txt');
   say(`writing to ${outDir}`);
@@ -794,7 +901,7 @@ async function main() {
           afterRestart = true;
         }
         say('starting the game');
-        session = await startGame();
+        session = await startGame(opts);
         gamesStarted++;
         restartNext = false;
       }

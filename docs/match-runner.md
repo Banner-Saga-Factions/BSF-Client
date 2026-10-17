@@ -34,9 +34,7 @@ node scripts\mod-host\runner.js --battles 5 --out _build\runner\try-1
 node scripts\mod-host\runner.js --player armor-first --speed 4  # the same, played about twice as fast
 node scripts\mod-host\runner.js --seed 1234               # start the random choices from this seed (§3)
 node scripts\mod-host\runner.js --variety 0               # the fixed play of the first runs (§3)
-node scripts\mod-host\runner.js --steam-id 443456         # sign in as another local account (§5)
-node scripts\mod-host\runner.js --steam-id 443456 --username NAME   # also set the name it signs in with (§5)
-node scripts\mod-host\runner.js --summary-only _build\runner\try-1\runner-results.jsonl
+node scripts\mod-host\runner.js --steam-id 443456         # sign in as another local account (§5)node scripts\mod-host\runner.js --summary-only _build\runner\try-1\runner-results.jsonl
 ```
 
 Every run prints its **seed**, the number its random choices start from (§3). Pass it back with `--seed`
@@ -99,10 +97,11 @@ on both sides made battles replay turn for turn (§4), so since issue #31's Wave
   to go for, which tile to attack from, and which tile to step to. "Now and again" is `--variety`: 25
   times in 100 by default.
 - **The random numbers come from the run's seed**, and each battle gets its own numbers from the seed and
-  the battle's number. A battle cannot be replayed on its own: the battle number always counts from 1.
-  **A repeat run is not guaranteed to match.** The game reports its units in a different order each time
-  it starts (9 launches of the same `test2` party gave 9 different orders), and the runner deals its
-  tie-break numbers out in that order, so a tie between equal enemies can go the other way.
+  the battle's number. There is no switch to start at battle n.
+  **A repeat run is not guaranteed to match.** One reason: the game reports its units in a different order
+  each time it starts (9 launches of the same `test2` party gave 9 different orders), and the runner deals
+  its tie-break numbers out in that order, so a tie between equal enemies can go the other way (issue
+  #76). Another: with no battle id, the game seeds its dice from the clock (§4).
 - **`--variety 0` plays exactly as the first runs did**, with no randomness at all. Use it to compare with
   rows recorded before Wave 3a.
 

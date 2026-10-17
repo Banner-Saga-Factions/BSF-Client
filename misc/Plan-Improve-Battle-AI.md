@@ -18,7 +18,7 @@ next. How it thinks today is in [`../docs/offline-ai.md`](../docs/offline-ai.md)
 - **The thinking stays inside the game.** Quick fixes first, then a one-move look-ahead. Moving the
   "brain" out to a helper program stays on the roadmap.
 - **Progress is measured, not guessed.** The match runner ([`../docs/match-runner.md`](../docs/match-runner.md))
-  plays the player's side with a fixed simple strategy and reports how often the computer wins.
+  plays the player's side with a simple strategy and reports how often the computer wins.
 - **One opponent strength.** No difficulty levels. A hidden developer switch is fine for comparing two
   versions.
 - **Fix the opponent's "eyesight" bugs first, then measure.** Add the anti-suicide penalty only if
@@ -248,7 +248,7 @@ battles of `armor-first` at `--speed 4`**, on both accounts, with the seed recor
 - **Changes, none to the opponent:** the runner's `--seed`, `--variety` and `--steam-id`
   ([`../docs/match-runner.md`](../docs/match-runner.md) §1, §3). The scripted player breaks exact ties at
   random and takes its second-best option 25 times in 100, from a seed it logs.
-- **Measured** on the Wave 2 build: see *Measurements*.
+- **Measured** on the installed build (meant to be Wave 2, not verified): see *Measurements*.
 - **Branch:** `feat/ai-runner-variety-31`. **Model:** Opus, medium.
 
 ### Wave 3b: use the single-enemy specials

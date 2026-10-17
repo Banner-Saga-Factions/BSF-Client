@@ -52,9 +52,7 @@
 //   node scripts\mod-host\runner.js --speed 4         # play each battle about 2x faster
 //   node scripts\mod-host\runner.js --seed 1234       # start the random choices from this seed
 //   node scripts\mod-host\runner.js --variety 0       # the old fixed play, no randomness
-//   node scripts\mod-host\runner.js --steam-id 443456 # sign in as another local account
-//   node scripts\mod-host\runner.js --steam-id 443456 --username NAME   # also set the name it signs in with
-//   node scripts\mod-host\runner.js --out _build\runner\my-run
+//   node scripts\mod-host\runner.js --steam-id 443456 # sign in as another local account//   node scripts\mod-host\runner.js --out _build\runner\my-run
 //   node scripts\mod-host\runner.js --summary-only _build\runner\my-run\runner-results.jsonl
 //
 // WHAT IT WRITES, in the output folder (default _build\runner\<date-time>):
@@ -710,7 +708,7 @@ function simpleHash(text) {
 async function startGame(opts) {
   // Pin the landing: see first-battle.test.js for why it matters. The account is
   // the session's default (test2) unless --steam-id or --username says otherwise;
-  // the server finds the account by the id, and sign-in saves the name it is given.
+  // the server finds the account by the id, so the name is only for show.
   const account = {};
   if (opts.steamId) account.steamId = opts.steamId;
   if (opts.username) account.username = opts.username;
@@ -874,7 +872,7 @@ async function main() {
   fs.mkdirSync(outDir, { recursive: true });
   opts.outDir = outDir;
   if (opts.seed === null) opts.seed = Date.now() >>> 0;
-  say(`seed ${opts.seed}, variety ${opts.variety}% (pass --seed ${opts.seed} to repeat this run)`);
+  say(`seed ${opts.seed}, variety ${opts.variety}%`);
   const turnsPath = path.join(outDir, 'runner-turns.jsonl');
   const summaryPath = path.join(outDir, 'runner-summary.txt');
   say(`writing to ${outDir}`);

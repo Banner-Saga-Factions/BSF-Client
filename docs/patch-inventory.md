@@ -12,11 +12,11 @@ buried in a plan.
 
 | What | Count | Notes |
 |---|---|---|
-| Patched/added `.as` overlays | **37** | The behavior + repair surface below. |
+| Patched/added `.as` overlays | **39** | The behavior + repair surface below. |
 | Embedded font glyph data | 3 `.cff` | `src/_assets/*.cff` — the outlines the three font wrappers re-embed. |
 | AIR descriptor | 1 | `META-INF/AIR/application.xml` — **outside `src/`**; declares the `extendedDesktop` profile (needed by the mod bridge's NativeProcess) and lists the platform ANEs (Adobe Native Extensions — bundled native-code plugins, e.g. Steamworks and FMOD). Adding the `bsf://` URL scheme is **planned — not yet in the committed descriptor**. |
 
-**Two kinds of patch.** Roughly a third of the 37 overlays change **no behavior at all** — they are
+**Two kinds of patch.** Roughly a third of the 39 overlays change **no behavior at all** — they are
 faithful repairs of code the JPEXS decompiler mangled (illegal class names, lost imports, raw
 bytecode opcodes). The rest are real fork changes: crossplay, offline AI, the mod bridge, and gui
 compatibility. Each row below says which it is.
@@ -44,7 +44,7 @@ compatibility. Each row below says which it is.
 | `src/engine/core/http/HttpAction.as` | Taps every outbound request (`doSend`) and raw response (`onResponseReceived`) into `ModBridge`, lazy-starting the host on the first transaction (`:136`, "PATCH begin"). | Lets a mod observe all server traffic without touching each individual action. |
 | `src/engine/mod/ModGameSpeed.as` | **New file.** Holds one number, how many times faster than normal the game clock runs (1 to 8, normally 1). Read by `GameWrapper` and `BattleStateTurnAi`; set only by the bridge's `set_game_speed`. | BSF-Client #31 — a developer fast-forward so the match runner ([`match-runner.md`](./match-runner.md)) can play its battles faster. A separate class so the game's main loop does not depend on the bridge. |
 
-## Offline player-vs-AI (10)
+## Offline player-vs-AI (12)
 
 The self-contained battle against the game's dormant AI. It reuses the same battle FSM + per-turn sync
 hash as multiplayer ([`battle-engine.md`](./battle-engine.md)); design write-up in [`offline-ai.md`](./offline-ai.md).
@@ -52,8 +52,10 @@ hash as multiplayer ([`battle-engine.md`](./battle-engine.md)); design write-up 
 | File | What changed | Why |
 |---|---|---|
 | `src/game/session/states/AiBattleLoadState.as` | **New file.** Loads an offline battle vs the dormant AI (`extends SceneLoadState`). Sets no opponent name → the battle computes `isOnline=false` → the battle **engine** makes zero server calls (the session poll and screen report carry on). Two modes: player-vs-AI and AI-vs-AI spectator. | The entry point for the whole offline feature. |
-| `src/engine/battle/fsm/aimodule/AiModuleBase.as` | Guards a null `atkStr`/`atkArm` for a unit that lacks that stat, during AI target scoring (`:46`). Keeps scenery props out of the unit lists (`:79`). Leaves the unit taking its turn out of its own friends list (`:90`). | `[Inference]` BSF-Client #12 — an armor-only unit crashed the AI's scoring. `[Inference]` BSF-Client #31 — counted as its own friend, the unit was marked down for every step away from its own square. |
+| `src/engine/battle/fsm/aimodule/AiModuleBase.as` | Guards a null `atkStr`/`atkArm` for a unit that lacks that stat, during AI target scoring (`:58`). Keeps scenery props out of the unit lists (`:176`). Leaves the unit taking its turn out of its own friends list (`:187`). Builds each unit's list of specials that hit one enemy (`buildSpecials`, `:75`). Caps a special's level by the player's rule, the unit's special stat and its willpower, instead of its rank (`findPlans`, `:259`). Writes each side's units and their special abilities to the game log on its first turn of a battle (`logSideActives`, `:104`). | `[Inference]` BSF-Client #12 — an armor-only unit crashed the AI's scoring. `[Inference]` BSF-Client #31 — counted as its own friend, the unit was marked down for every step away from its own square; the specials list feeds the special passes in `AiModuleDredge`; with the rank cap the computer could use a special one level higher than a player with the same unit (the game sets the special stat to rank − 1). |
 | `src/engine/battle/fsm/aimodule/AiPlan.as` | Guards a null ability returned by `getFirstAbilityByTag(ATTACK_STR)` during AI planning (`:271`). Four changes to how the opponent scores a move (BSF-Client #31): the "is that unit in reach?" test includes both ends of an attack's range (`:282`); a hit equal to the target's remaining strength counts as a kill (`:118`); the rest-or-advance check adds friends instead of counting enemies twice (`:242`); and a new focus-fire term rewards hitting an already-wounded enemy (`WEIGHT_FOCUS`, `:51`, `:199`), shown as `foc=` in the plan log line. | `[Inference]` BSF-Client #12 — same class of null-stat crash on the planning side. `[Inference]` BSF-Client #31 — with the old range test the opponent never saw danger from melee units, the likeliest reason it walked into free kills; details in [`offline-ai.md`](./offline-ai.md) §6. |
+| `src/engine/battle/fsm/aimodule/AiModuleDredge.as` | Adds passes that try each single-enemy special against each enemy after the strength and armor passes (`tickAi`, `:97`). A special's plan is kept only if it takes away some strength or armor (`findSpecialPlans`, `:130`). Each pass logs how many plans it kept and how many of the battle's real dice were rolled while imagining. | `[Inference]` BSF-Client #31 — the original never used a special ability; details in [`offline-ai.md`](./offline-ai.md) §4 and §6. |
+| `src/engine/battle/ability/model/BattleAbility.as` | When imagining a move fails, `getStatChange`'s error branch now switches pretend mode off, puts the unit back on its own tile and turns its move events back on, as the success path does (`:115`). | `[Inference]` BSF-Client #31 — before, one failed imagined move left the whole board in pretend mode. Never seen to happen; scoring specials imagines many more moves. |
 | `src/engine/battle/fsm/state/BattleStateTurnAi.as` | Divides the opponent's two half-second pauses (before it moves, before it acts) by the game speed (`:29`). | `[Inference]` BSF-Client #31 — those pauses run on a real-time timer the fast-forward in `GameWrapper` does not reach. At normal speed they are unchanged. |
 | `src/engine/battle/board/model/BattleBoard.as` † | Adds a CPU-controlled party, fully deployed up front (`:483`). | So an offline battle has an opponent with no human deploy step. |
 | `src/engine/scene/model/SceneLoader.as` | Injects a mirrored CPU roster into the opposite deployment area (`:51`). | Builds the AI's side of the board from a mirror of the player's party. |
@@ -127,11 +129,11 @@ All four are **no-behavior-change** repairs of decompiler damage.
 
 ## Count reconciliation
 
-37 `.as` overlays = 2 (crossplay/startup) + 4 (mod bridge) + 10 (offline AI) + 7 (gui) + 2 (resource) +
+39 `.as` overlays = 2 (crossplay/startup) + 4 (mod bridge) + 12 (offline AI) + 7 (gui) + 2 (resource) +
 4 (board/landscape) + 4 (fonts) + 1 (audio) + 1 (saga) + 2 (view). Of these, **~11 are pure
 decompiler-artifact repairs** with no behavior change (`ResourceTree`, the four
 board/landscape repairs, the four font repairs, `NullSoundDriver`, and `TutorialTooltip`) — the honest "real
-fork behavior" surface is closer to **~25 files**.
+fork behavior" surface is closer to **~27 files**.
 
 `†` marks files that are also on the **12-stale-file list** (where the 2013 mirror is stale and the
 decompile is authoritative — see [`reference-codebases.md`](./reference-codebases.md)): `BattleBoard`,

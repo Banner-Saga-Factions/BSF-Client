@@ -99,10 +99,12 @@ drives a planner called `AiModuleDredge`:
 1. **A half-second pause** so the turn is watchable, not instant
    (`BattleStateTurnAi.as:33` — `delayedCall(0.5, …performMove)`). The developer fast-forward used by
    the match runner shortens it; at normal speed it is half a second ([`match-runner.md`](./match-runner.md)).
-2. **Score every option.** `performMove` (`AiModuleDredge.as:38`) kicks off a per-frame ticker; each
-   tick, `tickAi` (`:72-94`) takes one more enemy and builds "walk here and hit that enemy" plans for
-   it (`findPlans`, `AiModuleBase.as:108-180`), trying the unit's basic strength attack, then its basic
-   armor-breaking attack. (Spreading the work over frames keeps a big board from hitching.)
+2. **Score every option.** `performMove` (`AiModuleDredge.as:45`) kicks off a per-frame ticker; each
+   tick, `tickAi` (`:79`) takes one more enemy and builds "walk here and hit that enemy" plans for
+   it (`findPlans`, `AiModuleBase.as:205`), trying the unit's basic strength attack, then its basic
+   armor-breaking attack, then, since issue #31, each of its special abilities that hits one enemy
+   (`findSpecialPlans`, `AiModuleDredge.as:130`). A special's plan is kept only if it would take away
+   some strength or armor. (Spreading the work over frames keeps a big board from hitching.)
 3. **Weigh each plan** (`AiPlan.computeWeight`, `AiPlan.as:340-377`): a plan that **kills** earns a
    large fixed bonus (+200); damage counts heavily; a blow hard enough to break a target counts extra;
    hitting an enemy that is already wounded earns more, through the damage score and, since issue #31,
@@ -110,10 +112,10 @@ drives a planner called `AiModuleDredge`:
    moving far or spending willpower costs a little. Where the unit would end up counts too: standing
    within reach of an enemy's basic attack costs points, having an enemy within reach of its own earns
    a few, and every tile between it and each friend costs 15 (30 for an archer).
-4. **Play the best one.** `chooseBestPlan` (`AiModuleDredge.as:96-125`) sorts by weight and takes the
+4. **Play the best one.** `chooseBestPlan` (`AiModuleDredge.as:175`) sorts by weight and takes the
    top plan; if nothing can reach an enemy it either steps closer or rests. After the move finishes,
-   another half-second pause, then `performAction` (`:132-158`) uses the chosen attack — or `abl_end` /
-   `abl_rest` if there was no worthwhile attack.
+   another half-second pause, then `performAction` (`:211`) uses the chosen attack or special — or
+   `abl_end` / `abl_rest` if there was no worthwhile attack.
 
 [Inference] throughout — read from the decompiled `aimodule/` code.
 
@@ -123,9 +125,17 @@ drives a planner called `AiModuleDredge`:
 
 **Its limits:**
 
-- **It never uses special abilities.** The planner only ever feeds itself the two *basic* attacks
-  (strength and armor); a unit's special is never even considered. The code inside `findPlans` that
-  would handle a special (`AiModuleBase.as:161-163`) is unreachable from this planner. [Inference]
+- **It uses only the specials that hit one enemy.** Until issue #31 it used none. Specials aimed at a
+  tile (Rain of Arrows, Slag and Burn), at two targets (Tempest), at a friend or at itself (Forge
+  Ahead, Stonewall), and the ones with their own targeting rules (Run Through, Battering Ram) are
+  still never tried. **Malice** passes the filter but is never chosen: it does no damage when used,
+  only at the start of the target's next turn, and the planner rates a special by the strength or
+  armor it takes away at once. [Inference]
+- **It undervalues two of the specials it does try.** Measured 2026-10-16 on account `443456`: in 4
+  battles it chose Sundering Impact 8 times and Bloody Flail 3 times, but never Bird of Prey or Bring
+  the Pain. Bird of Prey is held at level 1 (§6), while the bow's basic attack can be raised to level 3
+  with willpower, so the basic shot does more damage. The planner sees Bring the Pain take away only
+  armor, so a stronger strength hit beats it; whatever else it does counts for nothing.
 - **A lean toward hitting wounded enemies, but no teamwork.** Each unit still plans on its own. The
   original damage score already adds 22½ points for each point of strength the target has lost
   (`AiPlan.as:170-172`); issue #31's focus fire adds at most 30 more. Finishing the wounded one is not
@@ -134,11 +144,13 @@ drives a planner called `AiModuleDredge`:
 
 **The "imagined move" trick.** To score "what would this hit actually do?", the AI needs to *try* the
 attack without really changing the board. It does this by running the attack in a **pretend mode**
-(`BattleAbility.getStatChange`, `engine/battle/ability/model/BattleAbility.as:86`):
+(`BattleAbility.getStatChange`, `engine/battle/ability/model/BattleAbility.as:86`, overlaid since
+issue #31):
 
 1. Flip the board into pretend mode — `board.fake = true` (`:104`).
 2. Actually execute the attack, and measure how far the target's stat dropped (`:107-111`).
-3. Flip the board back and restore the attacker's position (`:118-120`).
+3. Flip the board back and restore the attacker's position (`:128-130`). If step 2 fails, the error
+   branch now does the same (`:115`); before issue #31 it left the board in pretend mode.
 
 Three things keep the pretend attack from leaking into the real game:
 
@@ -146,7 +158,8 @@ Three things keep the pretend attack from leaking into the real game:
   are untouched (`BattleEntity.as:539` and `:643-652`).
 - The dice hand out a **separate pretend generator** (`_fakeRng`) so the real, reproducible dice stream
   is not advanced (`BattleAbilityManager.as:149-156`). This is why scoring dozens of imagined moves
-  never changes the actual rolls the real battle will make.
+  never changes the actual rolls the real battle will make. Measured 2026-10-16: across 402 imagined
+  specials, Bloody Flail's random hits included, the real dice were rolled 0 times.
 - An imagined lethal hit **can't actually remove anyone**: a unit's `alive` setter is a no-op while
   faking (`BattleEntity.as:549-551`), and `Effect` skips its whole kill-handling block in faking mode
   (`Effect.as:235`), so the target only loses strength on the scratch record. The planner decides a
@@ -187,7 +200,18 @@ plan's log line shows it as `foc=`. It is small beside the existing wounded-targ
 score, so it mostly matters for armor attacks. The measured effect of all of these is in
 [`../misc/Plan-Improve-Battle-AI.md`](../misc/Plan-Improve-Battle-AI.md) → *Measurements*.
 
-The planner driver itself (`AiModuleDredge`) is untouched.
+**Then issue #31 gave it specials** (Wave 3b), each change also tagged `[Inference] BSF-Client #31`:
+
+| What was wrong | Effect on play | Fix |
+| -------------- | -------------- | --- |
+| The planner never tried a special ability. | Half of each promoted unit's kit went unused. | Each unit's specials that hit one enemy are listed (`AiModuleBase.buildSpecials`) and tried after the basic attacks (`AiModuleDredge.findSpecialPlans`); a plan is kept only if it takes away strength or armor |
+| A special's level was capped by the unit's rank. | The computer could use a special one level higher than a player with the same unit, and a high enough rank would ask for a level the ability does not have. | The player's rule, as in `BattleEntity.highestAvailableAbilityDef`: the unit's special stat (`ABILITY_0`), which the game sets to rank − 1 when it loads the unit, and its willpower (`AiModuleBase.findPlans`). Owner's choice |
+| A failed imagined move returned without leaving pretend mode (finding 5). | Never seen; it would have left the whole board pretending. | The error branch undoes what the success path undoes (`BattleAbility.getStatChange`) |
+
+Two log lines help check it. On each side's first turn of a battle, `BSF #31 AI actives:` lists every
+unit's special abilities as the running game loaded them, and whether each is tried. Each special pass
+logs `BSF #31 special pass:` with how many plans it kept and how many of the battle's real dice were
+rolled while imagining (`Rng.sampleCount`, the game's own count of rolls).
 
 A separate problem — the offline battle **hanging on the loading screen** — was fixed elsewhere; its
 write-up is [`../misc/Plan-Fix-Issue-12-ai-battle-init-hang.md`](../misc/Plan-Fix-Issue-12-ai-battle-init-hang.md).
@@ -198,9 +222,8 @@ The full player-vs-AI public-release picture (all the crash fixes and open items
 
 ## 7. Known gaps
 
-- **It cannot see any special ability.** Planning a turn, it only ever considers a unit's basic
-  strength attack and its basic armour-breaking attack (§4, step 2) — every signature and special
-  ability a unit carries is invisible to it, so the interesting half of each kit is never used.
+- **It sees only the specials that hit one enemy** (§5). Buffs, specials aimed at a tile or at two
+  targets, and the ones with their own targeting rules are on the issue #31 roadmap.
 - **It never looks ahead.** Each option is scored against the board exactly as it stands, one unit at
   a time, with no attempt to imagine the reply (§4, step 3). It judges danger from where each enemy
   stands *now*, not from where that enemy could walk to before attacking, and a kill earns a large

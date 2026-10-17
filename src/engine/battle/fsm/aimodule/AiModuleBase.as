@@ -1,19 +1,27 @@
 package engine.battle.fsm.aimodule
 {
+   import engine.ability.IAbilityDefLevels;
    import engine.ability.def.AbilityDefLevel;
    import engine.battle.ability.def.BattleAbilityDef;
    import engine.battle.ability.def.BattleAbilityDefLevels;
    import engine.battle.ability.def.BattleAbilityTag;
+   import engine.battle.ability.def.BattleAbilityTargetRule;
    import engine.battle.entity.model.BattleEntity;
    import engine.battle.fsm.BattleFsm;
    import engine.battle.fsm.BattleMove;
    import engine.battle.fsm.state.BattleStateTurnAi;
    import engine.stat.def.StatType;
    import engine.tile.Tile;
-   
+   import flash.utils.Dictionary;
+
    public class AiModuleBase
    {
-      
+
+      // [Inference] BSF-Client #31: the battles (and the sides in them) whose units' abilities
+      // have already been written to the log, so each side is listed once per battle. Weak keys,
+      // so a finished battle is not kept alive by this list.
+      private static var loggedSides:Dictionary = new Dictionary(true);
+
       public var ss:BattleStateTurnAi;
       
       public var battleFsm:BattleFsm;
@@ -29,7 +37,11 @@ package engine.battle.fsm.aimodule
       public var atkStr:AbilityDefLevel;
       
       public var atkArm:AbilityDefLevel;
-      
+
+      // [Inference] BSF-Client #31: the unit's special abilities that aim at a single enemy,
+      // the only kind the planner can score today (AiModuleDredge tries each one).
+      public var specials:Vector.<BattleAbilityDef> = new Vector.<BattleAbilityDef>();
+
       public function AiModuleBase(param1:BattleStateTurnAi)
       {
          super();
@@ -50,6 +62,90 @@ package engine.battle.fsm.aimodule
          // them null is safe -- only this isRanged bow-check needed guarding; a null attack simply
          // is not a bow. See "A-0.log-ai test2.txt".
          isRanged = (atkStr != null && atkStr.id == "abl_bow_str") || (atkArm != null && atkArm.id == "abl_bow_arm");
+         buildSpecials();
+         logSideActives();
+      }
+
+      /**
+       * [Inference] BSF-Client #31: keep the caster's special abilities that hit exactly one
+       * enemy. Specials aimed at a tile, at two targets, at a friend or at the unit itself need
+       * scoring the planner does not have, so they are left out. Null-safe: a unit with no
+       * actives, or an entry that is not a battle ability, simply adds nothing.
+       */
+      private function buildSpecials() : void
+      {
+         var _loc1_:IAbilityDefLevels = caster && caster.def ? caster.def.actives : null;
+         if(!_loc1_)
+         {
+            return;
+         }
+         var _loc2_:int = 0;
+         while(_loc2_ < _loc1_.numAbilities)
+         {
+            var _loc3_:BattleAbilityDef = _loc1_.getAbilityDef(_loc2_) as BattleAbilityDef;
+            if(isSingleEnemySpecial(_loc3_))
+            {
+               specials.push(_loc3_);
+            }
+            _loc2_++;
+         }
+      }
+
+      private static function isSingleEnemySpecial(param1:BattleAbilityDef) : Boolean
+      {
+         return param1 != null && param1.tag == BattleAbilityTag.SPECIAL && param1.targetRule == BattleAbilityTargetRule.ENEMY && param1.targetCount == 1;
+      }
+
+      /**
+       * [Inference] BSF-Client #31: on a side's first computer turn in a battle, write every
+       * unit on that side and its special abilities to the game log, so a test run shows the
+       * abilities the running game really loaded rather than the reference copy's list.
+       */
+      private function logSideActives() : void
+      {
+         if(!caster || !battleFsm || !battleFsm.board)
+         {
+            return;
+         }
+         var _loc1_:Object = loggedSides[battleFsm.board];
+         if(!_loc1_)
+         {
+            _loc1_ = {};
+            loggedSides[battleFsm.board] = _loc1_;
+         }
+         if(_loc1_[caster.team])
+         {
+            return;
+         }
+         _loc1_[caster.team] = true;
+         for each(var _loc2_ in battleFsm.board.entities)
+         {
+            if(_loc2_.team != caster.team || !_loc2_.stats.hasStat(StatType.ARMOR))
+            {
+               continue;
+            }
+            var _loc3_:String = _loc2_.def && _loc2_.def.entityClass ? _loc2_.def.entityClass.id : "?";
+            var _loc4_:IAbilityDefLevels = _loc2_.def ? _loc2_.def.actives : null;
+            if(!_loc4_ || _loc4_.numAbilities == 0)
+            {
+               ss.logger.info("BSF #31 AI actives: " + _loc2_.id + " (" + _loc3_ + ") none, special stat " + _loc2_.stats.getValue(StatType.ACTIVE_0));
+               continue;
+            }
+            var _loc5_:int = 0;
+            while(_loc5_ < _loc4_.numAbilities)
+            {
+               var _loc6_:BattleAbilityDef = _loc4_.getAbilityDef(_loc5_) as BattleAbilityDef;
+               if(_loc6_)
+               {
+                  ss.logger.info("BSF #31 AI actives: " + _loc2_.id + " (" + _loc3_ + ") " + _loc6_.id + "/" + _loc4_.getAbilityLevel(_loc5_) + " tag=" + _loc6_.tag + " target=" + _loc6_.targetRule + " count=" + _loc6_.targetCount + " levels=" + _loc6_.maxLevel + " special stat " + _loc2_.stats.getValue(StatType.ACTIVE_0) + (isSingleEnemySpecial(_loc6_) ? " -> tried" : " -> skipped"));
+               }
+               else
+               {
+                  ss.logger.info("BSF #31 AI actives: " + _loc2_.id + " (" + _loc3_ + ") " + _loc4_.getAbilityDef(_loc5_) + " is not a battle ability -> skipped");
+               }
+               _loc5_++;
+            }
+         }
       }
       
       public function performMove() : Boolean
@@ -69,6 +165,7 @@ package engine.battle.fsm.aimodule
          enemies = null;
          atkStr = null;
          atkArm = null;
+         specials = null;
       }
       
       protected function buildEnemyArray() : void
@@ -122,7 +219,6 @@ package engine.battle.fsm.aimodule
          var _loc6_:int = Math.min(_loc22_,_loc10_);
          var _loc13_:int = caster.stats.getStat(StatType.WILLPOWER).original;
          var _loc8_:int = int(caster.def.stats.getValue(StatType.MOVEMENT));
-         var _loc14_:int = int(caster.def.stats.getValue(StatType.RANK));
          var _loc16_:int = param5;
          for(; _loc16_ < param3.length; _loc16_++)
          {
@@ -160,7 +256,15 @@ package engine.battle.fsm.aimodule
             {
                if(param1.tag == BattleAbilityTag.SPECIAL)
                {
-                  _loc11_ = Math.min(_loc6_,_loc14_);
+                  // [Inference] BSF-Client #31: the original capped a special's level at the
+                  // unit's rank, one level above what a player with the same unit may use, and
+                  // past the ability's top level for a high enough rank. The game's own rule for
+                  // a player (BattleEntity.highestAvailableAbilityDef) is the unit's special stat
+                  // (ABILITY_0), which the game sets to rank - 1 when it loads the unit
+                  // (EntityDef, clamped to the class's range), and its willpower; level N costs
+                  // N willpower, which _loc6_ already limits. Measured 2026-10-16: a rank-3
+                  // Bowmaster reads 2. The owner chose the player's rule.
+                  _loc11_ = Math.min(_loc6_,caster.stats.getValue(StatType.ACTIVE_0),param1.maxLevel);
                }
                else
                {

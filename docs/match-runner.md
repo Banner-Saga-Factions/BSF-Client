@@ -19,7 +19,8 @@ described in [`driving-the-client.md`](./driving-the-client.md) §9). The plan i
 
 It needs what the automated test needs:
 
-- the local server running on port 8082 (`bsf-server\start-server.bat`);
+- the local server running on port 8082 (`bsf-server\start-server.bat`, or `node build\index.js` from
+  `bsf-server` when other programs are running: see §5);
 - `AIR_HOME` set;
 - **our own build installed**: `scripts\build.ps1`, then copy `_build\app.game.air.swf` over the
   installed game's copy. The launcher refuses to start a build that is not ours.
@@ -30,11 +31,13 @@ From the `bsf-client` folder:
 node scripts\mod-host\runner.js                          # 10 battles, the plain player
 node scripts\mod-host\runner.js --player armor-first      # 10 battles, the second player
 node scripts\mod-host\runner.js --battles 5 --out _build\runner\try-1
+node scripts\mod-host\runner.js --player armor-first --speed 4  # the same, played about twice as fast
 node scripts\mod-host\runner.js --summary-only _build\runner\try-1\runner-results.jsonl
 ```
 
-A battle takes about 3½ minutes, so 10 battles is about 35 minutes. Close other programs first: one
-long run was stopped by the PC running low on memory. The game window opens and plays
+A battle takes about 3½ minutes at normal speed, so 10 battles is about 35 minutes. With `--speed 4` it
+takes about 1½ minutes (§4). Close other programs first: one long run was stopped by the PC running low
+on memory. The game window opens and plays
 itself. Leave it alone: a click can steal a turn from the runner.
 
 **Nothing needs installing in the game folder.** For the length of the run, the start-up machinery
@@ -47,13 +50,21 @@ Into the output folder (default `_build\runner\<date-time>\`):
 
 | File | One line per | Holds |
 | ---- | ------------ | ----- |
-| `runner-results.jsonl` (`.jsonl`: one JSON record per line, JSON being plain text for structured data) | battle | winner, turns, survivors per side, party, battle id, seconds, a fingerprint of how the battle went |
+| `runner-results.jsonl` (`.jsonl`: one JSON record per line, JSON being plain text for structured data) | battle | winner, turns, survivors per side, party, battle id, seconds, speed, the computer's suicides, a fingerprint of how the battle went |
 | `runner-turns.jsonl` | player turn | what it did, how many commands it sent, how many the game refused and why, how long it took |
 | `runner-summary.txt` | run | the totals below, also printed at the end |
 | `deploy-<n>.json` | battle | the whole board on the deploy screen |
 
-The summary gives the computer's win rate and its average survivors. It also shows how many battles had
-different dice and how fast turns were decided. Last, it counts the `Error #1009` and "Something went
+The summary gives the computer's win rate and its average survivors. It also shows how many battles
+played out differently (§4 explains why that number matters), seconds per turn, and how fast turns
+were decided.
+
+It also counts the computer's **suicides**: a computer unit that walked up during the computer's turns,
+in a stretch where the computer killed none of ours, and then died to the runner's very next attack. In
+plain terms, it walked into a free kill. Issue #31 uses this count to decide whether the opponent needs a
+rule against it. It undercounts on purpose: a unit the simple player could have killed but did not pick
+is not counted. It can also overcount: any computer unit that changed tiles qualifies, so a wounded unit
+stepping back counts too. Result files written before the count existed say "not counted" rather than 0. Last, it counts the `Error #1009` and "Something went
 wrong while faking" lines in the game's own log.
 
 **That count comes from the game's own log, `A-<n>.log.txt`, and only after the game has closed.** The
@@ -81,8 +92,9 @@ Both players are fixed on purpose. A yardstick that changes is no yardstick.
 
 **`armor-first`** is the same player with one more rule. When a strength hit would do 1 damage or
 less, it uses the armor attack instead, because armor soaks up a strength hit (`Op_DamageStr` in the
-decompile uses armor as the defence). **It has not run yet**, so whether it is a fair yardstick is
-unproven. One thing to know before trusting it: in the 8-battle baseline's game log the computer chose
+decompile uses armor as the defence). It is a far harder yardstick: against the unchanged computer it won
+2 of 4 battles, where the plain player won 0 of 8 (the plan's *Measurements* table). One thing to know
+when reading its numbers: in the 8-battle baseline's game log the computer chose
 162 strength attacks and 29 armor attacks, and 134 of those 191 were at level 2 or higher, the game's
 higher levels of an attack. Both scripted players only ever use level 1.
 
@@ -102,13 +114,35 @@ against more than ten for the first after login. Every battle in every run so fa
 finished battles across four runs, and no restart was ever needed. The runner can restart the game if a
 battle ever fails to start, and the summary counts any restarts, but that path has never run.
 
-**Does each battle get new dice? Yes, though not through the battle id.** An offline battle has no id:
-`battle_state` reports `battleId: null` every time. With no id, the game seeds its dice from the clock
-(`BattleBoard.set sim`: `seedRng = getTimer()`, the milliseconds since the game started). So each battle
-gets a different seed anyway. Measured: every battle's fingerprint differed (3 of 3 in a probe run, then 8
-of 8 in the baseline). The fingerprint records who acted on each player turn and every unit's strength and
-armor at that moment. Both players and the opponent are deterministic, so differing fingerprints mean
-differing dice.
+**Does each battle get new dice? Yes, though not through the battle id, and new dice often change
+nothing.** An offline battle has no id: `battle_state` reports `battleId: null` every time. With no id,
+the game seeds its dice from the clock (`BattleBoard.set sim`: `seedRng = getTimer()`, the milliseconds
+since the game started), so each battle gets a different seed. The fingerprint records who acted on each
+player turn and every unit's strength and armor at that moment. In the first runs every battle's
+fingerprint differed (3 of 3 in a probe run, then 8 of 8 in the baseline).
+
+**Corrected the same day: battles often repeat exactly.** Later runs found identical fingerprints:
+battles 1 and 3 of the 4-battle `armor-first` baseline, and 4 of the 5 battles on the Wave 2 build.
+All four baseline battles matched for their first 14 turns. Damage is mostly fixed arithmetic and both
+sides choose by fixed rules, so a different seed changes a battle only when a roll actually decides
+something. Rolls rarely do: a basic strength attack rolls the dice only when the target's armor would
+bring the hit to 0 or below, and then only as a chance to miss (`Op_DamageStr.as:126-141`). The other
+places in the battle code that roll are particular abilities (`OpDef_ExecAbility`, `Op_BloodyFlail`,
+`Op_SlagAndBurnTileCross`) that these runs' basic attacks never use. Found in the Wave 2 review.
+**So N battles are not N independent samples.**
+Read the summary's "distinct battle traces" before trusting a win rate. Making battles vary is the
+first job of issue #31's Wave 3.
+
+**Can it play faster? Yes, about twice as fast at `--speed 4`** (added in Wave 2, 2026-10-16). `--speed N` sends the
+bridge's `set_game_speed` once the fighting starts and sets it back to 1 when the battle ends normally
+([`mod-bridge.md`](./mod-bridge.md) §5). The game then moves its clock on N times faster each frame and
+shortens the computer's built-in pauses; some of the game's timers run on real time and do not speed up.
+**If the runner is stopped with Ctrl-C, the game window can stay open at the higher speed:
+close it** before playing online ([BSF-Client #72](https://github.com/Banner-Saga-Factions/BSF-Client/issues/72)). One trial battle at ×4 took 1.64 seconds a turn, against 3.5 at
+normal speed for the same scripted player: 94 seconds a battle instead of about 210. It finished
+normally, with no `#1009` and no "went wrong while faking" lines. Four more battles at ×4 averaged 1.68
+seconds a turn. ×8 was not tried. No battle of the Wave 2 opponent was run at normal speed, so
+"speed changes timing, not decisions" rests on reading the code.
 
 **Is finding a tile by trial and refusal fast enough? Yes. No `battle_reachable` command is needed.**
 A refused move or attack comes back fast enough that trying again costs little. Across the baseline's
@@ -121,6 +155,14 @@ wasted moves dropped to 0 (0 of 86 in a probe run, 0 of 253 in the baseline).
 
 ## 5. Traps
 
+- **`bsf-server\start-server.bat` closes every Node program on the PC** before it starts the server
+  (`Stop-Process -Name node`). That includes other Claude Code sessions and any runner in progress. When
+  anything else might be running, start the already-built server directly from `bsf-server` instead:
+  `node build\index.js`.
+- **Two runs at once, from two worktrees, are not stopped.** The "one run at a time" lock lives in each
+  worktree's own `_build\tests\`, and both runs would drive the one installed game. Also, check which build
+  is installed (`app.game.air.swf` in the game folder) before a run. A baseline run on a build that already
+  holds the next wave's changes measures the wrong thing.
 - **Do not close the game while a unit is walking.** It hangs the game on the way out (issue #36). On a
   normal run the runner waits for a walk to finish before ending a turn, and closes only on a still
   board. **A run that fails partway does not wait:** it closes the game wherever it stands, and a game

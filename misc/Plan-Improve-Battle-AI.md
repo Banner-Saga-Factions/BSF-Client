@@ -41,15 +41,26 @@ nothing. The plain player uses only strength attacks, and armor soaks those up. 
 - Baselines are recorded for both players, so each later wave can be compared against either.
 - Then the owner plays it, as the final check.
 
+**Where that bar stands after Wave 2 (2026-10-16): cleared, but on too little evidence to close the
+issue.** The unchanged computer already won 2 of 4 against `armor-first`, exactly the bar, and the Wave 2
+build won 4 of 4. But those runs held only 3 and 2 distinct battles: the battles barely vary (see
+*Measurements*). The bar has to be re-checked once Wave 3 makes the battles vary.
+
 ## Measurements
 
 Each row is one run of the match runner on the `test2` account's party: 2 archers, 2 axemen, a warrior
 and a warhawk on each side. The runner's output folders are in `_build\runner\` (not committed).
 
-| Date | Build | Scripted player | Battles | Computer won | Computer survivors, avg | Player survivors, avg | Turns, avg | `#1009` |
-| ---- | ----- | --------------- | ------- | ------------ | ----------------------- | --------------------- | ---------- | ------- |
-| 2026-10-16 | Wave 1 (opponent unchanged from master `9603f55`) | `strength` | 8 | 8 (100%) | 2.88 of 6 | 0 | 65.5 | 0 |
-| — | Wave 1 (opponent unchanged) | `armor-first` | not yet run | | | | | |
+| Date | Build | Scripted player | Battles (distinct) | Computer won | Computer survivors, avg | Player survivors, avg | Turns, avg | Suicides | `#1009` |
+| ---- | ----- | --------------- | ------------------ | ------------ | ----------------------- | --------------------- | ---------- | -------- | ------- |
+| 2026-10-16 | Wave 1 (opponent unchanged from master `9603f55`) | `strength` | 8 (8) | 8 (100%) | 2.88 of 6 | 0 | 65.5 | not counted | 0 |
+| 2026-10-16 | Wave 1 (opponent unchanged), runner at `7baa1b8` | `armor-first` | 4 (3) | 2 (50%) | 1.00 | 0.50 | 59.5 | not counted | 0 |
+| 2026-10-16 | Wave 2, `--speed 4` | `armor-first` | 4 (2) | 4 (100%) | 3.00 | 0 | 58.5 | 4 (one event, repeated) | 0 |
+
+"Distinct" counts battles whose fingerprints differ (the summary's "distinct battle traces"). A
+battle that repeats another turn for turn adds no evidence; see
+[`../docs/match-runner.md`](../docs/match-runner.md) §4. The Wave 2 row is backed by a fifth battle,
+the ×4 speed trial, which repeated the same battle as Wave 2's battles 2–4.
 
 Before the baseline, four probe battles with the `strength` player all went to the computer, with 3–5
 of its 6 units left. That is what prompted the yardstick change above.
@@ -57,15 +68,21 @@ of its 6 units left. That is what prompted the yardstick change above.
 **Check before relying on `armor-first`.** In the baseline run's game log, 134 of the computer's 191
 attack choices were at level 2 or higher, and 162 were strength attacks against 29 armor attacks. Both
 scripted players only use level 1. So armor soaking up strength hits may not be the whole reason the
-plain player loses, and `armor-first` may not close the gap. Wave 2's `armor-first` baseline will show it.
+plain player loses. The `armor-first` baseline (2 wins in 4) shows it closes much of the gap.
 
-**The baseline is smaller than planned, and half of it is missing.** A first 20-battle run was stopped by
-the PC running low on memory after 2 battles (both computer wins, not counted above). A second run was
-cut to 10 per player and then stopped by the owner after 8, before the `armor-first` run began. So
-**Wave 2 starts by recording the `armor-first` baseline** on the unchanged opponent, before changing
-anything. A battle takes about 3½ minutes, so 10 battles is about 35 minutes.
+**The baselines are smaller than planned.** A first 20-battle run was stopped by the PC running low on
+memory after 2 battles (both computer wins, not counted above). A second run was cut to 10 per player
+and then stopped by the owner after 8, before the `armor-first` run began. Wave 2 recorded the
+`armor-first` baseline at the start, at 4 battles by the owner's choice, on the Wave 1 build with the
+reviewed runner.
 
-## What reading the code found (2026-10-16, not yet tested in a run)
+**The battles barely vary (found in Wave 2).** Two of the four baseline battles were identical turn for
+turn, and four of the five battles on the Wave 2 build were the same battle. Each battle gets a fresh
+dice seed, but a roll seldom decides anything, and both sides choose by fixed rules. So the
+"Battles" column overstates the evidence; the number in brackets is what counts. **Wave 3 starts by
+making battles vary.**
+
+## What reading the code found (2026-10-16; findings 1–4 fixed and measured in Wave 2)
 
 Sources: the opponent files our fork overlays (`src/engine/battle/fsm/aimodule/AiPlan.as`,
 `AiModuleBase.as`), the decompile at `%USERPROFILE%\Code\bsf-refs\client-decompiled-as3\`, and the
@@ -148,22 +165,37 @@ through `scripts/verify-and-commit.ps1`. Each wave adds rows to *Measurements* a
 
 ### Wave 2: fix the opponent's eyesight, plus focus fire
 
-- **Changes**, all in `src/engine/battle/fsm/aimodule/AiPlan.as` and `AiModuleBase.as`:
-  - Findings 1–4: make the range test inclusive like `BattleAbilityValidation`, use `>=` for kills,
-    leave the moving unit out of `friends`, and make the rest-or-advance check add enemies and friends.
-  - Focus fire: `WEIGHT_FOCUS = 30` × the share of strength the target has lost, kept below
-    `WEIGHT_KILL` so a real kill still wins.
-  - Show the new terms in `toString()`.
-  - Each fix carries a `[Inference] BSF-Client #31` comment, in the #12 style.
-- **First, the missing baseline:** 10 battles against `armor-first` on the unchanged opponent.
-- **Measure, then decide:** 10 battles against `armor-first`, then 10 against `strength`.
-  - If the opponent's units still die on the turn after moving, with no kill to show for it, add the
-    anti-suicide term (below).
-  - If it turns timid instead (resting while it could attack), tune `WEIGHT_SELF_THREAT` down.
-- **Docs:** `docs/offline-ai.md` §4/§5/§7 and `docs/patch-inventory.md`.
-- **Verify:** the log shows non-zero `⌖e` for tiles next to a melee enemy; no new `#1009`; the runner's
-  numbers against the Wave 1 baseline.
-- **Branch:** `fix/ai-eyesight-31`. **Model:** Opus, high. It changes how the opponent decides.
+- **Built** (2026-10-16), in `src/engine/battle/fsm/aimodule/AiPlan.as` and `AiModuleBase.as`, each
+  with a `[Inference] BSF-Client #31` comment (details in [`../docs/offline-ai.md`](../docs/offline-ai.md) §6):
+  - Findings 1–4: the range test includes both ends like `BattleAbilityValidation`, a kill counts at
+    `>=`, the moving unit is left out of `friends`, and the rest-or-advance check adds enemies and friends.
+  - Focus fire: `WEIGHT_FOCUS = 30` × the share of strength the target has lost, on strength and armor
+    attacks, kept far below `WEIGHT_KILL` (the weights are summed, so this alone does not guarantee a
+    kill wins). Shown as `foc=` in the plan log line.
+- **Added because battles were too slow to measure** (the owner's request): a developer fast-forward.
+  `ModGameSpeed.as` (new), one line in a new `GameWrapper.as` overlay that scales each frame's elapsed
+  time, the computer's two pauses in a new `BattleStateTurnAi.as` overlay, the bridge command
+  `set_game_speed` (refused above 1 outside an offline battle), and the runner's `--speed`. ×4 cut a
+  turn from 3.5 to about 1.65 seconds ([`../docs/match-runner.md`](../docs/match-runner.md) §4).
+- **Added to measure suicides:** the runner counts a computer unit that walked up, in a stretch with no
+  computer kill, and died to the runner's very next attack.
+- **Measured** (*Measurements* above): the `armor-first` baseline first, on the unchanged opponent; then
+  4 battles against `armor-first` at ×4. The `strength` run was dropped by the owner's choice: 4 battles,
+  after the fix, against `armor-first` only.
+  - The computer went from 2 of 4 to 4 of 4, with 3.00 survivors instead of 1.00. This changed two
+    things at once: the baseline ran at normal speed and this run at ×4, and the new opponent was never
+    run at normal speed. Code reading says speed changes only timing; no run has tested it.
+  - Focus fire is not the likely cause: the damage score already adds 22½ points per strength point a
+    target has lost, against focus fire's 30 at most. In Factions, leaving an enemy weakened but alive
+    can be a deliberate strategy, so the lean toward finishing wounded units is not assumed to help.
+  - The log shows the fixes at work: 262 of 414 plans in the trial battle had a non-zero `⌖e` (danger
+    from enemies within reach), and 70 a non-zero `foc=`.
+- **The anti-suicide term was not added**, by the owner's choice, although the count met the rule set
+  for it (at least 1 per battle). The 4 counted were a single event, one of the computer's archers
+  (`ai+0+archer_start_1`) at turn 26, repeated in battles that played out the same way. One event in two
+  distinct battles is not a pattern. Revisit once battles vary.
+- **Timidity:** not seen; the computer won every battle with half its side left.
+- **Branch:** `fix/ai-eyesight-31`, stacked on `feat/ai-match-runner-31`. **Model:** Opus, high.
 
 **The anti-suicide term, if needed.** `computePositionalEnemyWeight` already estimates the damage a unit
 would take on its landing tile, but scales it by only 0.5, which is tiny next to `WEIGHT_KILL = 200`.
@@ -173,6 +205,10 @@ equal or greater value, so a good trade is still allowed and the opponent does n
 
 ### Wave 3: use the five single-enemy specials
 
+- **First, make battles vary** (found in Wave 2): with fixed players and rolls that seldom matter, most
+  battles repeat. For example, the runner could break ties between equally good options with a random
+  choice from a seed it logs, so a run can be repeated exactly yet its battles differ. Re-record the
+  Wave 2 build's numbers with it before changing the opponent, and pass `--speed 4`.
 - **Changes:**
   - `AiModuleBase` builds a `specials` list from `caster.def.actives` (`EntityDef.actives`). It keeps
     only `tag == SPECIAL`, `targetRule == ENEMY` and `targetCount == 1`, null-safe.
@@ -192,7 +228,8 @@ equal or greater value, so a good trade is still allowed and the opponent does n
 
 - **Changes:** a new `src/engine/battle/fsm/aimodule/AiModuleSearch.as` extending `AiModuleDredge`,
   switched in behind a hidden `BattleFsmConfig.aiLookahead` setting by an overlay of
-  `BattleStateTurnAi.as:20`. Design below.
+  `BattleStateTurnAi.as:20` (line number in the original). Wave 2 already overlaid that file for the
+  fast-forward, so extend that overlay rather than starting a new one. Design below.
 - **Stop rule:** the switch defaults on once the runner shows it beats the Wave 3 build. If the computer
   wins at least half its battles against `armor-first`, the owner plays it as the final check and #31
   can close. If not, the wave's write-up names the next step from the roadmap.
@@ -234,7 +271,8 @@ clone copies values, not the list of effects.
 | `src/engine/battle/fsm/aimodule/AiModuleDredge.as` _(new overlay)_ | 3 | Special passes in `tickAi` |
 | `src/engine/battle/ability/model/BattleAbility.as` _(new overlay)_ | 3 | Finding 5 |
 | `src/engine/battle/fsm/aimodule/AiModuleSearch.as` _(new)_ | 4 | The look-ahead |
-| `src/engine/battle/fsm/state/BattleStateTurnAi.as` _(new overlay)_, `BattleFsmConfig.as` | 4 | The switch |
+| `src/engine/mod/ModGameSpeed.as` _(new)_, `src/game/view/GameWrapper.as` _(new overlay)_ | 2 | The developer fast-forward |
+| `src/engine/battle/fsm/state/BattleStateTurnAi.as` _(overlay since Wave 2)_, `BattleFsmConfig.as` | 2, 4 | Wave 2: the pauses follow the fast-forward. Wave 4: the switch |
 
 ## Risks
 

@@ -42,6 +42,13 @@ package engine.battle.fsm.aimodule
       private static const WEIGHT_FRIEND_DISTANCE:int = 15;
       
       private static const WEIGHT_MOVE:int = 2;
+
+      // [Inference] BSF-Client #31: focus fire. A plan that hits a target already missing
+      // some of its strength earns up to this many points, in proportion to the share lost,
+      // so the side's units lean toward finishing one enemy rather than spreading damage.
+      // Kept far below the kill bonus (200). The weights are added up, so this does not
+      // guarantee a kill wins; the friends term alone can outweigh both.
+      private static const WEIGHT_FOCUS:int = 30;
       
       public var ai:AiModuleBase;
       
@@ -74,7 +81,9 @@ package engine.battle.fsm.aimodule
       private var pweight_friend:int = 0;
       
       private var mvweight:int = 0;
-      
+
+      private var focusweight:int = 0;
+
       public function AiPlan(param1:AiModuleBase, param2:BattleMove, param3:BattleAbilityDef, param4:BattleEntity)
       {
          super();
@@ -107,7 +116,11 @@ package engine.battle.fsm.aimodule
             }
             if(param4 && statchange_str)
             {
-               if(statchange_str.amount > param4.stats.getValue(StatType.STRENGTH))
+               // [Inference] BSF-Client #31: the game kills a unit when damage takes its
+               // strength to 0 or below (BattleEntity.strengthChangeHandler: value <= 0), so a
+               // hit equal to the remaining strength is a kill. The original used ">" and gave
+               // an exact kill no kill bonus.
+               if(statchange_str.amount >= param4.stats.getValue(StatType.STRENGTH))
                {
                   killed = true;
                }
@@ -178,6 +191,27 @@ package engine.battle.fsm.aimodule
          return _loc5_;
       }
       
+      /**
+       * [Inference] BSF-Client #31: focus fire (WEIGHT_FOCUS). Applies to strength and armor
+       * attacks alike, so the whole side leans toward the enemy it has already hurt. Zero when
+       * the plan hits nobody, or the target is unhurt.
+       */
+      public static function computeFocusWeight(param1:IBattleEntity, param2:Boolean) : int
+      {
+         if(!param1 || !param2)
+         {
+            return 0;
+         }
+         var _loc3_:Stat = param1.stats.getStat(StatType.STRENGTH);
+         var _loc4_:Number = _loc3_.original;
+         if(_loc4_ <= 0)
+         {
+            return 0;
+         }
+         var _loc5_:Number = Math.max(0,Math.min(1,(_loc4_ - _loc3_.value) / _loc4_));
+         return int(WEIGHT_FOCUS * _loc5_);
+      }
+
       public static function computePositionalWeightEnemies(param1:AiModuleBase, param2:Tile, param3:BattleEntity) : int
       {
          var _loc5_:* = null;
@@ -206,8 +240,11 @@ package engine.battle.fsm.aimodule
       
       public static function computePositionalWeight(param1:AiModuleBase, param2:Tile, param3:BattleEntity) : int
       {
+         // [Inference] BSF-Client #31: this scores a tile for the "rest here or walk closer"
+         // choice (AiModuleBase.findPlans). The original added the enemy term twice and never
+         // counted friends; the second term is now the friends one, as computeWeight does.
          var _loc4_:int = computePositionalWeightEnemies(param1,param2,param3);
-         var _loc5_:int = computePositionalWeightEnemies(param1,param2,param3);
+         var _loc5_:int = computePositionalWeightFriends(param1,param2,param3);
          return _loc4_ + _loc5_;
       }
       
@@ -243,9 +280,15 @@ package engine.battle.fsm.aimodule
          var _loc13_:BattleAbilityDef = _loc14_ ? _loc14_.def as BattleAbilityDef : null;
          var _loc8_:TileRect = new TileRect(param2,param1.caster.rect.width,param1.caster.rect.length);
          var _loc5_:int = TileRectRange.computeRange(_loc8_,param3.rect);
+         // [Inference] BSF-Client #31: both range tests below (the enemy's reach to us, and ours
+         // to the enemy) now include both ends, as the game's own rule does
+         // (BattleAbilityValidation.validate: refused only when range > rangeMax or
+         // < rangeMin). The original used "<" and ">", so a basic melee attack (range 0..1)
+         // never counted at any distance and a bow (2..5) only at 3 and 4: the computer could
+         // not see the danger of standing next to an enemy axeman.
          if(_loc13_)
          {
-            if(_loc5_ < _loc13_.rangeMax && _loc5_ > _loc13_.rangeMin)
+            if(_loc5_ <= _loc13_.rangeMax && _loc5_ >= _loc13_.rangeMin)
             {
                _loc7_ = BattleCalculationHelper.strengthNormalDamage(param3,param1.caster,0);
                _loc7_ = _loc7_ + BattleCalculationHelper.calculatePunctureBonus(param3,param1.caster);
@@ -264,7 +307,7 @@ package engine.battle.fsm.aimodule
          if(param1.atkStr)
          {
             _loc11_ = param1.atkStr.def as BattleAbilityDef;
-            if(_loc5_ < _loc11_.rangeMax && _loc5_ > _loc11_.rangeMin)
+            if(_loc5_ <= _loc11_.rangeMax && _loc5_ >= _loc11_.rangeMin)
             {
                _loc6_ = BattleCalculationHelper.strengthNormalDamage(param1.caster,param3,0);
                _loc6_ = _loc6_ + BattleCalculationHelper.calculatePunctureBonus(param1.caster,param3);
@@ -292,7 +335,7 @@ package engine.battle.fsm.aimodule
       {
          var _loc1_:String = abldef ? abldef.id + "/" + abldef.level : "null";
          return StringUtil.padRight(planId.toString()," ",4) + " 𐄷=" + StringUtil.padRight(StringUtil.numberWithSign(weight)," ",5) + " " + StringUtil.padRight(ai.caster.id," ",24) + " mv=" + StringUtil.padRight(mv ? (mv.numSteps - 1).toString() : "0"," ",2) + " abl=" + StringUtil.padRight(_loc1_," ",18) + " trg=" + StringUtil.padRight(target ? target.id : "null"," ",15) + " ☠💀=" + StringUtil.padRight(StringUtil.numberWithSign(killweight)," ",4) + " str=" + StringUtil.padRight(statchange_str ? statchange_str.toString() : "null"," ",6) + " arm=" + StringUtil.padRight(statchange_arm ? statchange_arm.toString() : "null"," ",6) + " ⌖e=" + StringUtil.padRight(StringUtil.numberWithSign(pweight_enemy)," ",4) + " ⌖f=" + StringUtil.padRight(StringUtil.numberWithSign(pweight_friend)," ",4) + " sws=" + StringUtil.padRight(StringUtil.numberWithSign(sweight_str)," ",5) + " swa=" + StringUtil.padRight(StringUtil.numberWithSign(sweight_arm)," ",5) + " mw=" + StringUtil.padRight(StringUtil.numberWithSign(mvweight)
-         ," ",5) + " ✶=" + starsweight;
+         ," ",5) + " foc=" + StringUtil.padRight(StringUtil.numberWithSign(focusweight)," ",3) + " ✶=" + starsweight;
       }
       
       private function computeWeight() : void
@@ -317,6 +360,8 @@ package engine.battle.fsm.aimodule
          weight += sweight_str;
          sweight_arm = computeArmorDamageWeight(ai,statchange_arm,target);
          weight += sweight_arm;
+         focusweight = computeFocusWeight(target,statchange_str != null || statchange_arm != null);
+         weight += focusweight;
          starsweight = computeStarsWeight(ai,abldef,mv);
          weight += starsweight;
          if(mv)

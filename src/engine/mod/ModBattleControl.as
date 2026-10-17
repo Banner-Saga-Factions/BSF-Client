@@ -27,7 +27,11 @@ package engine.mod
     * The mod-bridge commands that let an outside program read a battle and play
     * it: "battle_state", "battle_deploy_ready", "battle_end_turn", "battle_move"
     * and "battle_attack". Registered once from GameFsm, alongside
-    * "start_ai_battle".
+    * "start_ai_battle". A sixth, "set_game_speed", is a developer fast-forward
+    * for unattended runs (ModGameSpeed). It can only be raised inside an offline
+    * practice battle, but it stays raised until it is set back, even after the
+    * battle (BSF-Client #72). It is meant to change timing only; that rests on
+    * reading the code, not on a measured comparison.
     *
     * WHY IT DUCK-TYPES ONE HOP: the path from the game's state machine down to a
     * battle runs through SceneState, which is game-layer code, while this class
@@ -49,7 +53,7 @@ package engine.mod
     *   battle_attack        what the execute button does
     *                        (BattleHudPage.executeTurnAbility)
     *
-    * So none of this adds behaviour the game did not already have — it only
+    * So apart from set_game_speed, none of this adds behaviour the game did not already have — it only
     * makes the moment deterministic instead of timed, and reachable without a
     * screen. Two places where the likeness is not exact, both found in review:
     * the move commands skip setWayPoint, so the on-screen waypoint marker stays
@@ -70,7 +74,7 @@ package engine.mod
     *
     * NOTHING HERE THROWS AT THE HOST. Every handler is wrapped; a fault comes
     * back as a described refusal rather than as an ERROR line. Note the shapes
-    * differ: the four commands that do something answer {"ok":…}, while
+    * differ: the five commands that do something answer {"ok":…}, while
     * battle_state answers a description with no "ok" field at all.
     */
    public class ModBattleControl
@@ -104,7 +108,7 @@ package engine.mod
          s_gameFsm = gameFsm;
          s_logger = logger;
          // Every handler is wrapped, so the "nothing throws at the host" promise
-         // in this file's header holds for all five and not just for the ones
+         // in this file's header holds for all six and not just for the ones
          // that happen to have their own catch.
          ModBridge.registerCommand("battle_state",function(cmd:Object):Object
          {
@@ -147,10 +151,72 @@ package engine.mod
          {
             return issueAttack(cmd);
          });
+         ModBridge.registerCommand("set_game_speed",function(cmd:Object):Object
+         {
+            try
+            {
+               return setGameSpeed(cmd);
+            }
+            catch(e3:Error)
+            {
+               return {
+                  "ok":false,
+                  "reason":"could not change the game speed",
+                  "error":e3.message
+               };
+            }
+         });
          if(logger)
          {
-            logger.info("ModBridge commands registered: battle_state, battle_deploy_ready, battle_end_turn, battle_move, battle_attack");
+            logger.info("ModBridge commands registered: battle_state, battle_deploy_ready, battle_end_turn, battle_move, battle_attack, set_game_speed");
          }
+      }
+
+      /**
+       * {"scale":N}: run the game clock N times faster (1 to ModGameSpeed.MAX_SCALE).
+       * Going back to 1 is always allowed. Anything faster is refused unless an
+       * OFFLINE battle is on screen: an online battle shares its timing with
+       * another player and the server, and speeding one side up there is not
+       * something a test tool should be able to do. The speed lasts until it is
+       * set again or the game restarts; the match runner sets 1 after each battle.
+       */
+      private static function setGameSpeed(cmd:Object) : Object
+      {
+         var wanted:Number = cmd != null && cmd.scale != null ? Number(cmd.scale) : NaN;
+         if(isNaN(wanted) || wanted != Math.floor(wanted) || wanted < 1 || wanted > ModGameSpeed.MAX_SCALE)
+         {
+            return {
+               "ok":false,
+               "reason":"scale must be a whole number from 1 to " + ModGameSpeed.MAX_SCALE
+            };
+         }
+         if(wanted > 1)
+         {
+            var fsm:BattleFsm = currentBattle();
+            if(fsm == null)
+            {
+               return {
+                  "ok":false,
+                  "reason":"not in a battle"
+               };
+            }
+            if(fsm.isOnline)
+            {
+               return {
+                  "ok":false,
+                  "reason":"an online battle cannot be sped up"
+               };
+            }
+         }
+         ModGameSpeed.scale = int(wanted);
+         if(s_logger)
+         {
+            s_logger.info("ModBattleControl.setGameSpeed scale=" + ModGameSpeed.scale);
+         }
+         return {
+            "ok":true,
+            "scale":ModGameSpeed.scale
+         };
       }
 
       /**

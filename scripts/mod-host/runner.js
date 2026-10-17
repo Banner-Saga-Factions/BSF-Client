@@ -39,6 +39,7 @@
 //   node scripts\mod-host\runner.js                 # 10 battles
 //   node scripts\mod-host\runner.js --battles 5
 //   node scripts\mod-host\runner.js --player armor-first
+//   node scripts\mod-host\runner.js --speed 4         # play each battle about 2x faster
 //   node scripts\mod-host\runner.js --out _build\runner\my-run
 //   node scripts\mod-host\runner.js --summary-only _build\runner\my-run\runner-results.jsonl
 //
@@ -79,6 +80,11 @@ const DEFAULT_TURN_CAP = 400;
 // The fixed players the runner can play (see the top of this file).
 const PLAYERS = ['strength', 'armor-first'];
 
+// The fastest the game's developer fast-forward allows (ModGameSpeed.MAX_SCALE).
+// --speed is meant to change only how fast the battle plays on screen, not what
+// either side decides; docs/match-runner.md §4 says what the first trial showed.
+const MAX_SPEED = 8;
+
 // ---------------------------------------------------------------------------
 // Arguments
 // ---------------------------------------------------------------------------
@@ -90,6 +96,7 @@ function parseArgs(argv) {
     turnCap: DEFAULT_TURN_CAP,
     summaryOnly: null,
     player: 'strength',
+    speed: 1,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -114,7 +121,11 @@ function parseArgs(argv) {
     else if (arg === '--turn-cap') opts.turnCap = wholeNumber();
     else if (arg === '--summary-only') opts.summaryOnly = next();
     else if (arg === '--player') opts.player = next();
+    else if (arg === '--speed') opts.speed = wholeNumber();
     else throw new Error(`unknown argument: ${arg}`);
+  }
+  if (opts.speed > MAX_SPEED) {
+    throw new Error(`--speed can be at most ${MAX_SPEED}`);
   }
   if (!PLAYERS.includes(opts.player)) {
     throw new Error(`--player must be one of: ${PLAYERS.join(', ')}`);
@@ -387,10 +398,44 @@ async function waitForWalk(session, unitId, tile) {
 // One battle
 // ---------------------------------------------------------------------------
 
+/** A unit by id, or null. */
+function unitById(state, id) {
+  return (state && state.units || []).find(u => u.id === id) || null;
+}
+
+/** Dead, or gone from the board. */
+function isDown(state, id) {
+  const u = unitById(state, id);
+  return !u || !u.alive;
+}
+
 /**
- * A short fingerprint of how a battle went: who acted on each turn, and every
- * unit's strength and armor after it. Two battles with the same fingerprint
- * rolled the same dice — which is the wave's second question.
+ * The computer's units that walked up during its last stretch of turns and got
+ * nothing for it: they moved, and none of our units died. `before` is the board
+ * at the start of our previous turn and `now` the board at the start of this
+ * one; between them only the computer acted, since our basic attacks move no
+ * one but ourselves. If one of these is then killed by our very next attack, it
+ * walked into a free kill: the runner counts that as a computer "suicide",
+ * which is how issue #31 decides whether the opponent needs an anti-suicide
+ * rule. It undercounts on purpose: a unit our simple player could have killed
+ * but did not pick is not counted.
+ */
+function walkedInForNothing(before, now) {
+  const weLostOne = (before.units || []).some(u =>
+    u.playerControlled && u.alive && isDown(now, u.id));
+  if (weLostOne) return [];
+  return sides(now).theirs
+    .filter(u => {
+      const was = unitById(before, u.id);
+      return u.alive && u.tile && was && was.tile &&
+        (was.tile.x !== u.tile.x || was.tile.y !== u.tile.y);
+    })
+    .map(u => u.id);
+}
+
+/**
+ * A short fingerprint of a board: every unit's alive flag, strength and armor. Two battles that differ here differed;
+ * two that match very likely played the same, though tiles are not included.
  */
 function boardFingerprint(state) {
   return (state.units || [])
@@ -413,6 +458,9 @@ async function playBattle(session, index, opts, previousBattleId) {
     computerTurns: 0,
     secondsToDeploy: null,
     seconds: null,
+    speed: opts.speed,
+    computerSuicides: 0,
+    suicides: [],
     trace: [],
   };
   const started = Date.now();
@@ -455,10 +503,30 @@ async function playBattle(session, index, opts, previousBattleId) {
   if (!ready.ok) {
     throw new Error(`the game would not accept ready: ${ready.reason}`);
   }
+  if (opts.speed > 1) {
+    // After the deploy screen, so the game can see this is an offline battle;
+    // a run that asked for a speed it did not get would mislabel its numbers.
+    const fast = await session.send('set_game_speed', { scale: opts.speed });
+    if (!fast || !fast.ok) {
+      throw new Error(`the game would not run at speed ${opts.speed}: ${fast && fast.reason}`);
+    }
+  }
 
   const turnLog = [];
   let lastTurnSeen = -1;
   let state = null;
+  // For the suicide count (walkedInForNothing): the board at the start of our
+  // previous turn, and a computer unit we attacked after it walked up for nothing.
+  let before = atDeploy;
+  let watch = null;
+  const settleWatch = s => {
+    if (!watch || !s || !s.inBattle) return;
+    if (isDown(s, watch.unit)) {
+      record.computerSuicides++;
+      record.suicides.push(watch);
+    }
+    watch = null;
+  };
   for (;;) {
     state = await session.until(
       `battle ${index}: the player's turn, or the end`,
@@ -472,6 +540,7 @@ async function playBattle(session, index, opts, previousBattleId) {
       },
       { timeoutMs: PATIENCE.turnComesRound, everyMs: 300 }
     );
+    settleWatch(state);
     if (!state.inBattle || state.finished) break;
 
     // Turns in between were the computer's.
@@ -486,14 +555,25 @@ async function playBattle(session, index, opts, previousBattleId) {
       break;
     }
 
+    const suspects = walkedInForNothing(before, state);
+    before = state;
+
     const turn = await playTurn(session, state, opts);
     turn.battle = index;
     turnLog.push(turn);
     record.playerTurns++;
+    if (turn.action === 'attack' && suspects.includes(turn.target)) {
+      watch = { unit: turn.target, turn: state.turn.number };
+    }
   }
 
   // How it ended. Read once more after the last blow has landed.
   const finalState = state && state.inBattle ? await session.send('battle_state') : state;
+  settleWatch(finalState);
+  if (opts.speed > 1) {
+    // Back to normal: always allowed, even once the battle has gone.
+    await session.send('set_game_speed', { scale: 1 });
+  }
   const endSides = sides(finalState && finalState.inBattle ? finalState : state);
   record.survivors = {
     player: aliveOnBoard(endSides.ours).length,
@@ -632,7 +712,15 @@ function summarise(results) {
     `computer survivors, all battles: ${avg(results, r => r.survivors.computer).toFixed(2)}   ` +
       `player survivors, all battles: ${avg(results, r => r.survivors.player).toFixed(2)}`,
     `turns per battle: ${avg(results, r => r.turns).toFixed(1)}   ` +
-      `seconds per battle: ${avg(results, r => r.seconds).toFixed(0)}`,
+      `seconds per battle: ${avg(results, r => r.seconds).toFixed(0)}   ` +
+      `seconds per turn: ${(avg(results, r => r.seconds) / (avg(results, r => r.turns) || 1)).toFixed(2)}   ` +
+      `speed: ${[...new Set(results.map(r => r.speed || 1))].join(', ')}`,
+    // Older result files have no suicide count; say so rather than print 0.
+    results.every(r => typeof r.computerSuicides === 'number')
+      ? `computer suicides (walked up, killed nothing, died to our next attack): ` +
+        `${results.reduce((s, r) => s + r.computerSuicides, 0)} in all, ` +
+        `${avg(results, r => r.computerSuicides).toFixed(2)} per battle`
+      : 'computer suicides: not counted in this file (recorded before the counter existed)',
     `distinct battle ids: ${new Set(ids.map(String)).size} of ${n}   ` +
       `distinct battle traces: ${new Set(prints).size} of ${n}`,
     `game restarts needed: ${results.filter(r => r.afterRestart).length}`,

@@ -149,7 +149,7 @@ Two commands are built in (`createBuiltins`, `:652-665`):
 - **`ping`** → replies `"pong"`.
 - **`set_spectator`** → sets the `spectatorMode` flag (see §7).
 
-The registry is static and additive, so **more commands can be registered at runtime**, and six are —
+The registry is static and additive, so **more commands can be registered at runtime**, and seven are —
 all when the top-level game state is built (`GameFsm.as:171` and `:183`):
 
 | Command | What it does | Replies with |
@@ -160,16 +160,35 @@ all when the top-level game state is built (`GameFsm.as:171` and `:183`):
 | **`battle_end_turn`** | Ends the turn in progress. | `{"ok":…}` |
 | **`battle_move`** | Walks the unit whose turn it is to a tile. | `{"ok":…}` |
 | **`battle_attack`** | Has that unit swing at another one. Ends its turn. | `{"ok":…}` |
+| **`set_game_speed`** | Fast-forwards the game clock, `{"scale":N}` with N from 1 to 8 — see below. | `{"ok":…,"scale":N}` |
 
 Together they are enough to play a battle from start to finish without a mouse:
 `start_ai_battle` → `battle_deploy_ready` → (`battle_move`, `battle_attack` or `battle_end_turn`) per turn.
+
+**`set_game_speed` is a developer fast-forward** (added for issue #31, so the match runner can play
+battles faster). Each frame the game works out how many milliseconds have passed and moves its
+animations on by that much; this multiplies that number, and also shortens the computer opponent's two
+half-second pauses by the same factor. Some timers run on real time and are not sped up, so ×4 measured
+about twice as fast. Two limits:
+
+- **Above 1 only in an offline battle.** Anything faster is refused with `not in a battle` or `an online
+  battle cannot be sped up`. Going back to `1` is always allowed. The refusals have only been checked by
+  reading the code ([BSF-Client #73](https://github.com/Banner-Saga-Factions/BSF-Client/issues/73)).
+- **It lasts until it is set again or the game restarts, on every screen.** The offline check runs only
+  when the speed is set, so a speed left behind carries into whatever comes next, a later online battle
+  included. Setting it back is the host's job; the match runner does it after every battle that ends
+  normally. After a failure it closes the game, which ends the speed too; Ctrl-C does neither, so close
+  the game in that case
+  ([BSF-Client #72](https://github.com/Banner-Saga-Factions/BSF-Client/issues/72)).
+
+A bad value answers `scale must be a whole number from 1 to 8`.
 
 The offline battle `start_ai_battle` launches is documented in [`offline-ai.md`](./offline-ai.md). A host
 author registers their own commands the same way, via `registerCommand`.
 
 ### Reading and playing a battle
 
-All five battle commands live in `ModBattleControl.as`, kept apart from the bridge itself so `GameFsm`
+All six battle commands live in `ModBattleControl.as`, kept apart from the bridge itself so `GameFsm`
 stays a plain registration site.
 
 **They add no behaviour the game did not already have.** Reading touches getters only, and each of the

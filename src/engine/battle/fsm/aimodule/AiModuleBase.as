@@ -87,7 +87,11 @@ package engine.battle.fsm.aimodule
                {
                   enemies.push(_loc1_);
                }
-               else
+               // [Inference] BSF-Client #31: the original put the unit taking its turn into its
+               // own friends list. AiPlan's "stay near friends" term then measured the distance
+               // from the tile it might move to back to the square it is leaving, so every move
+               // cost it points for walking away from itself. Leave the caster out.
+               else if(_loc1_ != caster)
                {
                   friends.push(_loc1_);
                }

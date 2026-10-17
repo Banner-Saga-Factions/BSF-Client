@@ -149,7 +149,7 @@ Two commands are built in (`createBuiltins`, `:652-665`):
 - **`ping`** → replies `"pong"`.
 - **`set_spectator`** → sets the `spectatorMode` flag (see §7).
 
-The registry is static and additive, so **more commands can be registered at runtime**, and seven are —
+The registry is static and additive, so **more commands can be registered at runtime**, and eight are —
 all when the top-level game state is built (`GameFsm.as:171` and `:183`):
 
 | Command | What it does | Replies with |
@@ -161,6 +161,7 @@ all when the top-level game state is built (`GameFsm.as:171` and `:183`):
 | **`battle_move`** | Walks the unit whose turn it is to a tile. | `{"ok":…}` |
 | **`battle_attack`** | Has that unit swing at another one. Ends its turn. | `{"ok":…}` |
 | **`set_game_speed`** | Fast-forwards the game clock, `{"scale":N}` with N from 1 to 8 — see below. | `{"ok":…,"scale":N}` |
+| **`set_ai_brain`** | Picks the offline computer opponent's brain, `{"brain":"dredge"}` or `{"brain":"search"}`; with no `brain`, only reports it — see below. | `{"ok":…,"brain":…}` |
 
 Together they are enough to play a battle from start to finish without a mouse:
 `start_ai_battle` → `battle_deploy_ready` → (`battle_move`, `battle_attack` or `battle_end_turn`) per turn.
@@ -182,6 +183,15 @@ about twice as fast. Two limits:
   ([BSF-Client #72](https://github.com/Banner-Saga-Factions/BSF-Client/issues/72)).
 
 A bad value answers `scale must be a whole number from 1 to 8`.
+
+**`set_ai_brain` picks how the offline computer opponent thinks** (added for issue #31, Wave 4, so the
+match runner can compare two brains on one build). `dredge` is the planner the game shipped with, plus
+issue #31's fixes; `search` adds a one-move look-ahead ([`offline-ai.md`](./offline-ai.md) §4, "The
+look-ahead brain"). The game reads the setting as each computer turn starts, so a change takes effect
+from the next computer turn. It is allowed at any time: only an offline battle has a computer opponent.
+Like the speed, it lasts until it is set again or the game restarts. Any other value answers
+`brain must be "dredge" or "search"`. A build from before this command answers with an `ERROR` line
+(unknown command), which the match runner records as an unknown brain.
 
 The offline battle `start_ai_battle` launches is documented in [`offline-ai.md`](./offline-ai.md). A host
 author registers their own commands the same way, via `registerCommand`.
@@ -295,7 +305,7 @@ again would make the engine log a re-termination error the host did nothing wron
 > handle both replies.
 >
 > One narrow hazard if you do use it: the computer's planning timer is not stopped by the same `skipped`
-> flag its other two entry points check (`AiModuleDredge.as:79-117` versus `:49` and `:213`), so in
+> flag its other two entry points check (`AiModuleDredge.as:81-119` versus `:51` and `:225`), so in
 > principle it can still reach a second commit on an already-committed move. Not seen in either run.
 
 ### Issuing a move and an attack

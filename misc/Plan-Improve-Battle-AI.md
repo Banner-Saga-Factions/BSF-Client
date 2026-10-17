@@ -70,6 +70,10 @@ runner's output folders are in `_build\runner\` (not committed).
 | 2026-10-16 | The same, seed `1198581929`, account `443456` | `armor-first` | 8 (8) | 8 (100%) | 2.63 | 0 | 67.3 | 3 | 0 |
 | 2026-10-16 | Wave 3b (specials), `--speed 4`, variety 25, seed `1197659914`, account `test2`; stopped after 4 | `armor-first` | 4 (4) | 4 (100%) | 3.50 | 0 | 50.3 | 0 | 0 |
 | 2026-10-16 | The same, seed `1198581929`, account `443456`; stopped after 4 | `armor-first` | 4 (4) | 4 (100%) | 3.50 | 0 | 61.0 | 0 | 0 |
+| 2026-10-17 | Wave 4 build, brain `dredge`, `--speed 4`, variety 25, seed `1197659914`, account `test2` | `armor-first` | 4 (4) | 1 (25%) | 0.50 | 1.00 | 56.3 | 2 | 0 |
+| 2026-10-17 | The same build, brain `search` (look-ahead), same seed and account | `armor-first` | 4 (4) | 4 (100%) | 3.25 | 0 | 53.5 | 0 | 0 |
+| 2026-10-17 | The same build, brain `dredge`, seed `1198581929`, account `443456` | `armor-first` | 4 (4) | 4 (100%) | 3.25 | 0 | 66.3 | 1 | 0 |
+| 2026-10-17 | The same build, brain `search`, same seed and account | `armor-first` | 4 (4) | 4 (100%) | 3.75 | 0 | 59.8 | 0 | 0 |
 
 "Distinct" counts battles whose fingerprints differ (the summary's "distinct battle traces"). A
 battle that repeats another turn for turn adds no evidence; see
@@ -109,6 +113,17 @@ first 4 battles of 3a's runs, which used the same seeds, the computer went from 
 survivors to 4 of 4 with 3.50 on `test2`, and from 4 of 4 with 3.25 to 4 of 4 with 3.50 on `443456`.
 Four battles are too few to call that a gain, and the pairing is loose: a seed fixes the scripted
 player's choices, but each battle's dice come from the clock.
+
+**Wave 4 compared both brains on one build (2026-10-17)**, switched over the bridge before each battle,
+with 3a's and 3b's seeds. The look-ahead (`search`) matched or beat the planner without it (`dredge`) on
+computer survivors on both accounts: 3.25 against 0.50 on `test2`, 3.75 against 3.25 on `443456`. It
+had no suicides against 3 for `dredge`, and no errors: no `#1009`, no "went wrong while faking", and no
+failed look-ahead in 233 computer turns. It changed the normal choice on 12 of 110 turns on `test2` and
+4 of 123 on `443456`. **Read the `test2` gap with care:** the same `dredge` brain on the same seed won
+4 of 4 with 3.50 survivors in 3b's run, and 1 of 4 with 0.50 here. Nothing in `dredge` changed between
+the two (the seam only moves "take the top plan" into its own function). So 4 battles on `test2` swing
+widely, and that account's gap is mostly noise. The `443456` gap is small. What the runs do show is
+that the look-ahead costs nothing measurable and breaks nothing.
 
 ## What reading the code found (2026-10-16; findings 1–4 fixed and measured in Wave 2)
 
@@ -302,53 +317,111 @@ battles of `armor-first` at `--speed 4`**, on both accounts, with the seed recor
 
 ### Wave 4: one-move look-ahead
 
-- **Changes:** a new `src/engine/battle/fsm/aimodule/AiModuleSearch.as` extending `AiModuleDredge`,
-  switched in behind a hidden `BattleFsmConfig.aiLookahead` setting by an overlay of
-  `BattleStateTurnAi.as:20` (line number in the original). Wave 2 already overlaid that file for the
-  fast-forward, so extend that overlay rather than starting a new one. Design below.
-- **Stop rule:** the switch defaults on once the runner shows it beats the Wave 3 build. If the computer
-  wins at least half its battles against `armor-first`, the owner plays it as the final check and #31
-  can close. If not, the wave's write-up names the next step from the roadmap.
-- **Branch:** `feat/ai-lookahead-31`. **Model:** Opus, high, or xhigh if the first measurements are
-  puzzling. It is the hardest wave: a search loop over pretend mode.
+Re-planned 2026-10-17 (plan comment on #31). Since 3b already won 4 of 4 on both accounts, the wave is
+judged mainly by **computer survivors**, the bar's tie-breaker.
 
-**The look-ahead design.** Subclass rather than patch in place, so the original opponent stays shippable
-and the switch can flip between them. For the top ~6 plans by today's score:
+- **Changes** (the durable write-up is [`../docs/offline-ai.md`](../docs/offline-ai.md) §4, "The
+  look-ahead brain"):
+  - **One seam in `AiModuleDredge`:** the plan list and the chosen plan are `protected`, and "play the
+    top plan" is its own function, `pickPlan`. Nothing else in it changes.
+  - **`AiModuleSearch` (new), `extends AiModuleDredge`, overrides `pickPlan`.** For the 6 best
+    different plans it imagines our move once, finds the next enemy in the turn order, scores that
+    enemy's best basic attack on any of our units it can reach, and takes those points off the plan
+    (`WEIGHT_REPLY` = 1). Everything is put back in a `finally`; any error plays the top plan.
+  - **The switch is `ModAiBrain`**, read as each computer turn starts, set over the bridge with
+    `set_ai_brain`, with runner `--brain`. Not `BattleFsmConfig`: a second, stale copy of that class
+    ships inside `gui\battle_initiative.swf`, and a static setting needs a rebuild to flip. A bridge
+    setting lets one build measure both brains.
+- **What planning and building found:**
+  1. **Pretend mode cannot be nested.** `BattleBoard.fake` is one on/off flag: on clones every unit's
+     stats, off throws the clones away, and setting it to the value it already has does nothing. So
+     the first design's step 3, "pretend-play the reply", would have wiped our own imagined move. The
+     reply is worked out from the pretend stats with the game's attack rule instead.
+  2. **The game's real miss rule is in `Op_DamageStr`**, not in the `BattleCalculationHelper
+     .strengthNormalMiss` helper the kickoff named. Nothing calls that helper, and it counts one point
+     more than the attack does. The rule, the same in all three basic strength attacks: a strength
+     attack that does not beat armor lands for 1 or misses for 0, at 10% per point short, at most 80%.
+  3. **A unit cannot be moved while it holds pretend stats** (`BattleEntity.setPos` returns at once).
+     So it is moved before pretend mode starts and moved back after it ends, as `getStatChange` does.
+  4. **The reply's route is found on a board that is not told about our imagined move**, since the
+     unit's move events are muted while imagining. Distances use the imagined position, but the tile
+     we leave still counts as taken. Accepted as a small error.
+  5. **We know who replies.** `battleFsm.order.aliveOrder` starts with the unit taking its turn, then
+     alternates sides. In the smoke battle, each reply came from the unit that took the next turn.
+- **Measured** (rows in *Measurements*): the stop rule is met. `search` matched or beat `dredge` on
+  computer survivors on both accounts, with no new errors, so `ModAiBrain` defaults to `search` in the
+  wave's last commit. Each look takes about 40 ms, so about a quarter of a second per computer turn.
+- **Next:** the owner plays it as the final check. #31 can then close, or go on to Wave 4b below.
+- **Branch:** `feat/ai-lookahead-31`, stacked on `feat/ai-specials-31`. **Model:** Opus, high.
 
-1. note the board (pretend mode's stat clone, plus each unit's position, facing and alive flag);
-2. pretend-play our move and action;
-3. pretend-play the other side's best single reply, scoring expected damage as
-   `amount × (1 − missChance)` (`getStatChange` already reports `FAKE_MISS_CHANCE`). That averages over
-   hit and miss rather than assuming the worst;
-4. detect pretend deaths by `strength <= 0`, since setting `alive` does nothing in pretend mode;
-5. re-score with the existing `computeWeight` terms and restore the board.
+### Wave 4b (proposed 2026-10-17): units that get stuck, or box in a friend
 
-Pick the best plan after the reply and send it through the unchanged `chooseBestPlan` / `performAction`
-path. About 250–400 lines. Cost: about 36 extra pretend runs on top of today's 40–80, which is
-milliseconds; the opponent already thinks on a timer, so a heavy turn can be spread across ticks.
-Effects that last several turns (damage over time) are out of scope at this depth, because the stat
-clone copies values, not the list of effects.
+The owner watched the Wave 4 runs and saw units stand still or wander instead of walking around logs
+and other units, and a Thrasher block a Varl friend from reaching an attack. Read from the Wave 4 game
+logs; not yet fixed:
+
+1. **Walking closer earns nothing.** With no enemy in reach, a "walk toward that enemy" plan is scored
+   almost only by its distance from friends (`computePositionalWeight`: the enemy term is 0 out of
+   reach). So a unit drifts toward its friends instead of toward the enemy. Seen: in the last `dredge`
+   battle on `443456`, the computer's Backbiter went (13,8), (11,10), (8,9), (8,4), (10,6), (9,9), then
+   rested twice while the last enemy was out of reach.
+2. **The rest rule favours standing still.** `findPlans` rests when the tile it would walk to scores no
+   better than where it stands and its willpower is not full, which walking away from friends never
+   does.
+3. **Friends box each other in.** The friends term (15 points a tile, 30 for archers) bunches the side,
+   and nothing scores standing in a friend's way. A 2×2 Varl needs a two-wide gap. Seen: in the last
+   `search` battle on `443456`, turn 9, the computer's Warmaster at (12,5) found no route to any of 6
+   enemies, with any attack or its special, after its Backbiter moved to (11,6) and an archer to (12,7).
+   It ended the turn where it stood.
+4. **The route-finder aims only at the tiles touching the target** (`BattleMove.pathToRect`), within
+   the unit's move plus 20. If none is free, it returns no route at all, not a partial one.
+
+**Proposed changes**, measured with the same 4-battle runs on both accounts plus two new runner counts,
+"stalled computer turns" (no move and no action while enemies remain) and "boxed-in computer turns" (no
+route to any enemy):
+
+- a progress term: points per tile of *walking* distance gained toward the nearest enemy, only when no
+  attack is possible;
+- rest only when it cannot get closer, or is badly hurt;
+- a fallback route to the reachable tile nearest the target by walking distance;
+- a weaker pull toward friends: the nearest friend only, or nothing within 2–3 tiles;
+- leave room: among tiles that reach the same enemy, prefer the one that keeps the most tiles next to
+  it free, counting tiles a 2×2 friend could use;
+- if those are not enough, a "don't block" check on the best 2–3 plans: does the end tile cut a friend
+  who has not yet acted off from its best target?
+
+It changes the planner both brains share, so it is its own wave, stacked on `feat/ai-lookahead-31`
+(Opus, high), and not part of Wave 4's comparison.
 
 ### Roadmap (not scheduled)
 
+- **A Claude sparring partner** ([#80](https://github.com/Banner-Saga-Factions/BSF-Client/issues/80)):
+  a Claude Code chat plays the player's side by hand over the bridge. The win rate is at its ceiling
+  against the scripted players, so this is the stronger yardstick. Offline player turns have no time
+  limit (owner).
+- **"Claude learns the game and teaches the in-game AI"**, recorded in #80 as an idea, not scheduled.
+  Claude does not learn between chats, so it cannot train the opponent. What it can do is spar and
+  read logs.
 - Scoring for buffs (Stonewall, Forge Ahead).
 - Specials aimed at a tile, and ones that hit two targets. These need aiming code, and the bridge
   refuses them too.
+- A deeper look-ahead (more than the next enemy, or the reply's specials).
 - The external brain over the bridge (see the corrected note above).
 
 ## Critical files
 
 | File | Wave | Change |
 | ---- | ---- | ------ |
-| `scripts/mod-host/runner.js` _(new)_ | 1, 3a | The match runner; 3a: `--seed`, `--variety`, `--steam-id` |
-| `src/engine/mod/ModBattleControl.as` | 1 | `size` on each unit in `battle_state` |
+| `scripts/mod-host/runner.js` _(new)_ | 1, 3a, 4 | The match runner; 3a: `--seed`, `--variety`, `--steam-id`; 4: `--brain` and the look-ahead counts |
+| `src/engine/mod/ModBattleControl.as` | 1, 4 | `size` on each unit in `battle_state`; 4: `set_ai_brain` |
+| `src/engine/mod/ModAiBrain.as` _(new)_ | 4 | The brain switch |
 | `src/engine/battle/fsm/aimodule/AiPlan.as` _(re-overlay)_ | 2 | Findings 1, 2, 4; `WEIGHT_FOCUS`; maybe `WEIGHT_SUICIDE`; new terms in `toString()` |
 | `src/engine/battle/fsm/aimodule/AiModuleBase.as` _(re-overlay)_ | 2, 3b | Finding 3; the `specials` list |
-| `src/engine/battle/fsm/aimodule/AiModuleDredge.as` _(new overlay)_ | 3b | Special passes in `tickAi` |
+| `src/engine/battle/fsm/aimodule/AiModuleDredge.as` _(new overlay)_ | 3b, 4 | Special passes in `tickAi`; 4: the `pickPlan` seam |
 | `src/engine/battle/ability/model/BattleAbility.as` _(new overlay)_ | 3b | Finding 5 |
 | `src/engine/battle/fsm/aimodule/AiModuleSearch.as` _(new)_ | 4 | The look-ahead |
 | `src/engine/mod/ModGameSpeed.as` _(new)_, `src/game/view/GameWrapper.as` _(new overlay)_ | 2 | The developer fast-forward |
-| `src/engine/battle/fsm/state/BattleStateTurnAi.as` _(overlay since Wave 2)_, `BattleFsmConfig.as` | 2, 4 | Wave 2: the pauses follow the fast-forward. Wave 4: the switch |
+| `src/engine/battle/fsm/state/BattleStateTurnAi.as` _(overlay since Wave 2)_ | 2, 4 | Wave 2: the pauses follow the fast-forward. Wave 4: builds the brain `ModAiBrain` picks |
 
 ## Risks
 

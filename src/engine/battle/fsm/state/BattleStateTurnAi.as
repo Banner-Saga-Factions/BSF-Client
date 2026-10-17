@@ -5,9 +5,11 @@ package engine.battle.fsm.state
    import engine.battle.fsm.BattleMoveEvent;
    import engine.battle.fsm.aimodule.AiModuleBase;
    import engine.battle.fsm.aimodule.AiModuleDredge;
+   import engine.battle.fsm.aimodule.AiModuleSearch;
    import engine.core.fsm.StateData;
    import engine.core.fsm.StatePhase;
    import engine.core.logging.ILogger;
+   import engine.mod.ModAiBrain;
    import engine.mod.ModGameSpeed;
 
    public class BattleStateTurnAi extends BattleStateTurnLocalBase
@@ -18,7 +20,9 @@ package engine.battle.fsm.state
       public function BattleStateTurnAi(param1:StateData, param2:BattleFsm, param3:ILogger)
       {
          super(param1,param2,param3,true);
-         aiModule = new AiModuleDredge(this);
+         // [Inference] BSF-Client #31: the look-ahead brain when the switch is on
+         // (ModAiBrain, set over the mod bridge); otherwise the original planner.
+         aiModule = ModAiBrain.lookahead ? new AiModuleSearch(this) : new AiModuleDredge(this);
       }
       
       override protected function handleEnteredState() : void

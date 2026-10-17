@@ -49,10 +49,12 @@
 //   node scripts\mod-host\runner.js                 # 10 battles
 //   node scripts\mod-host\runner.js --battles 5
 //   node scripts\mod-host\runner.js --player armor-first
+//   node scripts\mod-host\runner.js --brain search      # the computer thinks with the look-ahead
 //   node scripts\mod-host\runner.js --speed 4         # play each battle about 2x faster
 //   node scripts\mod-host\runner.js --seed 1234       # start the random choices from this seed
 //   node scripts\mod-host\runner.js --variety 0       # the old fixed play, no randomness
-//   node scripts\mod-host\runner.js --steam-id 443456 # sign in as another local account//   node scripts\mod-host\runner.js --out _build\runner\my-run
+//   node scripts\mod-host\runner.js --steam-id 443456 # sign in as another local account
+//   node scripts\mod-host\runner.js --out _build\runner\my-run
 //   node scripts\mod-host\runner.js --summary-only _build\runner\my-run\runner-results.jsonl
 //
 // WHAT IT WRITES, in the output folder (default _build\runner\<date-time>):
@@ -97,6 +99,11 @@ const PLAYERS = ['strength', 'armor-first'];
 // either side decides; docs/match-runner.md §4 says what the first trial showed.
 const MAX_SPEED = 8;
 
+// The computer opponent's brains (the game's ModAiBrain): the planner it shipped
+// with, and the same planner with a one-move look-ahead. Without --brain the run
+// leaves the game's own setting and writes down which one it was.
+const BRAINS = ['dredge', 'search'];
+
 // The chance, in percent, that the player takes its second-best option at a
 // choice (see VARIETY at the top of this file).
 const DEFAULT_VARIETY = 25;
@@ -113,6 +120,8 @@ function parseArgs(argv) {
     summaryOnly: null,
     player: 'strength',
     speed: 1,
+    // null leaves the game's own brain setting (and records it).
+    brain: null,
     // Picked from the clock in main() when not given, and printed.
     seed: null,
     variety: DEFAULT_VARIETY,
@@ -162,10 +171,14 @@ function parseArgs(argv) {
     else if (arg === '--summary-only') opts.summaryOnly = next();
     else if (arg === '--player') opts.player = next();
     else if (arg === '--speed') opts.speed = wholeNumber();
+    else if (arg === '--brain') opts.brain = next();
     else throw new Error(`unknown argument: ${arg}`);
   }
   if (opts.speed > MAX_SPEED) {
     throw new Error(`--speed can be at most ${MAX_SPEED}`);
+  }
+  if (opts.brain !== null && !BRAINS.includes(opts.brain)) {
+    throw new Error(`--brain must be one of: ${BRAINS.join(', ')}`);
   }
   if (!PLAYERS.includes(opts.player)) {
     throw new Error(`--player must be one of: ${PLAYERS.join(', ')}`);
@@ -555,6 +568,7 @@ async function playBattle(session, index, opts, previousBattleId) {
     secondsToDeploy: null,
     seconds: null,
     speed: opts.speed,
+    brain: null,
     account: session.options.steamId,
     seed: opts.seed,
     battleSeed: battleSeed(opts.seed, index),
@@ -565,6 +579,9 @@ async function playBattle(session, index, opts, previousBattleId) {
   };
   const started = Date.now();
   const choose = makeChooser(record.battleSeed, opts.variety);
+
+  // Before the battle: the brain is read as each computer turn starts.
+  record.brain = await chooseBrain(session, opts);
 
   const accepted = await session.send('start_ai_battle');
   if (accepted !== 'ok') {
@@ -692,6 +709,29 @@ async function playBattle(session, index, opts, previousBattleId) {
   return { record, turnLog };
 }
 
+/**
+ * Switch the computer to the brain --brain asked for, or, without --brain, ask
+ * which one the game is using. Either way the answer goes on the battle's result
+ * line, so a results file always says which brain it measured. A build from
+ * before the switch existed refuses the command; that is only an error when a
+ * brain was asked for.
+ */
+async function chooseBrain(session, opts) {
+  let answer;
+  try {
+    answer = await session.send('set_ai_brain', opts.brain ? { brain: opts.brain } : {});
+  } catch (err) {
+    if (opts.brain) {
+      throw new Error(`the game would not switch to the ${opts.brain} brain: ${err.message}`);
+    }
+    return 'unknown (this build has no set_ai_brain)';
+  }
+  if (!answer || !answer.ok) {
+    throw new Error(`the game would not switch to the ${opts.brain} brain: ${answer && answer.reason}`);
+  }
+  return answer.brain;
+}
+
 /** A short stable hash, so two traces can be compared at a glance. */
 function simpleHash(text) {
   let h = 5381;
@@ -768,7 +808,10 @@ function countLogFlags(runStartedAt, gamesStarted) {
   } catch (err) {
     return { found: 0, reason: `could not list ${dir}: ${err.message}` };
   }
-  const totals = { found: 0, error1009: 0, fakingWentWrong: 0, error1508: 0, battlesStarted: 0, files: [] };
+  const totals = {
+    found: 0, error1009: 0, fakingWentWrong: 0, error1508: 0, battlesStarted: 0,
+    lookAheadPlans: 0, lookAheadTurns: 0, lookAheadChanged: 0, lookAheadFailed: 0, files: [],
+  };
   for (const file of files) {
     let text;
     try {
@@ -787,6 +830,12 @@ function countLogFlags(runStartedAt, gamesStarted) {
     totals.fakingWentWrong += count(/Something went wrong while faking/g);
     totals.error1508 += count(/Error #1508/g);
     totals.battlesStarted += count(/GameFsm\.startAiBattle/g);
+    // The look-ahead brain's lines (AiModuleSearch): one per plan it looked at, and
+    // one per turn saying whether it kept the normal choice or changed it.
+    totals.lookAheadPlans += count(/BSF #31 look-ahead: plan /g);
+    totals.lookAheadTurns += count(/BSF #31 look-ahead: \S+ (kept|changed) /g);
+    totals.lookAheadChanged += count(/BSF #31 look-ahead: \S+ changed its choice/g);
+    totals.lookAheadFailed += count(/BSF #31 look-ahead failed/g);
   }
   if (totals.found === 0) {
     totals.reason = `no game log in ${dir} written since the run began mentions a practice battle`;
@@ -813,7 +862,8 @@ function summarise(results) {
   const values = f => [...new Set(results.map(r => r[f] === undefined ? '-' : r[f]))].join(', ');
   const lines = [
     `battles: ${n}   scripted player: ${[...new Set(results.map(r => r.player || 'strength'))].join(', ')}`,
-    `account: ${values('account')}   seed: ${values('seed')}   variety (%): ${values('variety')}`,
+    `account: ${values('account')}   seed: ${values('seed')}   variety (%): ${values('variety')}   ` +
+      `computer brain: ${values('brain')}`,
     `computer won: ${computerWins}   player won: ${playerWins}   ` +
       `unfinished/unclear: ${n - decided}`,
     `computer win rate: ${decided ? (100 * computerWins / decided).toFixed(0) : '-'}% of decided battles`,
@@ -872,7 +922,7 @@ async function main() {
   fs.mkdirSync(outDir, { recursive: true });
   opts.outDir = outDir;
   if (opts.seed === null) opts.seed = Date.now() >>> 0;
-  say(`seed ${opts.seed}, variety ${opts.variety}%`);
+  say(`seed ${opts.seed}, variety ${opts.variety}%, computer brain ${opts.brain || "(the game's own setting)"}`);
   const turnsPath = path.join(outDir, 'runner-turns.jsonl');
   const summaryPath = path.join(outDir, 'runner-summary.txt');
   say(`writing to ${outDir}`);
@@ -971,6 +1021,8 @@ async function main() {
       ? `game logs (${flags.files.join(', ')}): #1009 x${flags.error1009}, ` +
         `"went wrong while faking" x${flags.fakingWentWrong}, ` +
         `practice battles started x${flags.battlesStarted}, ` +
+        `look-ahead: ${flags.lookAheadTurns} turns, ${flags.lookAheadPlans} plans looked at, ` +
+        `choice changed x${flags.lookAheadChanged}, failed x${flags.lookAheadFailed}, ` +
         `sound-extension #1508 x${flags.error1508} (3 per game start under adl; ` +
         `a shortfall means check which log was read, not that the count is wrong)`
       : `game logs NOT COUNTED: ${flags.reason}. Read them by hand before trusting this run.`,

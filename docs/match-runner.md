@@ -34,12 +34,14 @@ node scripts\mod-host\runner.js --battles 5 --out _build\runner\try-1
 node scripts\mod-host\runner.js --player armor-first --speed 4  # the same, played about twice as fast
 node scripts\mod-host\runner.js --seed 1234               # start the random choices from this seed (§3)
 node scripts\mod-host\runner.js --variety 0               # the fixed play of the first runs (§3)
-node scripts\mod-host\runner.js --steam-id 443456         # sign in as another local account (§5)node scripts\mod-host\runner.js --summary-only _build\runner\try-1\runner-results.jsonl
+node scripts\mod-host\runner.js --steam-id 443456         # sign in as another local account (§5)
+node scripts\mod-host\runner.js --brain search            # the computer thinks with the look-ahead (below)
+node scripts\mod-host\runner.js --summary-only _build\runner\try-1\runner-results.jsonl
 ```
 
 Every run prints its **seed**, the number its random choices start from (§3). Pass it back with `--seed`
-to start the same random choices again (§3 says what that does not yet repeat). The seed, the account and the variety are on every results line and in
-the summary.
+to start the same random choices again (§3 says what that does not yet repeat). The seed, the account,
+the variety and the computer's brain are on every results line and in the summary.
 
 A battle takes about 3½ minutes at normal speed, so 10 battles is about 35 minutes. With `--speed 4` it
 takes about 1½ minutes (§4). Close other programs first: one long run was stopped by the PC running low
@@ -50,13 +52,61 @@ itself. Leave it alone: a click can steal a turn from the runner.
 points the game's helper setting (`mods\host.json`) at a small go-between, and it puts the old setting
 back afterwards. `scripts\install-mod-host.ps1` is only for the hand-run `host.js`.
 
+### Choosing the computer's brain and the speed
+
+Two settings decide what a battle is like, and they mix freely:
+
+- **The computer's brain**, `--brain`. `dredge` is the planner the game shipped with, plus issue #31's
+  fixes. `search` is the same planner plus a one-move look-ahead: before it commits, it asks what the
+  enemy who acts next could do back to it ([`offline-ai.md`](./offline-ai.md) §4, "The look-ahead
+  brain"). Leave `--brain` out and the run keeps whatever the game is set to, and writes that down. The
+  brain is switched before each battle starts, so one build can measure both.
+- **The speed**, `--speed`, from 1 (normal) to 8. It changes how fast the battle plays on screen, not
+  what either side decides. ×4 is about twice as fast in practice (§4).
+
+The other side is always the runner's own scripted player (§3), picked with `--player`. For example:
+
+```powershell
+node scripts\mod-host\runner.js --battles 4 --brain dredge --speed 4 --player armor-first --out _build\runner\dredge-1
+node scripts\mod-host\runner.js --battles 4 --brain search --speed 4 --player armor-first --out _build\runner\search-1
+node scripts\mod-host\runner.js --battles 1 --brain search --speed 1 --out _build\runner\watch-1
+node scripts\mod-host\runner.js --battles 4 --brain search --speed 4 --steam-id 443456 --out _build\runner\search-443456
+```
+
+The third line is one battle at normal speed, to watch. To compare two brains fairly, keep everything
+else the same: account, `--player`, `--seed`, `--speed` and the build.
+
+### Playing it yourself against a chosen brain
+
+The runner plays the player's side itself. To play that side **by hand** against a chosen brain and
+speed, use the hand-run helper, `host.js`, with a script file. The helper sends a list of commands at
+set times, and you click everything else.
+
+1. Copy `scripts\mod-host\script.play-vs-brain.example.json` to a file of your own and edit it.
+   `"brain"` is `dredge` or `search`; `"scale"` is the speed, from 1 to 8.
+2. Install the helper with that script, from the `bsf-client` folder:
+   `.\scripts\install-mod-host.ps1 -Script .\my-play.json`
+3. Start the game: `.\scripts\run-adl.ps1` (add `-SteamId 443456` for the second test account).
+4. The script waits 30 seconds for the sign-in, sets the brain, starts a practice battle, and 20 seconds
+   later sets the speed. **Click Ready yourself** on the deploy screen. If the speed arrives before the
+   battle is on screen, it is refused (`not in a battle`, in the helper's lines in the game log) and the
+   battle plays at normal speed.
+5. **Close the game when you are done**, and take the helper out with
+   `.\scripts\install-mod-host.ps1 -Remove`. The helper never sets the speed back, and a raised speed
+   carries into whatever comes next, an online battle included, until the game restarts
+   ([BSF-Client #72](https://github.com/Banner-Saga-Factions/BSF-Client/issues/72)). The brain, too,
+   lasts until the game restarts.
+
+Without a script, `Ctrl+Shift+A` starts a practice battle at normal speed, against the build's default
+brain ([`offline-ai.md`](./offline-ai.md) §7, "Try it yourself").
+
 ## 2. What it writes
 
 Into the output folder (default `_build\runner\<date-time>\`):
 
 | File | One line per | Holds |
 | ---- | ------------ | ----- |
-| `runner-results.jsonl` (`.jsonl`: one JSON record per line, JSON being plain text for structured data) | battle | winner, turns, survivors per side, party, battle id, seconds, speed, account, seed and variety, the computer's suicides, a fingerprint of how the battle went |
+| `runner-results.jsonl` (`.jsonl`: one JSON record per line, JSON being plain text for structured data) | battle | winner, turns, survivors per side, party, battle id, seconds, speed, the computer's brain, account, seed and variety, the computer's suicides, a fingerprint of how the battle went |
 | `runner-turns.jsonl` | player turn | what it did, how many commands it sent, how many the game refused and why, how long it took |
 | `runner-summary.txt` | run | the totals below, also printed at the end |
 | `deploy-<n>.json` | battle | the whole board on the deploy screen |
@@ -71,7 +121,9 @@ plain terms, it walked into a free kill. Issue #31 uses this count to decide whe
 rule against it. It undercounts on purpose: a unit the simple player could have killed but did not pick
 is not counted. It can also overcount: any computer unit that changed tiles qualifies, so a wounded unit
 stepping back counts too. Result files written before the count existed say "not counted" rather than 0. Last, it counts the `Error #1009` and "Something went
-wrong while faking" lines in the game's own log.
+wrong while faking" lines in the game's own log, and the look-ahead brain's lines: how many computer
+turns used it, how many plans it looked at, how often it changed the normal choice, and how often it
+failed and fell back to the normal choice.
 
 **That count comes from the game's own log, `A-<n>.log.txt`, and only after the game has closed.** The
 log is locked while the game runs and renumbered at every start

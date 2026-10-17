@@ -1,0 +1,5 @@
+[
+  { "afterMs": 30000, "cmd": "set_ai_brain", "brain": "search" },
+  { "afterMs": 500, "cmd": "start_ai_battle" },
+  { "afterMs": 20000, "cmd": "set_game_speed", "scale": 2 }
+]

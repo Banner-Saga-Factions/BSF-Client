@@ -108,8 +108,7 @@ what the wave needed to see, so the rest would only have firmed up the win rate.
 first 4 battles of 3a's runs, which used the same seeds, the computer went from 3 of 4 won with 1.50
 survivors to 4 of 4 with 3.50 on `test2`, and from 4 of 4 with 3.25 to 4 of 4 with 3.50 on `443456`.
 Four battles are too few to call that a gain, and the pairing is loose: a seed fixes the scripted
-player's choices, but each battle's dice come from the clock. The `test2` gain cannot come from
-specials, which it chose only 3 times in 4 battles.
+player's choices, but each battle's dice come from the clock.
 
 ## What reading the code found (2026-10-16; findings 1–4 fixed and measured in Wave 2)
 
@@ -282,20 +281,22 @@ battles of `armor-first` at `--speed 4`**, on both accounts, with the seed recor
 - **Built and measured** (2026-10-16; numbers in *Measurements*, details in
   [`../docs/offline-ai.md`](../docs/offline-ai.md) §5 and §6):
   - **A special's level follows the player's rule** (owner's choice): the unit's special stat, which
-    the game sets to rank − 1, and its willpower. Stoic's rank cap allowed one level more than a player
-    gets.
-  - **The real ability lists match the reference.** The battle-start log listed Bird of Prey,
+    the game sets to rank − 1, and its willpower. Stoic's rank cap allowed up to one level more than a
+    player gets.
+  - **The real ability lists match the reference.** The computer's first-turn log listed Bird of Prey,
     Bloody Flail, Sundering Impact and Bring the Pain as tried. Tempest, Slag and Burn and Run Through
-    were skipped, and no Malice appeared.
+    were skipped. No Malice appeared, but neither party has a Provoker, so it was never offered.
   - **Specials are chosen, but rarely.** On `443456`, in 4 battles: Sundering Impact 8 times and Bloody
-    Flail 3 times, out of 143 choices; Bring the Pain and Bird of Prey never. On `test2`, Bird of
-    Prey 3 times in 4 battles. Bird of Prey is held at level 1 while the bow's basic attack can be
-    raised to level 3 (4 damage against 6 in the log). The planner sees Bring the Pain take away only
-    armor (2 at level 1), so a level-2 strength hit beats it.
+    Flail 3 times, out of 129 choices; Bring the Pain and Bird of Prey never. On `test2`, Bird of
+    Prey 2 times in 4 battles. Bird of Prey's higher levels add reach, not damage, while the bow's
+    raised basic attack hit harder (4 damage against 6 in the `443456` log). The planner sees Bring the Pain
+    take away only armor (2 at level 1), so a level-2 strength hit beats it.
   - **Willpower drops** on the units that used specials, read from the runner's board readings. Those
     readings cannot tie a drop to one action, since a level-2 basic attack costs willpower too.
-  - **Imagining Bloody Flail does not change later dice rolls.** In 402 imagined specials, the
-    battle's real dice were rolled 0 times (the game's own roll count, logged by each special pass).
+  - **Imagining Bloody Flail does not change later dice rolls.** In 349 special passes over 4 battles,
+    the battle's real dice were rolled 0 times (the game's own roll count, logged by each special pass).
+    The logs also hold the start of a fifth battle, cut short when the runner was stopped; the counts
+    here leave it out.
   - **No new errors:** no `#1009`, no "went wrong while faking", no failed special pass, in either run.
   - **Not checked:** that an enemy's stats change only from the chosen action.
 

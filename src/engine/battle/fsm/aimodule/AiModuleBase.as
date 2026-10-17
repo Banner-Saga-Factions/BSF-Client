@@ -257,13 +257,14 @@ package engine.battle.fsm.aimodule
                if(param1.tag == BattleAbilityTag.SPECIAL)
                {
                   // [Inference] BSF-Client #31: the original capped a special's level at the
-                  // unit's rank, one level above what a player with the same unit may use, and
-                  // past the ability's top level for a high enough rank. The game's own rule for
-                  // a player (BattleEntity.highestAvailableAbilityDef) is the unit's special stat
-                  // (ABILITY_0), which the game sets to rank - 1 when it loads the unit
-                  // (EntityDef, clamped to the class's range), and its willpower; level N costs
-                  // N willpower, which _loc6_ already limits. Measured 2026-10-16: a rank-3
-                  // Bowmaster reads 2. The owner chose the player's rule.
+                  // unit's rank, up to one level above what a player with the same unit may use.
+                  // The game's own rule for a player (BattleEntity.highestAvailableAbilityDef) is
+                  // the unit's special stat (ACTIVE_0, "ABILITY_0" in the game's data), which the
+                  // game sets to rank - 1 when it loads the unit (EntityDef, clamped to the
+                  // class's range), and its willpower; level N costs N willpower, which _loc6_
+                  // already limits. The cap at the ability's top level is ours, a safety net.
+                  // Measured 2026-10-16: a rank-3 Bowmaster reads 2. The owner chose the
+                  // player's rule.
                   _loc11_ = Math.min(_loc6_,caster.stats.getValue(StatType.ACTIVE_0),param1.maxLevel);
                }
                else

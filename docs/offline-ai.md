@@ -129,13 +129,18 @@ drives a planner called `AiModuleDredge`:
   tile (Rain of Arrows, Slag and Burn), at two targets (Tempest), at a friend or at itself (Forge
   Ahead, Stonewall), and the ones with their own targeting rules (Run Through, Battering Ram) are
   still never tried. **Malice** passes the filter but is never chosen: it does no damage when used,
-  only at the start of the target's next turn, and the planner rates a special by the strength or
-  armor it takes away at once. [Inference]
-- **It undervalues two of the specials it does try.** Measured 2026-10-16 on account `443456`: in 4
-  battles it chose Sundering Impact 8 times and Bloody Flail 3 times, but never Bird of Prey or Bring
-  the Pain. Bird of Prey is held at level 1 (§6), while the bow's basic attack can be raised to level 3
-  with willpower, so the basic shot does more damage. The planner sees Bring the Pain take away only
-  armor, so a stronger strength hit beats it; whatever else it does counts for nothing.
+  and the planner rates a special by the strength or armor it takes away at once. [Inference]
+- **Two of the specials it tries were never chosen on one account.** Measured 2026-10-16 on account
+  `443456`: in 4 battles it chose Sundering Impact 8 times and Bloody Flail 3 times, but never Bird of
+  Prey or Bring the Pain (on `test2` it chose Bird of Prey twice). Bird of Prey's higher levels add
+  reach, not damage, while the bow's raised basic attack hit harder. The planner sees Bring the Pain
+  take away only armor, at every level, so a stronger strength hit beats it; whatever else it does
+  counts for nothing.
+- **It scores only the main target.** Sundering Impact also hurts enemies next to the target; the
+  planner does not count them. [Inference]
+- **It never walks closer just to bring an enemy into a special's reach.** The special passes keep
+  only plans that use the special, so the longer reach of Bird of Prey matters only for a shot it can
+  take this turn. [Inference]
 - **A lean toward hitting wounded enemies, but no teamwork.** Each unit still plans on its own. The
   original damage score already adds 22½ points for each point of strength the target has lost
   (`AiPlan.as:170-172`); issue #31's focus fire adds at most 30 more. Finishing the wounded one is not
@@ -150,7 +155,8 @@ issue #31):
 1. Flip the board into pretend mode — `board.fake = true` (`:104`).
 2. Actually execute the attack, and measure how far the target's stat dropped (`:107-111`).
 3. Flip the board back and restore the attacker's position (`:128-130`). If step 2 fails, the error
-   branch now does the same (`:115`); before issue #31 it left the board in pretend mode.
+   branch now does the same (`:115`); before issue #31 it left the board in pretend mode. The failed
+   imagined attack may still hold up the turn ([#78](https://github.com/Banner-Saga-Factions/BSF-Client/issues/78)).
 
 Three things keep the pretend attack from leaking into the real game:
 
@@ -158,8 +164,8 @@ Three things keep the pretend attack from leaking into the real game:
   are untouched (`BattleEntity.as:539` and `:643-652`).
 - The dice hand out a **separate pretend generator** (`_fakeRng`) so the real, reproducible dice stream
   is not advanced (`BattleAbilityManager.as:149-156`). This is why scoring dozens of imagined moves
-  never changes the actual rolls the real battle will make. Measured 2026-10-16: across 402 imagined
-  specials, Bloody Flail's random hits included, the real dice were rolled 0 times.
+  never changes the actual rolls the real battle will make. Measured 2026-10-16: across 349 special
+  passes in 4 battles, Bloody Flail's random hits included, the real dice were rolled 0 times.
 - An imagined lethal hit **can't actually remove anyone**: a unit's `alive` setter is a no-op while
   faking (`BattleEntity.as:549-551`), and `Effect` skips its whole kill-handling block in faking mode
   (`Effect.as:235`), so the target only loses strength on the scratch record. The planner decides a
@@ -180,8 +186,8 @@ matchups. Pointed at an arbitrary player party it crashed, so the fork adds **th
 
 | Crash | Cause in the original | Guard |
 | ----- | --------------------- | ----- |
-| Unit with no basic strength/armor attack (e.g. a Shieldbanger) | the code reads the attack's id without checking it exists | `AiModuleBase.as:46-52` — treat a missing attack as "not a bow", leave it null |
-| Scenery prop on the board (e.g. a pole) | props are alive but carry no combat stats, so the plan math asks for an ARMOR stat that isn't there | `AiModuleBase.as:79-84` — skip any board entity without an ARMOR stat |
+| Unit with no basic strength/armor attack (e.g. a Shieldbanger) | the code reads the attack's id without checking it exists | `AiModuleBase.as:58-64` — treat a missing attack as "not a bow", leave it null |
+| Scenery prop on the board (e.g. a pole) | props are alive but carry no combat stats, so the plan math asks for an ARMOR stat that isn't there | `AiModuleBase.as:176-181` — skip any board entity without an ARMOR stat |
 | Enemy unit with no strength attack | the counter-threat math reads a missing attack before its own guard runs | `AiPlan.as:278-279` — compute that term null-safely |
 
 **Then issue #31 fixed how it sees the board.** Read from the code first, then measured with the match
@@ -191,7 +197,7 @@ runner ([`match-runner.md`](./match-runner.md)). Each fix is tagged `[Inference]
 | -------------- | -------------- | --- |
 | The "is that unit within reach?" test left out both ends of an attack's range. A basic melee attack reaches 0 to 1 tiles, so no distance ever passed; a bow (2 to 5) only counted at 3 and 4. | It could not see the danger of standing next to an enemy melee unit, nor the chance to threaten one, so it walked into free kills. | Both ends count, as in the game's own rule (`BattleAbilityValidation.validate`) — `AiPlan.as:282` and the test below it |
 | A kill needed damage *greater than* the target's strength. | A blow that took a target to exactly 0 got no kill bonus. | Damage equal to the remaining strength counts — `AiPlan.as:118` |
-| The unit taking its turn was in its own friends list. | It was marked down for every step away from its own square. | Leave it out — `AiModuleBase.as:90` |
+| The unit taking its turn was in its own friends list. | It was marked down for every step away from its own square. | Leave it out — `AiModuleBase.as:187-191` |
 | The "rest here or walk closer" check added the enemy term twice and never counted friends. | That choice ignored where friends stood. | Enemies plus friends — `AiPlan.as:242` |
 
 Plus one new term, **focus fire** (`WEIGHT_FOCUS`, `AiPlan.as:51` and `:199`): up to 30 points, in
@@ -205,11 +211,11 @@ score, so it mostly matters for armor attacks. The measured effect of all of the
 | What was wrong | Effect on play | Fix |
 | -------------- | -------------- | --- |
 | The planner never tried a special ability. | Half of each promoted unit's kit went unused. | Each unit's specials that hit one enemy are listed (`AiModuleBase.buildSpecials`) and tried after the basic attacks (`AiModuleDredge.findSpecialPlans`); a plan is kept only if it takes away strength or armor |
-| A special's level was capped by the unit's rank. | The computer could use a special one level higher than a player with the same unit, and a high enough rank would ask for a level the ability does not have. | The player's rule, as in `BattleEntity.highestAvailableAbilityDef`: the unit's special stat (`ABILITY_0`), which the game sets to rank − 1 when it loads the unit, and its willpower (`AiModuleBase.findPlans`). Owner's choice |
-| A failed imagined move returned without leaving pretend mode (finding 5). | Never seen; it would have left the whole board pretending. | The error branch undoes what the success path undoes (`BattleAbility.getStatChange`) |
+| A special's level was capped by the unit's rank. | The computer could use a special up to one level higher than a player with the same unit. | The player's rule, as in `BattleEntity.highestAvailableAbilityDef`: the unit's special stat (`ACTIVE_0`), which the game sets to rank − 1 when it loads the unit, and its willpower, plus our own cap at the ability's top level (`AiModuleBase.findPlans`). Owner's choice |
+| A failed imagined move returned without leaving pretend mode (finding 5). | Never seen; it would have left the whole board pretending. The turn may still be held up ([#78](https://github.com/Banner-Saga-Factions/BSF-Client/issues/78)). | The error branch undoes what the success path undoes (`BattleAbility.getStatChange`) |
 
-Two log lines help check it. On each side's first turn of a battle, `BSF #31 AI actives:` lists every
-unit's special abilities as the running game loaded them, and whether each is tried. Each special pass
+Two log lines help check it. On the computer's first turn of a battle, `BSF #31 AI actives:` lists
+each of its units' abilities as the running game loaded them, and whether each is tried. Each special pass
 logs `BSF #31 special pass:` with how many plans it kept and how many of the battle's real dice were
 rolled while imagining (`Rng.sampleCount`, the game's own count of rolls).
 

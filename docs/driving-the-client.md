@@ -36,8 +36,13 @@ the initiative bar, the way clicking behaves — is the same in both.
    compiles whatever was copied last time. Ignore the flood of `_locN_` warnings.
 2. **Put the new game file in the game folder.** The launcher runs the copy in the game's `win32\`
    folder, not the one in `_build\`, and refuses to start when the two differ (see
-   [the trap this replaces](#the-trap-this-replaces-which-build-am-i-actually-running)). Back up the
-   installed copy first if you will want it again:
+   [the trap this replaces](#the-trap-this-replaces-which-build-am-i-actually-running)). Before your
+   first install only, back up the installed copy (the first command; run again, it overwrites the
+   backup with your own build). Then copy the new one in:
+
+   ```powershell
+   Copy-Item "${env:ProgramFiles(x86)}\Steam\steamapps\common\The Banner Saga Factions\win32\app.game.air.swf" .\_build\installed-before.swf
+   ```
 
    ```powershell
    Copy-Item .\_build\app.game.air.swf "${env:ProgramFiles(x86)}\Steam\steamapps\common\The Banner Saga Factions\win32\app.game.air.swf" -Force
@@ -50,7 +55,8 @@ the initiative bar, the way clicking behaves — is the same in both.
    deliberately, so a stale build can't answer your requests. That includes other Claude sessions and
    their test runs, so use it only when nothing else is running on Node.
 4. **Launch the client** with `bsf-client\scripts\run-adl.ps1`. It builds a temporary descriptor and
-   runs the compiled SWF under the modern debug runtime. It changes nothing in the Steam install.
+   runs the game folder's copy from step 2 under the modern debug runtime. It changes nothing else in
+   the Steam install.
 5. **Expect no sound under `adl`.** The audio extension is stripped for this launcher, so the game falls back to a
    silent driver and logs three `Error #1508` lines. That is normal here, not a fault.
 

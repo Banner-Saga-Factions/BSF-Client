@@ -15,16 +15,17 @@ been removed. The current download is on the
 
 In offline practice battles the computer opponent only ever used its units' basic attacks. It now also
 tries each special ability that hits a single enemy, such as the Warmaster's Sundering Impact and the
-Thrasher's Bloody Flail, and uses one when it would do more damage than a basic attack. It uses them at
-the same level a player with that unit could, no higher. Specials aimed at a tile or at two units, and
-ones that help a friend, are not used yet. A rare fault that could leave the board stuck in the
-opponent's "imagining a move" mode is also fixed. In four test battles on a party of promoted units it
-chose a special 11 times, without errors.
+Thrasher's Bloody Flail, and uses one when that move scores best. It uses them at the same level a
+player with that unit could, no higher. Other specials are not used yet. A possible fault that could
+leave the board stuck in the opponent's "imagining a move" mode is also fixed (never seen; issue #78
+tracks a second loose end there). In four test battles on a party of promoted units it chose a
+special 11 times, without errors.
 
-*Technical:* overlays `AiModuleBase.as` (the specials list, the level cap, a start-of-battle log of each
-unit's abilities), new overlays `AiModuleDredge.as` (the special passes) and `BattleAbility.as`
-(`getStatChange` undoes pretend mode when it fails). Docs: `offline-ai.md`, `patch-inventory.md`,
-`misc/Plan-Improve-Battle-AI.md`. BSF-Client #31, Wave 3b.
+*Technical:* overlays `AiModuleBase.as` (the specials list, the level cap, a first-turn log of the
+computer's units' abilities), new overlays `AiModuleDredge.as` (the special passes) and
+`BattleAbility.as` (`getStatChange` undoes pretend mode when it fails). Docs: `offline-ai.md`,
+`patch-inventory.md`, `driving-the-client.md` §1, `mod-bridge.md`, `misc/Plan-Improve-Battle-AI.md`.
+BSF-Client #31, Wave 3b.
 
 ### The match runner's practice battles now play out differently each time
 

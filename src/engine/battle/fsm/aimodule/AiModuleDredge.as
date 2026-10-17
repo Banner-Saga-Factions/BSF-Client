@@ -118,10 +118,10 @@ package engine.battle.fsm.aimodule
 
       /**
        * [Inference] BSF-Client #31: one special pass against one enemy. findPlans also makes
-       * "walk closer" and "rest" plans, which the strength pass already made, so its plans go to
-       * a scratch list and only those that use the special and take away some strength or armor
-       * join the real list. So a special that does nothing at once (Malice) is tried but never
-       * chosen, and resting still wins when nothing better is on offer.
+       * "walk closer" and "rest" plans, which the strength or armor pass already made, so its
+       * plans go to a scratch list and only those that use the special and take away some
+       * strength or armor join the real list. So a special that does nothing at once (Malice) is
+       * tried but never chosen, and resting still wins when nothing better is on offer.
        *
        * The log line also counts the battle's real dice rolled while imagining: the game counts
        * every roll (Rng.sampleCount), and imagining (pretend mode) is meant to roll its own
@@ -133,7 +133,7 @@ package engine.battle.fsm.aimodule
          var _loc4_:Rng = battleFsm.board.abilityManager.rng;
          var _loc5_:int = _loc4_ ? _loc4_.sampleCount : 0;
          var _loc6_:int = 0;
-         var _loc7_:int = param2 + 1;
+         var _loc7_:int;
          var _loc8_:String = param2 < enemies.length ? enemies[param2].id : "?";
          try
          {

@@ -39,7 +39,7 @@ package engine.battle.fsm.aimodule
     * BattleCalculationHelper.strengthNormalMiss is not used: nothing in the game calls it,
     * and it counts one point more than the attack itself does.
     *
-    * POINTS, similar to AiPlan.computeWeight's (without its doubled near-kill term, strength-lost
+    * POINTS, similar to AiPlan.computeWeight's (without its doubled near-kill term, strength- or armor-lost
     * bonus or miss-chance term): 45 per point of strength taken,
     * 20 per point of armor, and a kill earns the same 200 + the victim's worth that a kill of
     * ours earns. A strength attack's points are scaled by its chance to land.

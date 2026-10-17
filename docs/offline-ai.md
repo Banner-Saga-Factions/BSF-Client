@@ -164,8 +164,8 @@ back *after* it ends, the order `getStatChange` already uses.
 
 **The weights.** The reply is scored in points similar to the planner's own, and taken off a plan's
 score. They are not the same: the planner doubles the damage term when its hit takes the target to or
-below the damage, adds a bonus for strength already lost, and subtracts for the target's miss chance;
-the reply has none of those, so threats against us count a little less than our own hits do. The
+below the damage, adds a bonus for strength or armor already lost, and subtracts for the target's miss chance;
+the reply has none of those, so threats against us can count for much less than our own hits do. The
 reply also ignores `MIN_STRENGTH_ATTACK`, `NEVER_MISS`, damage resistance, and, for an armor attack,
 current stats (it reads base):
 

@@ -198,7 +198,7 @@ author registers their own commands the same way, via `registerCommand`.
 
 ### Reading and playing a battle
 
-All six battle commands live in `ModBattleControl.as`, kept apart from the bridge itself so `GameFsm`
+All seven battle commands live in `ModBattleControl.as`, kept apart from the bridge itself so `GameFsm`
 stays a plain registration site.
 
 **They add no behaviour the game did not already have.** Reading touches getters only, and each of the

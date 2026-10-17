@@ -3,7 +3,7 @@
 ## Co-Authored-By: Claude <noreply@anthropic.com>
 
 Making the computer opponent "stronger" needs a number to judge it by. The **match runner** supplies it.
-It starts the real game, plays the player's side of an offline practice battle with a fixed, simple
+It starts the real game, plays the player's side of an offline practice battle with a simple
 strategy, writes down who won, and goes again, as many times as you ask. Nobody needs to be at the
 keyboard. Run it before and after a change to the opponent and compare the two.
 
@@ -32,8 +32,14 @@ node scripts\mod-host\runner.js                          # 10 battles, the plain
 node scripts\mod-host\runner.js --player armor-first      # 10 battles, the second player
 node scripts\mod-host\runner.js --battles 5 --out _build\runner\try-1
 node scripts\mod-host\runner.js --player armor-first --speed 4  # the same, played about twice as fast
-node scripts\mod-host\runner.js --summary-only _build\runner\try-1\runner-results.jsonl
+node scripts\mod-host\runner.js --seed 1234               # start the random choices from this seed (§3)
+node scripts\mod-host\runner.js --variety 0               # the fixed play of the first runs (§3)
+node scripts\mod-host\runner.js --steam-id 443456         # sign in as another local account (§5)node scripts\mod-host\runner.js --summary-only _build\runner\try-1\runner-results.jsonl
 ```
+
+Every run prints its **seed**, the number its random choices start from (§3). Pass it back with `--seed`
+to start the same random choices again (§3 says what that does not yet repeat). The seed, the account and the variety are on every results line and in
+the summary.
 
 A battle takes about 3½ minutes at normal speed, so 10 battles is about 35 minutes. With `--speed 4` it
 takes about 1½ minutes (§4). Close other programs first: one long run was stopped by the PC running low
@@ -50,7 +56,7 @@ Into the output folder (default `_build\runner\<date-time>\`):
 
 | File | One line per | Holds |
 | ---- | ------------ | ----- |
-| `runner-results.jsonl` (`.jsonl`: one JSON record per line, JSON being plain text for structured data) | battle | winner, turns, survivors per side, party, battle id, seconds, speed, the computer's suicides, a fingerprint of how the battle went |
+| `runner-results.jsonl` (`.jsonl`: one JSON record per line, JSON being plain text for structured data) | battle | winner, turns, survivors per side, party, battle id, seconds, speed, account, seed and variety, the computer's suicides, a fingerprint of how the battle went |
 | `runner-turns.jsonl` | player turn | what it did, how many commands it sent, how many the game refused and why, how long it took |
 | `runner-summary.txt` | run | the totals below, also printed at the end |
 | `deploy-<n>.json` | battle | the whole board on the deploy screen |
@@ -81,7 +87,26 @@ differs from the number of games the runner started, it adds a WARNING line.
 
 ## 3. The players it plays
 
-Both players are fixed on purpose. A yardstick that changes is no yardstick.
+Both players follow fixed rules on purpose. A yardstick that changes is no yardstick. But fixed rules
+on both sides made battles replay turn for turn (§4), so since issue #31's Wave 3a each player varies
+*which* option it takes among near-equals, without changing its rules:
+
+- **Exact ties are broken at random.** Before, two equally weak enemies, or two tiles equally far away,
+  were ordered by name or by position.
+- **At each choice, now and again, it takes its second-best option.** The three choices are which enemy
+  to go for, which tile to attack from, and which tile to step to. "Now and again" is `--variety`: 25
+  times in 100 by default.
+- **The random numbers come from the run's seed**, and each battle gets its own numbers from the seed and
+  the battle's number. There is no switch to start at battle n.
+  **A repeat run is not guaranteed to match.** One reason: the game reports its units in a different order
+  each time it starts (9 launches of the same `test2` party gave 9 different orders), and the runner deals
+  its tie-break numbers out in that order, so a tie between equal enemies can go the other way (issue
+  #76). Another: with no battle id, the game seeds its dice from the clock (§4).
+- **`--variety 0` plays exactly as the first runs did**, with no randomness at all. Use it to compare with
+  rows recorded before Wave 3a.
+
+The variety may make the player weaker than its strict rule (not measured: no `--variety 0` run exists
+yet), so compare varied runs with varied runs.
 
 **`strength`** (the default):
 
@@ -130,8 +155,12 @@ bring the hit to 0 or below, and then only as a chance to miss (`Op_DamageStr.as
 places in the battle code that roll are particular abilities (`OpDef_ExecAbility`, `Op_BloodyFlail`,
 `Op_SlagAndBurnTileCross`) that these runs' basic attacks never use. Found in the Wave 2 review.
 **So N battles are not N independent samples.**
-Read the summary's "distinct battle traces" before trusting a win rate. Making battles vary is the
-first job of issue #31's Wave 3.
+Read the summary's "distinct battle traces" before trusting a win rate.
+
+**Fixed in issue #31's Wave 3a: with the varied player (§3), battles differ.** At the default variety
+of 25, every battle differed in both 8-battle runs: 8 of 8 on `test2` and 8 of 8 on `443456`. The
+"distinct battle ids" line still reads 1, because an offline battle's id is always null. Still read
+"distinct battle traces" in every summary, and especially after `--variety 0`.
 
 **Can it play faster? Yes, about twice as fast at `--speed 4`** (added in Wave 2, 2026-10-16). `--speed N` sends the
 bridge's `set_game_speed` once the fighting starts and sets it back to 1 when the battle ends normally
@@ -177,6 +206,11 @@ wasted moves dropped to 0 (0 of 86 in a probe run, 0 of 253 in the baseline).
 - **A battle with no winner after 400 turns is recorded as `unfinished`.** It is not counted for either
   side. Change the cap with `--turn-cap`.
 - **The party decides the match-up.** Both sides are a copy of the logged-in account's active party
-  (`test2` by default). A different party gives different numbers, so compare runs on the same account.
+  (`test2`, Steam id `123456`, by default; `--steam-id` picks another local account, and the server finds
+  the account by that id). A different party gives different numbers, so compare runs on the same account.
+- **A unit's id is not its class.** Ids keep the name a unit was hired under: `test2`'s `archer_start_1` is
+  a Bowmaster and its `warrior_start_1` a Warhawk. Its party is a Bowmaster, a Siegearcher, 2 Axemen and 2
+  Warhawks. Read a party's classes from `entityClass` in the account's `roster_json` in the server's
+  database, not from the ids in `battle_state`. It matters for specials: only promoted classes have one.
 - **The opponent mirrors your party unit for unit, including any Shieldbanger**, whose missing strength
   attack is behind crash `#1009`. The summary counts those lines.

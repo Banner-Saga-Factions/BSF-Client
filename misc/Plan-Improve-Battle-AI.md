@@ -18,7 +18,7 @@ next. How it thinks today is in [`../docs/offline-ai.md`](../docs/offline-ai.md)
 - **The thinking stays inside the game.** Quick fixes first, then a one-move look-ahead. Moving the
   "brain" out to a helper program stays on the roadmap.
 - **Progress is measured, not guessed.** The match runner ([`../docs/match-runner.md`](../docs/match-runner.md))
-  plays the player's side with a fixed simple strategy and reports how often the computer wins.
+  plays the player's side with a simple strategy and reports how often the computer wins.
 - **One opponent strength.** No difficulty levels. A hidden developer switch is fine for comparing two
   versions.
 - **Fix the opponent's "eyesight" bugs first, then measure.** Add the anti-suicide penalty only if
@@ -47,9 +47,9 @@ build won 4 of 4. But those runs held only 3 and 2 distinct battles: the battles
 *Measurements*). The bar has to be re-checked once Wave 3 makes the battles vary.
 
 **Re-checked in Wave 3a (2026-10-16): cleared, on battles that now differ.** With the varied player,
-every battle in both runs was distinct, and the Wave 2 build won 5 of 8 on `test2` and 8 of 8 on
+every battle in both runs was distinct, and the installed build (meant to be Wave 2, not verified) won 5 of 8 on `test2` and 8 of 8 on
 `443456`. These are the rows 3b and Wave 4 compare against. They are not comparable with the earlier
-rows: the varied player is slightly weaker than the fixed one.
+rows: the varied player may be weaker than the fixed one (not measured).
 
 ## Measurements
 
@@ -66,7 +66,7 @@ runner's output folders are in `_build\runner\` (not committed).
 | 2026-10-16 | Wave 1 (opponent unchanged from master `9603f55`) | `strength` | 8 (8) | 8 (100%) | 2.88 of 6 | 0 | 65.5 | not counted | 0 |
 | 2026-10-16 | Wave 1 (opponent unchanged), runner at `7baa1b8` | `armor-first` | 4 (3) | 2 (50%) | 1.00 | 0.50 | 59.5 | not counted | 0 |
 | 2026-10-16 | Wave 2, `--speed 4` | `armor-first` | 4 (2) | 4 (100%) | 3.00 | 0 | 58.5 | 4 (one event, repeated) | 0 |
-| 2026-10-16 | Wave 2 (master `bca6dd8`), `--speed 4`, runner 3a at variety 25, seed `1197659914`, account `test2` | `armor-first` | 8 (8) | 5 (63%) | 1.38 | 0.50 | 56.9 | 2 | 0 |
+| 2026-10-16 | Installed build, meant to be Wave 2 (master `bca6dd8`) but not verified, `--speed 4`, runner 3a at variety 25, seed `1197659914`, account `test2` | `armor-first` | 8 (8) | 5 (63%) | 1.38 | 0.50 | 56.9 | 2 | 0 |
 | 2026-10-16 | The same, seed `1198581929`, account `443456` | `armor-first` | 8 (8) | 8 (100%) | 2.63 | 0 | 67.3 | 3 | 0 |
 | 2026-10-16 | Wave 3b (specials), `--speed 4`, variety 25, seed `1197659914`, account `test2`; stopped after 4 | `armor-first` | 4 (4) | 4 (100%) | 3.50 | 0 | 50.3 | 0 | 0 |
 | 2026-10-16 | The same, seed `1198581929`, account `443456`; stopped after 4 | `armor-first` | 4 (4) | 4 (100%) | 3.50 | 0 | 61.0 | 0 | 0 |
@@ -148,7 +148,7 @@ format).
    **Checked while planning Wave 3 (2026-10-16)** against the installed game's
    `assets\common\character\character_classes.json.z`, which lists the same specials for these classes:
    - **Only promoted classes have a special.** Archer, axeman, warrior and shieldbanger have none. So the
-     `test2` party can only ever show one: the Bowmaster's Bird of Prey. Account `443456` shows four:
+     `test2` party can only ever show one single-enemy special: the Bowmaster's Bird of Prey. Account `443456` shows four:
      Bloody Flail, Bird of Prey, Sundering Impact and Bring the Pain. No test account has a Provoker
      (owner's choice).
    - **Malice does no damage when used.** It sets up a response at the start of the target's next turn
@@ -258,7 +258,7 @@ battles of `armor-first` at `--speed 4`**, on both accounts, with the seed recor
 - **Changes, none to the opponent:** the runner's `--seed`, `--variety` and `--steam-id`
   ([`../docs/match-runner.md`](../docs/match-runner.md) §1, §3). The scripted player breaks exact ties at
   random and takes its second-best option 25 times in 100, from a seed it logs.
-- **Measured** on the Wave 2 build: see *Measurements*.
+- **Measured** on the installed build (meant to be Wave 2, not verified): see *Measurements*.
 - **Branch:** `feat/ai-runner-variety-31`. **Model:** Opus, medium.
 
 ### Wave 3b: use the single-enemy specials

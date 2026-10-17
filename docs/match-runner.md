@@ -3,7 +3,7 @@
 ## Co-Authored-By: Claude <noreply@anthropic.com>
 
 Making the computer opponent "stronger" needs a number to judge it by. The **match runner** supplies it.
-It starts the real game, plays the player's side of an offline practice battle with a fixed, simple
+It starts the real game, plays the player's side of an offline practice battle with a simple
 strategy, writes down who won, and goes again, as many times as you ask. Nobody needs to be at the
 keyboard. Run it before and after a change to the opponent and compare the two.
 
@@ -32,14 +32,13 @@ node scripts\mod-host\runner.js                          # 10 battles, the plain
 node scripts\mod-host\runner.js --player armor-first      # 10 battles, the second player
 node scripts\mod-host\runner.js --battles 5 --out _build\runner\try-1
 node scripts\mod-host\runner.js --player armor-first --speed 4  # the same, played about twice as fast
-node scripts\mod-host\runner.js --seed 1234               # repeat an earlier run's choices exactly
+node scripts\mod-host\runner.js --seed 1234               # start the random choices from this seed (§3)
 node scripts\mod-host\runner.js --variety 0               # the fixed play of the first runs (§3)
-node scripts\mod-host\runner.js --steam-id 443456         # sign in as another local account (§5)
-node scripts\mod-host\runner.js --summary-only _build\runner\try-1\runner-results.jsonl
+node scripts\mod-host\runner.js --steam-id 443456         # sign in as another local account (§5)node scripts\mod-host\runner.js --summary-only _build\runner\try-1\runner-results.jsonl
 ```
 
 Every run prints its **seed**, the number its random choices start from (§3). Pass it back with `--seed`
-to play the same choices again. The seed, the account and the variety are on every results line and in
+to start the same random choices again (§3 says what that does not yet repeat). The seed, the account and the variety are on every results line and in
 the summary.
 
 A battle takes about 3½ minutes at normal speed, so 10 battles is about 35 minutes. With `--speed 4` it
@@ -89,7 +88,7 @@ differs from the number of games the runner started, it adds a WARNING line.
 ## 3. The players it plays
 
 Both players follow fixed rules on purpose. A yardstick that changes is no yardstick. But fixed rules
-on both sides made battles replay move for move (§4), so since issue #31's Wave 3a each player varies
+on both sides made battles replay turn for turn (§4), so since issue #31's Wave 3a each player varies
 *which* option it takes among near-equals, without changing its rules:
 
 - **Exact ties are broken at random.** Before, two equally weak enemies, or two tiles equally far away,
@@ -98,12 +97,16 @@ on both sides made battles replay move for move (§4), so since issue #31's Wave
   to go for, which tile to attack from, and which tile to step to. "Now and again" is `--variety`: 25
   times in 100 by default.
 - **The random numbers come from the run's seed**, and each battle gets its own numbers from the seed and
-  the battle's number. So one battle can be replayed on its own: same seed, same battle number.
+  the battle's number. There is no switch to start at battle n.
+  **A repeat run is not guaranteed to match.** One reason: the game reports its units in a different order
+  each time it starts (9 launches of the same `test2` party gave 9 different orders), and the runner deals
+  its tie-break numbers out in that order, so a tie between equal enemies can go the other way (issue
+  #76). Another: with no battle id, the game seeds its dice from the clock (§4).
 - **`--variety 0` plays exactly as the first runs did**, with no randomness at all. Use it to compare with
   rows recorded before Wave 3a.
 
-The variety makes the player slightly weaker than its strict rule, so compare varied runs with varied
-runs.
+The variety may make the player weaker than its strict rule (not measured: no `--variety 0` run exists
+yet), so compare varied runs with varied runs.
 
 **`strength`** (the default):
 

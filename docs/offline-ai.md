@@ -97,13 +97,13 @@ When it is the AI side's turn, `BattleStateTurnAi` (`engine/battle/fsm/state/Bat
 drives a planner called `AiModuleDredge`:
 
 1. **A half-second pause** so the turn is watchable, not instant
-   (`BattleStateTurnAi.as:33` — `delayedCall(0.5, …performMove)`). The developer fast-forward used by
+   (`BattleStateTurnAi.as:37` — `delayedCall(0.5, …performMove)`). The developer fast-forward used by
    the match runner shortens it; at normal speed it is half a second ([`match-runner.md`](./match-runner.md)).
-2. **Score every option.** `performMove` (`AiModuleDredge.as:45`) kicks off a per-frame ticker; each
-   tick, `tickAi` (`:79`) takes one more enemy and builds "walk here and hit that enemy" plans for
+2. **Score every option.** `performMove` (`AiModuleDredge.as:47`) kicks off a per-frame ticker; each
+   tick, `tickAi` (`:81`) takes one more enemy and builds "walk here and hit that enemy" plans for
    it (`findPlans`, `AiModuleBase.as:205`), trying the unit's basic strength attack, then its basic
    armor-breaking attack, then, since issue #31, each of its special abilities that hits one enemy
-   (`findSpecialPlans`, `AiModuleDredge.as:130`). A special's plan is kept only if it would take away
+   (`findSpecialPlans`, `AiModuleDredge.as:132`). A special's plan is kept only if it would take away
    some strength or armor. (Spreading the work over frames keeps a big board from hitching.)
 3. **Weigh each plan** (`AiPlan.computeWeight`, `AiPlan.as:340-377`): a plan that **kills** earns a
    large fixed bonus (+200); damage counts heavily; a blow hard enough to break a target counts extra;
@@ -112,12 +112,90 @@ drives a planner called `AiModuleDredge`:
    moving far or spending willpower costs a little. Where the unit would end up counts too: standing
    within reach of an enemy's basic attack costs points, having an enemy within reach of its own earns
    a few, and every tile between it and each friend costs 15 (30 for an archer).
-4. **Play the best one.** `chooseBestPlan` (`AiModuleDredge.as:175`) sorts by weight and takes the
-   top plan; if nothing can reach an enemy it either steps closer or rests. After the move finishes,
-   another half-second pause, then `performAction` (`:211`) uses the chosen attack or special — or
-   `abl_end` / `abl_rest` if there was no worthwhile attack.
+4. **Play the best one.** `chooseBestPlan` (`AiModuleDredge.as:177`) sorts by weight and hands the
+   list to `pickPlan`, which takes the top plan (the look-ahead brain below picks differently); if
+   nothing can reach an enemy it either steps closer or rests. After the move finishes, another
+   half-second pause, then `performAction` uses the chosen attack or special — or `abl_end` /
+   `abl_rest` if there was no worthwhile attack.
 
 [Inference] throughout — read from the decompiled `aimodule/` code.
+
+### The look-ahead brain (issue #31, Wave 4)
+
+There are two brains, and a switch picks between them (`ModAiBrain`, set over the mod bridge with
+`set_ai_brain`: [`mod-bridge.md`](./mod-bridge.md) §5). **`dredge`** is everything above. **`search`**
+(`AiModuleSearch`, `engine/battle/fsm/aimodule/AiModuleSearch.as`) thinks the same way, then, before it
+commits, asks of its best plans: *"if I do this, what is the worst the enemy who acts next can do back
+to me?"* **`search` is the default** since Wave 4 measured it (below); `dredge` stays one bridge
+command away. Steps 1 to 3 are unchanged; only step 4's choice is different:
+
+1. Take the **6 best different plans**. Plans that end on the same tile with the same ability, level
+   and target count once, because the planner makes the same "rest" plan once for every enemy.
+2. For each one, **imagine our move once**: stand the unit on the plan's last tile, switch pretend mode
+   on, and if the plan attacks, play the attack on the pretend stats.
+3. **Find who replies**: the next enemy in the game's turn order (`BattleTurnOrder.aliveOrder`) whose
+   pretend strength is above 0. If our imagined attack kills the unit due next, the enemy after it
+   replies.
+4. **Score its best reply**: its basic strength or armor attack on each of our units it can reach this
+   turn, found with the game's own route-finding (`BattleMove.computeMoveToRange`). The best one counts.
+5. **Put everything back** (in a `finally` block, code that runs even after an error), then take
+   `WEIGHT_REPLY × reply` off the plan's score and play the best plan after that. A tie keeps the plan
+   the normal brain ranked higher. On any error it logs `BSF #31 look-ahead failed` and plays the top
+   plan, so a turn never stalls on it.
+
+**Why the reply is worked out, not played.** Pretend mode is one on/off switch (`BattleBoard.fake`):
+switching it on gives every unit a throw-away copy of its stats, switching it off throws every copy
+away, and switching it to the value it already has does nothing. So it cannot be nested. Playing the
+reply the usual way (`BattleAbility.getStatChange`, §5) would end the pretend mode our own imagined
+move lives in. Instead the reply uses the game's attack rule, read off the pretend stats:
+
+- **Strength attack** (`Op_DamageStr`, the rule all three basic strength attacks use): damage is the
+  attacker's strength, plus any strength bonus, plus the puncture bonus if it does not have to move
+  first, minus the target's armor. If that comes to 0 or less, the attack lands for 1 point or misses
+  for 0, with a 10% miss chance for each point short, at most 80%. (`BattleCalculationHelper
+  .strengthNormalMiss` is not used: nothing in the game calls it, and it counts one point more than
+  the attack does.)
+- **Armor attack**: `BattleCalculationHelper.armorNormalDamage`, the attacker's armor-break, at most
+  the target's armor.
+
+**One more trap, from reading the game.** A unit cannot be moved while it holds pretend stats
+(`BattleEntity.setPos` does nothing then), so the unit is moved *before* pretend mode starts and moved
+back *after* it ends, the order `getStatChange` already uses.
+
+**The weights.** The reply is scored in points similar to the planner's own, and taken off a plan's
+score. They are not the same: the planner doubles the damage term when its hit takes the target to or
+below the damage, adds a bonus for strength or armor already lost, and subtracts for the target's miss chance;
+the reply has none of those, so threats against us can count for much less than our own hits do. The
+reply also ignores `MIN_STRENGTH_ATTACK`, `NEVER_MISS`, damage resistance, and, for an armor attack,
+current stats (it reads base):
+
+| Term | Points | Where it comes from |
+| ---- | ------ | ------------------- |
+| Strength the reply takes from one of ours | 45 per point, times the chance it lands | `AiPlan`'s strength damage weight |
+| The reply kills one of ours (damage ≥ its strength) | + 200 + its willpower ÷ 3 + strength + armor-break + armor ÷ 2, times the chance it lands | `AiPlan.computeWeight`'s kill bonus |
+| Armor the reply takes from one of ours | 20 per point | `AiPlan`'s armor damage weight |
+| How much of the reply comes off the plan | `WEIGHT_REPLY` = 1 (all of it) | Wave 4's starting value |
+
+The older "danger from enemies in reach" term (§4, step 3) stays: it covers every enemy roughly, where
+the reply covers the next one exactly.
+
+**What it cannot see.** The reply's route is found on the real board, where the tile we imagine
+leaving still shows us standing on it: the unit's move events are muted while imagining, as
+`getStatChange` mutes them, so the board's map of who stands where is never told. Distances use the
+imagined position. It scores only the next enemy, not the turns after that; it ignores the reply's
+special abilities and willpower-boosted hits; and the rest and walk-closer plans get the same check,
+since walking into a free kill is the case the look-ahead exists for.
+
+**The log lines.** One per plan looked at, then one per turn:
+
+```
+BSF #31 look-ahead: plan 7 old -547 reply 135 by 123456+1+archer_start_2 on ai+0+archer_start_1 -> -682
+BSF #31 look-ahead: ai+0+archer_start_1 changed its choice from plan 7 to plan 5 after looking at 6 plans
+```
+
+The match runner counts them ([`match-runner.md`](./match-runner.md) §2). Each look takes about 40 ms,
+so about a quarter of a second per computer turn (measured 2026-10-17). How it compares with `dredge`
+is in [`../misc/Plan-Improve-Battle-AI.md`](../misc/Plan-Improve-Battle-AI.md) → *Measurements*.
 
 ---
 
@@ -230,13 +308,14 @@ The full player-vs-AI public-release picture (all the crash fixes and open items
 
 - **It sees only the specials that hit one enemy** (§5). Buffs, specials aimed at a tile or at two
   targets, and the ones with their own targeting rules are on the issue #31 roadmap.
-- **It never looks ahead.** Each option is scored against the board exactly as it stands, one unit at
-  a time, with no attempt to imagine the reply (§4, step 3). It judges danger from where each enemy
-  stands *now*, not from where that enemy could walk to before attacking, and a kill earns a large
-  fixed bonus while standing somewhere dangerous costs comparatively little. So it can still walk a unit
-  into a place where it dies for nothing (§6 has what issue #31 fixed so far). Both gaps, and a plan
-  for closing them, are tracked in issue #31 and
-  written up in [`../misc/Plan-Improve-Battle-AI.md`](../misc/Plan-Improve-Battle-AI.md).
+- **It looks ahead one move at most, and only with the `search` brain.** The `dredge` brain scores each
+  option against the board exactly as it stands, one unit at a time (§4, step 3). It judges danger from
+  where each enemy stands *now*, not from where that enemy could walk to before attacking, and a kill
+  earns a large fixed bonus while standing somewhere dangerous costs comparatively little. So it can
+  still walk a unit into a place where it dies for nothing (§6 has what issue #31 fixed so far). The
+  `search` brain (§4, "The look-ahead brain") checks the reply of the next enemy only, and only its
+  basic attacks. Further steps are tracked in issue #31 and written up in
+  [`../misc/Plan-Improve-Battle-AI.md`](../misc/Plan-Improve-Battle-AI.md).
 - **Portraits.** A known display issue with unit portraits in the offline flow — tracked in the
   public-release plan above.
 - **Spectator (watch two AIs) is not finished.** The `SPECTATE` / `ModBridge.spectatorMode` flag is
@@ -248,7 +327,9 @@ The full player-vs-AI public-release picture (all the crash fixes and open items
   2026-08-19, it works from the matchmaking screen, and the key does no checking of where you are. The
   real constraint runs the other way: press it only **after your party has loaded**, or it fails on a
   missing reference. (This is our own added key, so it exists in a build made from this repository, not
-  in the shipped Steam copy.)
+  in the shipped Steam copy.) The key plays at normal speed against the default brain, `search`. To pick
+  the brain and the speed, start the battle from a helper script instead:
+  [`match-runner.md`](./match-runner.md) §1, "Playing it yourself against a chosen brain".
 
 ---
 

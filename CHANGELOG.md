@@ -11,6 +11,27 @@ been removed. The current download is on the
 
 ## [Unreleased]
 
+### The computer opponent now thinks one move ahead
+
+In offline practice battles the computer opponent used to pick each move only for what it does now.
+Before it commits, it now also asks what the enemy who acts next could do back to it, and marks a
+move down by that much. So it is less likely to leave a unit where the next enemy can finish it. The
+old way of thinking is still there behind a developer switch, which the match runner uses to compare
+the two on the same build. In 4 test battles per brain on each of two test accounts, the new one kept
+as many or more of its units alive (3.25 of 6 against 0.50 on one account, 3.75 against 3.25 on the other),
+walked into none of the free kills the runner counts in those battles, and showed no errors. The first account's numbers swing widely from run to
+run, so most of that gap is chance. The docs now also say how to start practice battles with a chosen
+brain and speed, against the match runner's scripted player or by hand.
+
+Units that stand still or box in their friends, seen while watching these runs, are written up as
+the next step and not fixed here.
+
+*Technical:* `AiModuleDredge.as` opens one seam (`pickPlan`); new `AiModuleSearch.as`, `ModAiBrain.as`
+(default `search`); `BattleStateTurnAi.as` builds the chosen brain; bridge command `set_ai_brain`;
+runner `--brain`; new `scripts/mod-host/script.play-vs-brain.example.json`. Docs: `offline-ai.md`,
+`match-runner.md`, `mod-bridge.md`, `patch-inventory.md`, `misc/Plan-Improve-Battle-AI.md` (Wave 4,
+Wave 4b). BSF-Client #31, Wave 4.
+
 ### The computer opponent now uses its units' special abilities
 
 In offline practice battles the computer opponent only ever used its units' basic attacks. It now also

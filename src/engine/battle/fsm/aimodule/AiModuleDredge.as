@@ -15,9 +15,11 @@ package engine.battle.fsm.aimodule
    public class AiModuleDredge extends AiModuleBase
    {
       
-      private var chosenPlan:AiPlan;
-      
-      private var plans:Vector.<AiPlan> = new Vector.<AiPlan>();
+      // [Inference] BSF-Client #31: protected (was private) so the look-ahead brain,
+      // AiModuleSearch, can read the scored plans. Only pickPlan below changes hands.
+      protected var chosenPlan:AiPlan;
+
+      protected var plans:Vector.<AiPlan> = new Vector.<AiPlan>();
       
       private var timer:Timer = new Timer(0,0);
       
@@ -179,7 +181,7 @@ package engine.battle.fsm.aimodule
          timer.removeEventListener("timer",timerHandler);
          timer.stop();
          plans.sort(AiPlan.compare);
-         chosenPlan = plans.length > 0 ? plans[0] : null;
+         chosenPlan = plans.length > 0 ? pickPlan(plans) : null;
          if(!chosenPlan)
          {
             chosenPlan = makeNullPlan();
@@ -203,6 +205,16 @@ package engine.battle.fsm.aimodule
          battleFsm.turn.entity.mobility.executeMove(_loc2_);
       }
       
+      /**
+       * [Inference] BSF-Client #31: the one seam for the look-ahead brain. Given the plans
+       * sorted best first (never empty), return the one to play. This brain takes the top
+       * plan, as the original did; AiModuleSearch overrides it.
+       */
+      protected function pickPlan(param1:Vector.<AiPlan>) : AiPlan
+      {
+         return param1[0];
+      }
+
       private function makeNullPlan() : AiPlan
       {
          return new AiPlan(this,null,null,null);

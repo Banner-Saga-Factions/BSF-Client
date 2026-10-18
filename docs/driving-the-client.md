@@ -30,13 +30,34 @@ the initiative bar, the way clicking behaves — is the same in both.
 
 ## 1. The launch, in order
 
-1. **Start the server first.** `bsf-server\start-server.bat` rebuilds and starts it on port 8082. The
-   client boots through login, so with nothing listening you only get to see the pre-login path. Note
-   that this batch file **stops every running `node` process** on the machine, deliberately, so a stale
-   build can't answer your requests — check you have nothing else running on Node first.
-2. **Launch the client** with `bsf-client\scripts\run-adl.ps1`. It builds a temporary descriptor and
-   runs the compiled SWF under the modern debug runtime. It changes nothing in the Steam install.
-3. **Expect no sound under `adl`.** The audio extension is stripped for this launcher, so the game falls back to a
+1. **Build the game.** From `bsf-client`, first run `scripts\apply-patches.ps1`, which copies the patch
+   files in `src\` over the decompiled source, then `scripts\build.ps1`, which compiles it into
+   `_build\app.game.air.swf`. `build.ps1` does not copy the patch files itself, so running it alone
+   compiles whatever was copied last time. Ignore the flood of `_locN_` warnings.
+2. **Put the new game file in the game folder.** The launcher runs the copy in the game's `win32\`
+   folder, not the one in `_build\`, and refuses to start when the two differ (see
+   [the trap this replaces](#the-trap-this-replaces-which-build-am-i-actually-running)). Before your
+   first install only, back up the installed copy (the first command; run again, it overwrites the
+   backup with your own build). Then copy the new one in:
+
+   ```powershell
+   Copy-Item "${env:ProgramFiles(x86)}\Steam\steamapps\common\The Banner Saga Factions\win32\app.game.air.swf" .\_build\installed-before.swf
+   ```
+
+   ```powershell
+   Copy-Item .\_build\app.game.air.swf "${env:ProgramFiles(x86)}\Steam\steamapps\common\The Banner Saga Factions\win32\app.game.air.swf" -Force
+   ```
+
+3. **Start the server.** The client boots through login, so with nothing listening on port 8082 you only
+   get to see the pre-login path. In a separate window, run `node build\index.js` from `bsf-server`
+   (after `yarn build` there if the server code changed). `bsf-server\start-server.bat` also works and
+   rebuilds the server first, but it **stops every running `node` process** on the machine,
+   deliberately, so a stale build can't answer your requests. That includes other Claude sessions and
+   their test runs, so use it only when nothing else is running on Node.
+4. **Launch the client** with `bsf-client\scripts\run-adl.ps1`. It builds a temporary descriptor and
+   runs the game folder's copy from step 2 under the modern debug runtime. It changes nothing else in
+   the Steam install.
+5. **Expect no sound under `adl`.** The audio extension is stripped for this launcher, so the game falls back to a
    silent driver and logs three `Error #1508` lines. That is normal here, not a fault.
 
 **To test with sound, or the way a player would start the game, launch the packaged bundle instead.**

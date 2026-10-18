@@ -295,7 +295,7 @@ again would make the engine log a re-termination error the host did nothing wron
 > handle both replies.
 >
 > One narrow hazard if you do use it: the computer's planning timer is not stopped by the same `skipped`
-> flag its other two entry points check (`AiModuleDredge.as:72-94` versus `:42` and `:134`), so in
+> flag its other two entry points check (`AiModuleDredge.as:79-117` versus `:49` and `:213`), so in
 > principle it can still reach a second commit on an already-committed move. Not seen in either run.
 
 ### Issuing a move and an attack

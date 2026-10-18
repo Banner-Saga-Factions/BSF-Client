@@ -68,6 +68,8 @@ runner's output folders are in `_build\runner\` (not committed).
 | 2026-10-16 | Wave 2, `--speed 4` | `armor-first` | 4 (2) | 4 (100%) | 3.00 | 0 | 58.5 | 4 (one event, repeated) | 0 |
 | 2026-10-16 | Installed build, meant to be Wave 2 (master `bca6dd8`) but not verified, `--speed 4`, runner 3a at variety 25, seed `1197659914`, account `test2` | `armor-first` | 8 (8) | 5 (63%) | 1.38 | 0.50 | 56.9 | 2 | 0 |
 | 2026-10-16 | The same, seed `1198581929`, account `443456` | `armor-first` | 8 (8) | 8 (100%) | 2.63 | 0 | 67.3 | 3 | 0 |
+| 2026-10-16 | Wave 3b (specials), `--speed 4`, variety 25, seed `1197659914`, account `test2`; stopped after 4 | `armor-first` | 4 (4) | 4 (100%) | 3.50 | 0 | 50.3 | 0 | 0 |
+| 2026-10-16 | The same, seed `1198581929`, account `443456`; stopped after 4 | `armor-first` | 4 (4) | 4 (100%) | 3.50 | 0 | 61.0 | 0 | 0 |
 
 "Distinct" counts battles whose fingerprints differ (the summary's "distinct battle traces"). A
 battle that repeats another turn for turn adds no evidence; see
@@ -100,6 +102,13 @@ that covers 2×2 tiles. On each, the game refused every tile it tried as out of 
 ended the turn. Why those tiles were out of reach was not checked. The rule was left alone, since
 changing it would change the yardstick. In
 both runs the computer chose no special, as expected before 3b.
+
+**Wave 3b's runs were stopped at 4 battles each** (owner's choice): the game log had already shown
+what the wave needed to see, so the rest would only have firmed up the win rate. Set against the
+first 4 battles of 3a's runs, which used the same seeds, the computer went from 3 of 4 won with 1.50
+survivors to 4 of 4 with 3.50 on `test2`, and from 4 of 4 with 3.25 to 4 of 4 with 3.50 on `443456`.
+Four battles are too few to call that a gain, and the pairing is loose: a seed fixes the scripted
+player's choices, but each battle's dice come from the clock.
 
 ## What reading the code found (2026-10-16; findings 1–4 fixed and measured in Wave 2)
 
@@ -269,6 +278,27 @@ battles of `armor-first` at `--speed 4`**, on both accounts, with the seed recor
   changes later dice rolls; the runner's numbers on both accounts.
 - **Branch:** `feat/ai-specials-31`. **Model:** Opus, high. It adds the planner overlay and uses
   pretend mode far more often.
+- **Built and measured** (2026-10-16; numbers in *Measurements*, details in
+  [`../docs/offline-ai.md`](../docs/offline-ai.md) §5 and §6):
+  - **A special's level follows the player's rule** (owner's choice): the unit's special stat, which
+    the game sets to rank − 1, and its willpower. Stoic's rank cap allowed up to one level more than a
+    player gets.
+  - **The real ability lists match the reference.** The computer's first-turn log listed Bird of Prey,
+    Bloody Flail, Sundering Impact and Bring the Pain as tried. Tempest, Slag and Burn and Run Through
+    were skipped. No Malice appeared, but neither party has a Provoker, so it was never offered.
+  - **Specials are chosen, but rarely.** On `443456`, in 4 battles: Sundering Impact 8 times and Bloody
+    Flail 3 times, out of 129 choices; Bring the Pain and Bird of Prey never. On `test2`, Bird of
+    Prey 2 times in 4 battles. Bird of Prey's higher levels add reach, not damage, while the bow's
+    raised basic attack hit harder (4 damage against 6 in the `443456` log). The planner sees Bring the Pain
+    take away only armor (2 at level 1), so a level-2 strength hit beats it.
+  - **Willpower drops** on the units that used specials, read from the runner's board readings. Those
+    readings cannot tie a drop to one action, since a level-2 basic attack costs willpower too.
+  - **Imagining Bloody Flail does not change later dice rolls.** In 349 special passes over 4 battles,
+    the battle's real dice were rolled 0 times (the game's own roll count, logged by each special pass).
+    The logs also hold the start of a fifth battle, cut short when the runner was stopped; the counts
+    here leave it out.
+  - **No new errors:** no `#1009`, no "went wrong while faking", no failed special pass, in either run.
+  - **Not checked:** that an enemy's stats change only from the chosen action.
 
 ### Wave 4: one-move look-ahead
 

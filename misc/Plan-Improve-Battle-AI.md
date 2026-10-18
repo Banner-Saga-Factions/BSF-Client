@@ -18,7 +18,7 @@ next. How it thinks today is in [`../docs/offline-ai.md`](../docs/offline-ai.md)
 - **The thinking stays inside the game.** Quick fixes first, then a one-move look-ahead. Moving the
   "brain" out to a helper program stays on the roadmap.
 - **Progress is measured, not guessed.** The match runner ([`../docs/match-runner.md`](../docs/match-runner.md))
-  plays the player's side with a fixed simple strategy and reports how often the computer wins.
+  plays the player's side with a simple strategy and reports how often the computer wins.
 - **One opponent strength.** No difficulty levels. A hidden developer switch is fine for comparing two
   versions.
 - **Fix the opponent's "eyesight" bugs first, then measure.** Add the anti-suicide penalty only if
@@ -46,16 +46,28 @@ issue.** The unchanged computer already won 2 of 4 against `armor-first`, exactl
 build won 4 of 4. But those runs held only 3 and 2 distinct battles: the battles barely vary (see
 *Measurements*). The bar has to be re-checked once Wave 3 makes the battles vary.
 
+**Re-checked in Wave 3a (2026-10-16): cleared, on battles that now differ.** With the varied player,
+every battle in both runs was distinct, and the installed build (meant to be Wave 2, not verified) won 5 of 8 on `test2` and 8 of 8 on
+`443456`. These are the rows 3b and Wave 4 compare against. They are not comparable with the earlier
+rows: the varied player may be weaker than the fixed one (not measured).
+
 ## Measurements
 
-Each row is one run of the match runner on the `test2` account's party: 2 archers, 2 axemen, a warrior
-and a warhawk on each side. The runner's output folders are in `_build\runner\` (not committed).
+Each row is one run of the match runner. Until Wave 3a every run used the `test2` account (Steam id
+`123456`), whose party is a **Bowmaster, a Siegearcher, 2 Axemen and 2 Warhawks** on each side.
+Earlier versions of this file said "2 archers, 2 axemen, a warrior and a warhawk". That was read from the
+units' ids, which keep the name each unit was hired under, not its class
+([`../docs/match-runner.md`](../docs/match-runner.md) §5). From Wave 3a there is a second account,
+`443456`: a Thrasher, a Siegearcher, a Bowmaster, a Warmaster, a Shieldmaster and a Backbiter. The
+runner's output folders are in `_build\runner\` (not committed).
 
 | Date | Build | Scripted player | Battles (distinct) | Computer won | Computer survivors, avg | Player survivors, avg | Turns, avg | Suicides | `#1009` |
 | ---- | ----- | --------------- | ------------------ | ------------ | ----------------------- | --------------------- | ---------- | -------- | ------- |
 | 2026-10-16 | Wave 1 (opponent unchanged from master `9603f55`) | `strength` | 8 (8) | 8 (100%) | 2.88 of 6 | 0 | 65.5 | not counted | 0 |
 | 2026-10-16 | Wave 1 (opponent unchanged), runner at `7baa1b8` | `armor-first` | 4 (3) | 2 (50%) | 1.00 | 0.50 | 59.5 | not counted | 0 |
 | 2026-10-16 | Wave 2, `--speed 4` | `armor-first` | 4 (2) | 4 (100%) | 3.00 | 0 | 58.5 | 4 (one event, repeated) | 0 |
+| 2026-10-16 | Installed build, meant to be Wave 2 (master `bca6dd8`) but not verified, `--speed 4`, runner 3a at variety 25, seed `1197659914`, account `test2` | `armor-first` | 8 (8) | 5 (63%) | 1.38 | 0.50 | 56.9 | 2 | 0 |
+| 2026-10-16 | The same, seed `1198581929`, account `443456` | `armor-first` | 8 (8) | 8 (100%) | 2.63 | 0 | 67.3 | 3 | 0 |
 
 "Distinct" counts battles whose fingerprints differ (the summary's "distinct battle traces"). A
 battle that repeats another turn for turn adds no evidence; see
@@ -79,8 +91,15 @@ reviewed runner.
 **The battles barely vary (found in Wave 2).** Two of the four baseline battles were identical turn for
 turn, and four of the five battles on the Wave 2 build were the same battle. Each battle gets a fresh
 dice seed, but a roll seldom decides anything, and both sides choose by fixed rules. So the
-"Battles" column overstates the evidence; the number in brackets is what counts. **Wave 3 starts by
-making battles vary.**
+"Battles" column overstates the evidence; the number in brackets is what counts.
+
+**Wave 3a made them vary (2026-10-16).** With the scripted player taking its second-best option 25 times
+in 100, 8 of 8 battles differed in each of the two runs, at the first setting tried. Seen in the
+`443456` run: 15 of its 262 player turns ended with no action, all by the player's Shieldmaster, a unit
+that covers 2×2 tiles. On each, the game refused every tile it tried as out of reach, so its fixed rule
+ended the turn. Why those tiles were out of reach was not checked. The rule was left alone, since
+changing it would change the yardstick. In
+both runs the computer chose no special, as expected before 3b.
 
 ## What reading the code found (2026-10-16; findings 1–4 fixed and measured in Wave 2)
 
@@ -115,6 +134,21 @@ format).
    | Sundering Impact (Warmaster, Wardog), Bring the Pain (Shieldmaster), Bloody Flail (Thrasher), Bird of Prey (Bowmaster), Malice (Provoker) | Buffs score 0 today: Stonewall (Axemaster, self), Forge Ahead (Warleader, ally). Aimed at a tile: Rain of Arrows (Skystriker), Slag and Burn (Siegearcher). Special rules: Tempest (Warhawk, two targets), Run Through (Backbiter), Battering Ram (Strongarm) |
 
    This is the reference copy. The running game may load a different one, so Wave 3 logs the real list.
+
+   **Checked while planning Wave 3 (2026-10-16)** against the installed game's
+   `assets\common\character\character_classes.json.z`, which lists the same specials for these classes:
+   - **Only promoted classes have a special.** Archer, axeman, warrior and shieldbanger have none. So the
+     `test2` party can only ever show one single-enemy special: the Bowmaster's Bird of Prey. Account `443456` shows four:
+     Bloody Flail, Bird of Prey, Sundering Impact and Bring the Pain. No test account has a Provoker
+     (owner's choice).
+   - **Malice does no damage when used.** It sets up a response at the start of the target's next turn
+     (`WAIT_FOR_START_TURN`). The opponent judges an action by the strength or armor it removes right away,
+     so it will always rate Malice at 0. Scoring it belongs with buff scoring on the roadmap.
+   - **Bloody Flail rolls dice for each hit**, picking strength or armor damage at random. When the
+     opponent imagines using it, the roll happens during the imagining, so its rating is one random sample.
+   - **The planner already half-supports specials.** `AiModuleBase.findPlans` already caps a special's
+     level at the unit's rank, and `AiPlan` already measures both strength and armor change for any ability
+     that is neither basic attack. What is missing is a pass in `AiModuleDredge.tickAi` that tries them.
 
 Two facts from the earlier plan still hold and make the fixes safe:
 
@@ -203,24 +237,36 @@ If the predicted damage on the landing tile is at least the unit's strength, sub
 `WEIGHT_SUICIDE = 150`. Keep it below `WEIGHT_KILL` and skip it when the move itself kills a target of
 equal or greater value, so a good trade is still allowed and the opponent does not turn passive.
 
-### Wave 3: use the five single-enemy specials
+### Wave 3, split in two (owner, 2026-10-16)
 
-- **First, make battles vary** (found in Wave 2): with fixed players and rolls that seldom matter, most
-  battles repeat. For example, the runner could break ties between equally good options with a random
-  choice from a seed it logs, so a run can be repeated exactly yet its battles differ. Re-record the
-  Wave 2 build's numbers with it before changing the opponent, and pass `--speed 4`.
+Planning found that making battles vary, adding a party that has specials, and the specials themselves
+were too much for one pull request, so Wave 3 became 3a and 3b. Every measurement from here on is **8
+battles of `armor-first` at `--speed 4`**, on both accounts, with the seed recorded.
+
+### Wave 3a: make battles vary, and record fresh baselines
+
+- **Changes, none to the opponent:** the runner's `--seed`, `--variety` and `--steam-id`
+  ([`../docs/match-runner.md`](../docs/match-runner.md) §1, §3). The scripted player breaks exact ties at
+  random and takes its second-best option 25 times in 100, from a seed it logs.
+- **Measured** on the installed build (meant to be Wave 2, not verified): see *Measurements*.
+- **Branch:** `feat/ai-runner-variety-31`. **Model:** Opus, medium.
+
+### Wave 3b: use the single-enemy specials
+
 - **Changes:**
   - `AiModuleBase` builds a `specials` list from `caster.def.actives` (`EntityDef.actives`). It keeps
     only `tag == SPECIAL`, `targetRule == ENEMY` and `targetCount == 1`, null-safe.
   - A new overlay of `AiModuleDredge.as` adds special passes in `tickAi`, after the strength and armor
     passes, using the same one-target-per-tick pattern.
-  - A special plan is kept only if it scores above 0, so resting still wins when it should.
+  - A special plan is kept only if its strength or armor change is above 0, so resting still wins when
+    it should, and Malice is tried but never chosen.
   - Fix finding 5 with a surgical overlay of `engine/battle/ability/model/BattleAbility.as`, so the
     `catch` switches pretend mode off and puts the unit back. Check `docs/patch-inventory.md` first in
     case it is already overlaid.
   - At battle start, log each opponent unit's actives (id, tag, target rule) to confirm the real data.
 - **Verify:** special-ability plan lines appear and specials get used in battle; willpower drops when
-  they are used; an enemy's stats change only from the chosen action; the runner's numbers.
+  they are used; an enemy's stats change only from the chosen action; whether imagining Bloody Flail
+  changes later dice rolls; the runner's numbers on both accounts.
 - **Branch:** `feat/ai-specials-31`. **Model:** Opus, high. It adds the planner overlay and uses
   pretend mode far more often.
 
@@ -264,12 +310,12 @@ clone copies values, not the list of effects.
 
 | File | Wave | Change |
 | ---- | ---- | ------ |
-| `scripts/mod-host/runner.js` _(new)_ | 1 | The match runner |
+| `scripts/mod-host/runner.js` _(new)_ | 1, 3a | The match runner; 3a: `--seed`, `--variety`, `--steam-id` |
 | `src/engine/mod/ModBattleControl.as` | 1 | `size` on each unit in `battle_state` |
 | `src/engine/battle/fsm/aimodule/AiPlan.as` _(re-overlay)_ | 2 | Findings 1, 2, 4; `WEIGHT_FOCUS`; maybe `WEIGHT_SUICIDE`; new terms in `toString()` |
-| `src/engine/battle/fsm/aimodule/AiModuleBase.as` _(re-overlay)_ | 2, 3 | Finding 3; the `specials` list |
-| `src/engine/battle/fsm/aimodule/AiModuleDredge.as` _(new overlay)_ | 3 | Special passes in `tickAi` |
-| `src/engine/battle/ability/model/BattleAbility.as` _(new overlay)_ | 3 | Finding 5 |
+| `src/engine/battle/fsm/aimodule/AiModuleBase.as` _(re-overlay)_ | 2, 3b | Finding 3; the `specials` list |
+| `src/engine/battle/fsm/aimodule/AiModuleDredge.as` _(new overlay)_ | 3b | Special passes in `tickAi` |
+| `src/engine/battle/ability/model/BattleAbility.as` _(new overlay)_ | 3b | Finding 5 |
 | `src/engine/battle/fsm/aimodule/AiModuleSearch.as` _(new)_ | 4 | The look-ahead |
 | `src/engine/mod/ModGameSpeed.as` _(new)_, `src/game/view/GameWrapper.as` _(new overlay)_ | 2 | The developer fast-forward |
 | `src/engine/battle/fsm/state/BattleStateTurnAi.as` _(overlay since Wave 2)_, `BattleFsmConfig.as` | 2, 4 | Wave 2: the pauses follow the fast-forward. Wave 4: the switch |

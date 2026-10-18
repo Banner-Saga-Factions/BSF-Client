@@ -11,6 +11,19 @@ been removed. The current download is on the
 
 ## [Unreleased]
 
+### The match runner's practice battles now play out differently each time
+
+The match runner measures the computer opponent by playing practice battles against it. Some of its battles kept
+replaying turn for turn, so four battles were really two or three. Its scripted player now sometimes takes
+its second-best option instead of its best, and breaks ties at random. The random choices come from a
+recorded number, but a repeat run can still differ. The old fixed play is still one switch away. The
+runner can also sign in as another local test account, whose units have special abilities to test with.
+In two runs of eight, every battle differed. Nothing about how the opponent decides has changed.
+
+*Technical:* `scripts/mod-host/runner.js` gains `--seed`, `--variety` and `--steam-id`,
+and records the account, seed and variety. Docs: `match-runner.md`, `misc/Plan-Improve-Battle-AI.md`.
+BSF-Client #31, Wave 3a.
+
 ### The computer opponent now sees danger from units standing next to it
 
 The computer opponent in offline practice battles kept walking its units into free kills. Its "can that

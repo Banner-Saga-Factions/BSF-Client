@@ -11,6 +11,19 @@ been removed. The current download is on the
 
 ## [Unreleased]
 
+### Players without a working Steam can sign in through Discord
+
+The game used to need Steam to sign in. Without it, it either sat on "Authenticating… Please wait."
+for ever or showed "Steam Error" and closed. It still tries Steam first, but when Steam will not
+start, gives no proof, or the server refuses that proof, it now signs in through Discord instead. It
+shows a short code and opens a page in the web browser that shows the same code; the player checks
+they match, presses Continue, then Authorize on Discord's own page, and the game carries on into the
+town by itself. If the browser opened behind the game, Retry opens the page again; Cancel, or a
+sign-in that runs out of time or is refused, shows the game's own "Login Failed" box with the
+server's reason, and its Retry starts afresh. The secret part of the sign-in is kept out of the
+game's log and out of the channel helper programs read. (BSF-Client #2, with the server half in
+BSF-Custom-Server #386.)
+
 ### The computer opponent now thinks one move ahead
 
 In offline practice battles the computer opponent used to pick each move only for what it does now.

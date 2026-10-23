@@ -414,6 +414,12 @@ class GameSession {
     if (this.options.bundle) {
       args.push('-Bundle');
     }
+    // BSF_WITH_STEAM=1: let the game try to start Steam, which under adl always
+    // fails (run-adl.ps1 -WithSteam says why). With BSF_STEAM_ID=none, it is how
+    // to reach the Discord sign-in.
+    if (process.env.BSF_WITH_STEAM === '1') {
+      args.push('-WithSteam');
+    }
     this.note(`starting: powershell ${args.join(' ')}`);
     this.launcher = spawn('powershell.exe', args, { windowsHide: true });
 

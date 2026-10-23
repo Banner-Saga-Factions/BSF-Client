@@ -12,34 +12,42 @@ buried in a plan.
 
 | What | Count | Notes |
 |---|---|---|
-| Patched/added `.as` overlays | **41** | The behavior + repair surface below. |
+| Patched/added `.as` overlays | **46** | The behavior + repair surface below. |
 | Embedded font glyph data | 3 `.cff` | `src/_assets/*.cff` — the outlines the three font wrappers re-embed. |
-| AIR descriptor | 1 | `META-INF/AIR/application.xml` — **outside `src/`**; declares the `extendedDesktop` profile (needed by the mod bridge's NativeProcess) and lists the platform ANEs (Adobe Native Extensions — bundled native-code plugins, e.g. Steamworks and FMOD). Adding the `bsf://` URL scheme is **planned — not yet in the committed descriptor**. |
+| AIR descriptor | 1 | `META-INF/AIR/application.xml` — **outside `src/`**; declares the `extendedDesktop` profile (needed by the mod bridge's NativeProcess) and lists the platform ANEs (Adobe Native Extensions — bundled native-code plugins, e.g. Steamworks and FMOD). No `bsf://` link is needed: the Discord sign-in opens the browser and asks the server until the player is done. |
 
-**Two kinds of patch.** Roughly a third of the 41 overlays change **no behavior at all** — they are
+**Two kinds of patch.** About a quarter of the 46 overlays change **no behavior at all** — they are
 faithful repairs of code the JPEXS decompiler mangled (illegal class names, lost imports, raw
-bytecode opcodes). The rest are real fork changes: crossplay, offline AI, the mod bridge, and gui
-compatibility. Each row below says which it is.
+bytecode opcodes). The rest are real fork changes: signing in without Steam, offline AI, the mod
+bridge, and gui compatibility. Each row below says which it is.
 
-> **`DiscordSteamworks.as` is *planned*, not present.** Several docs and `scripts/run-adl.ps1` refer to
-> a `DiscordSteamworks` crossplay driver. It does **not** exist in `src/` or in `_decompiled/` yet —
-> the crossplay auth patch currently lives entirely in `PreAuthState.as`. Treat any reference to
-> `DiscordSteamworks` as a not-yet-created plan.
+> **`DiscordSteamworks.as` was never built.** Some older docs and `scripts/run-adl.ps1` mention a
+> `DiscordSteamworks` driver. It does not exist and is no longer planned: the Discord sign-in is the
+> five `src/` files in the next section, and no Steam stand-in feeds Discord through the Steam path.
 
 ---
 
-## Crossplay & startup (2)
+## Sign-in & startup (7)
+
+The game tries Steam first and, when Steam gives nothing usable, signs in through Discord (BSF-Client
+issue #2). The flow, and the routes it uses, are in [`wire-protocol.md`](./wire-protocol.md) → *Discord
+sign-in*.
 
 | File | What changed | Why |
 |---|---|---|
 | `src/GameMainAir.as` | The AIR entry point and top of the boot spine (see [`client-overview.md`](./client-overview.md)). | Overlaid so the boot path can wire the fork's additions. `[Inference]` — there is no in-file patch comment; its role is confirmed by its imports (`FmodSoundDriver`/`NullSoundDriver`, `SteamworksAne`, `GameWrapper`, `GameConfig`). |
-| `src/game/session/states/PreAuthState.as` | When `overrideSteamId` is set, replaces the Steam auth-ticket fetch with the crossplay bypass token (`:31–33`, sets `steamAuthTicket = "override-authticket"`). | The documented crossplay auth patch point — trace it in [`wire-protocol.md`](./wire-protocol.md) → login flow. |
+| `src/game/session/states/StartState.as` | When Steam will not start, swaps in the do-nothing Steam stand-in (`NullSteamworks`, the one `--steam false` uses) and carries on, instead of the stock "Steam Error" dialog that closed the game. | A player without Steam can still reach the Discord sign-in. |
+| `src/game/session/states/PreAuthState.as` | Steam proof first, as stock. Where the stock game would show "Authenticating…" and wait forever — no Steam id, no proof, or a proof the server refused — it starts the Discord sign-in. The `--steam_id` test route keeps its stock ending. | The stock game has no username/password screen, so that wait never ended. |
+| `src/game/session/states/AuthState.as` | A Steam sign-in the server refuses (`401` or `400`) goes to the Discord sign-in at once, instead of being swallowed and sent again later. | Covers "Steam is running but its proof is refused". |
+| `src/game/session/states/DiscordSignIn.as` | **New file.** One hand-off: asks the server for a code, opens the page in the browser, shows the code with Retry / Cancel, asks "done yet?" every two seconds, then signs in with `password = "discord:<key>"`. Every way it ends without signing in lands on the stock "Login Failed" dialog. | The client half of the server's Discord hand-off. |
+| `src/game/session/actions/DiscordHandoffTxn.as` | **New file.** The "start a hand-off" request. Marks its reply as handled so the key never reaches the game's log. | — |
+| `src/game/session/actions/DiscordPollTxn.as` | **New file.** The "done yet?" request, with the key in a JSON body. | — |
 
 ## Mod bridge (5)
 
 | File | What changed | Why |
 |---|---|---|
-| `src/engine/mod/ModBridge.as` | **New file.** A bidirectional bus to an external mod-host process launched via NativeProcess: one JSON object per newline-terminated line, a command registry, and a restart/shutdown lifecycle. If the host is missing it marks itself failed once and every emit becomes a cheap no-op. Starts either `mods/host.exe` or whatever `mods/host.json` names, so a host can be a script. Strips secret values (`password`, `steam_auth_ticket`, `session_key`, `steamCredentials`) from every line in both directions. | The fork's non-Stoic scripting hook, and the control channel for testing. Full wire protocol is in the file's own doc block; narrative in [`mod-bridge.md`](./mod-bridge.md). |
+| `src/engine/mod/ModBridge.as` | **New file.** A bidirectional bus to an external mod-host process launched via NativeProcess: one JSON object per newline-terminated line, a command registry, and a restart/shutdown lifecycle. If the host is missing it marks itself failed once and every emit becomes a cheap no-op. Starts either `mods/host.exe` or whatever `mods/host.json` names, so a host can be a script. Strips secret values (`password`, `steam_auth_ticket`, `session_key`, `steamCredentials`, and the Discord hand-off `key`) from every line in both directions. | The fork's non-Stoic scripting hook, and the control channel for testing. Full wire protocol is in the file's own doc block; narrative in [`mod-bridge.md`](./mod-bridge.md). |
 | `src/engine/mod/ModBattleControl.as` | **New file.** Seven bridge commands: `battle_state` reads the live battle (units, sides, tiles, how many tiles each unit covers, current-versus-base stats), `battle_deploy_ready` gets past the deploy screen (which an offline battle never leaves on its own), `battle_end_turn` ends the turn in progress, `battle_move` walks the active unit to a named tile, `battle_attack` has it swing at another unit, `set_game_speed` fast-forwards the game (below; refused above normal speed except in an offline battle), and `set_ai_brain` picks the computer opponent's brain (`ModAiBrain`, below). Registered from `GameFsm`. Reaches the battle through one untyped hop so an engine-layer class need not depend on game-layer `SceneState`. Each of the four that change something makes the same calls the mouse would, so in an **offline** battle none of them reaches the server — used on a local turn in an online battle they send exactly what the mouse would. | Lets a test play and check a whole battle without synthesising mouse clicks — see [`driving-the-client.md`](./driving-the-client.md) → "Two channels". |
 | `src/engine/core/http/HttpAction.as` | Taps every outbound request (`doSend`) and raw response (`onResponseReceived`) into `ModBridge`, lazy-starting the host on the first transaction (`:136`, "PATCH begin"). | Lets a mod observe all server traffic without touching each individual action. |
 | `src/engine/mod/ModGameSpeed.as` | **New file.** Holds one number, how many times faster than normal the game clock runs (1 to 8, normally 1). Read by `GameWrapper` and `BattleStateTurnAi`; set only by the bridge's `set_game_speed`. | BSF-Client #31 — a developer fast-forward so the match runner ([`match-runner.md`](./match-runner.md)) can play its battles faster. A separate class so the game's main loop does not depend on the bridge. |
@@ -131,11 +139,11 @@ All four are **no-behavior-change** repairs of decompiler damage.
 
 ## Count reconciliation
 
-41 `.as` overlays = 2 (crossplay/startup) + 5 (mod bridge) + 13 (offline AI) + 7 (gui) + 2 (resource) +
+46 `.as` overlays = 7 (sign-in/startup) + 5 (mod bridge) + 13 (offline AI) + 7 (gui) + 2 (resource) +
 4 (board/landscape) + 4 (fonts) + 1 (audio) + 1 (saga) + 2 (view). Of these, **~11 are pure
 decompiler-artifact repairs** with no behavior change (`ResourceTree`, the four
 board/landscape repairs, the four font repairs, `NullSoundDriver`, and `TutorialTooltip`) — the honest "real
-fork behavior" surface is closer to **~28 files**.
+fork behavior" surface is closer to **~33 files**.
 
 `†` marks files that are also on the **12-stale-file list** (where the 2013 mirror is stale and the
 decompile is authoritative — see [`reference-codebases.md`](./reference-codebases.md)): `BattleBoard`,

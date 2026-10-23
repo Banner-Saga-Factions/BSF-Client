@@ -80,6 +80,13 @@ package engine.mod
        *  `steamCredentials` come back in its reply. */
       private static const SECRET_FIELDS:Array = ["password","steam_auth_ticket","session_key","steamCredentials"];
 
+      /** Secret fields whose name is too common a word to look for bare — a body is
+       *  scrubbed for these only when it holds the quoted JSON name ("key"), so a
+       *  reply that merely contains the letters is not parsed, or replaced whole
+       *  when it will not parse. `key` is the Discord hand-off key (#2): it comes
+       *  back in the hand-off reply and rides out in every "done yet?" request. */
+      private static const QUOTED_SECRET_FIELDS:Array = ["key"];
+
       private static const REDACTED:String = "[redacted]";
 
       /** Depth cap for the redaction walk — bodies are wire JSON, not cyclic
@@ -406,6 +413,13 @@ package engine.mod
                return true;
             }
          }
+         for each(var quoted:String in QUOTED_SECRET_FIELDS)
+         {
+            if(text.indexOf("\"" + quoted + "\"") >= 0)
+            {
+               return true;
+            }
+         }
          return false;
       }
 
@@ -467,7 +481,7 @@ package engine.mod
          out = {};
          for(var key:String in value)
          {
-            out[key] = SECRET_FIELDS.indexOf(key) >= 0 ? REDACTED : redactValue(value[key],depth + 1);
+            out[key] = SECRET_FIELDS.indexOf(key) >= 0 || QUOTED_SECRET_FIELDS.indexOf(key) >= 0 ? REDACTED : redactValue(value[key],depth + 1);
          }
          return out;
       }

@@ -11,6 +11,25 @@ been removed. The current download is on the
 
 ## [Unreleased]
 
+### The computer can now play both sides of a practice battle
+
+For testing, the computer can now play the player's side of an offline practice battle as well as its
+own, so one way of thinking can play another head to head. Until now the only measuring stick was a
+simple scripted player, and the computer had started beating it every time, so it could no longer
+tell a better opponent from a worse one. The match runner (the helper that plays many test battles in
+a row) starts these battles, swaps the sides every other battle, and counts which way of thinking won
+and which special abilities each one chose. The switch only works offline, and never in an online
+battle against a person. Normal play is unchanged.
+
+In the first runs, the newer look-ahead opponent beat the older one in all 8 battles on one test
+account, but lost 6 of 8 on the other, where whichever side the player normally holds won 6 of 8.
+That second result is the starting point for the next improvement.
+
+*Technical:* new `ModAiSides.as` and an overlay of `BattleStateNextTurn.as`; `ModAiBrain.as` per side
+plus a seeded near-best pick; `AiModuleDredge.pickNearBest`, `distinctTopPlans` moved from
+`AiModuleSearch`; `CHOSE PLAN [brain]` log lines; bridge `set_ai_sides`, `set_ai_brain` `side`/`margin`/`seed`;
+runner `--spectate --brains --swap-sides --ai-margin`. Issue #31, Wave 4a.
+
 ### The computer opponent now thinks one move ahead
 
 In offline practice battles the computer opponent used to pick each move only for what it does now.

@@ -1,5 +1,7 @@
 // runner.js — the match runner: plays the player's side of offline practice
-// battles against the computer, many in a row, and counts who wins.
+// battles against the computer, many in a row, and counts who wins. With
+// --spectate it plays nothing: the computer plays both sides (AI vs AI) and the
+// runner only watches and keeps score.
 //
 // WHAT THIS IS FOR. Issue #31 is about making the computer opponent stronger.
 // "Stronger" needs a number, and this is where the number comes from. The runner
@@ -29,6 +31,17 @@
 // run back exactly (docs/match-runner.md §3 says why). --variety 0 is the old
 // fixed play.
 //
+// AI VS AI (--spectate, issue #31 Wave 4a). Once the computer beats the scripted
+// player every time, that player can no longer tell a better brain from a worse
+// one. Offline battles are mirror matches, so with --spectate --brains a,b the
+// computer plays the player's side with brain a and its own side with brain b
+// (the game's set_ai_sides and per-side set_ai_brain). --swap-sides swaps the
+// two every other battle, so neither brain keeps the same side all run.
+// Two fixed brains would replay one battle move for move, so each brain picks at
+// random among its plans scoring within --ai-margin points of its best (25 by
+// default here, 0 = always the best), seeded from the battle's own seed. The
+// runner clicks Ready on the deploy screen, then only watches until the end.
+//
 // "Can reach" is worked out with the game's own range rule and then put to the
 // game: a move or an attack it would not allow comes back refused with a
 // reason, and the runner tries the next option. The arithmetic only decides
@@ -50,6 +63,10 @@
 //   node scripts\mod-host\runner.js --battles 5
 //   node scripts\mod-host\runner.js --player armor-first
 //   node scripts\mod-host\runner.js --brain search      # the computer thinks with the look-ahead
+//   node scripts\mod-host\runner.js --spectate --brains search,dredge --swap-sides --battles 8
+//                                                    # AI vs AI, sides swapped every other battle
+//   node scripts\mod-host\runner.js --spectate --brains search,dredge --ai-margin 0
+//                                                    # AI vs AI with no near-best pick
 //   node scripts\mod-host\runner.js --speed 4         # play each battle about 2x faster
 //   node scripts\mod-host\runner.js --seed 1234       # start the random choices from this seed
 //   node scripts\mod-host\runner.js --variety 0       # the old fixed play, no randomness
@@ -59,10 +76,12 @@
 //
 // WHAT IT WRITES, in the output folder (default _build\runner\<date-time>):
 //   runner-results.jsonl  one line per battle: winner, turns, survivors per side
+//                         (and, spectating, which brain played which side and won)
 //   runner-summary.txt    the totals, also printed at the end (written when the run
 //                         fails with an error, with a line saying so; not on Ctrl-C
 //                         or a kill)
 //   runner-turns.jsonl    one line per player turn: what it tried and how long it took
+//                         (not written when spectating: the runner plays no turns)
 // plus the session's own transcript and run log in _build\tests\.
 //
 // Related reading: docs/driving-the-client.md (launching, logs, traps),
@@ -104,6 +123,16 @@ const MAX_SPEED = 8;
 // leaves the game's own setting and writes down which one it was.
 const BRAINS = ['dredge', 'search'];
 
+// The near-best margin, in plan-score points, when spectating without --ai-margin.
+// Plan scores weigh a point of strength damage at 45 and a kill at 200, so 25
+// varies near-ties without throwing a real hit away (owner's choice, 2026-10-23).
+const DEFAULT_SPECTATE_MARGIN = 25;
+const MAX_MARGIN = 1000;
+
+// How long battle 1 waits on the deploy screen before clicking Ready, to see
+// whether the game leaves it by itself when the computer plays both sides.
+const DEPLOY_WATCH_MS = 5000;
+
 // The chance, in percent, that the player takes its second-best option at a
 // choice (see VARIETY at the top of this file).
 const DEFAULT_VARIETY = 25;
@@ -128,6 +157,12 @@ function parseArgs(argv) {
     // null leaves the session's own default account (test2, 123456).
     steamId: null,
     username: null,
+    // AI vs AI (see the top of this file).
+    spectate: false,
+    brains: null,
+    swapSides: false,
+    // null: DEFAULT_SPECTATE_MARGIN when spectating, otherwise 0 (and not sent).
+    aiMargin: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -172,8 +207,23 @@ function parseArgs(argv) {
     else if (arg === '--player') opts.player = next();
     else if (arg === '--speed') opts.speed = wholeNumber();
     else if (arg === '--brain') opts.brain = next();
+    else if (arg === '--spectate') opts.spectate = true;
+    else if (arg === '--swap-sides') opts.swapSides = true;
+    else if (arg === '--brains') opts.brains = next().split(',');
+    else if (arg === '--ai-margin') opts.aiMargin = countFromZero(MAX_MARGIN);
     else throw new Error(`unknown argument: ${arg}`);
   }
+  if (opts.spectate) {
+    if (!opts.brains) throw new Error('--spectate needs --brains <player side>,<computer side>');
+    if (opts.brain !== null) throw new Error('--spectate takes --brains, not --brain');
+    if (opts.aiMargin === null) opts.aiMargin = DEFAULT_SPECTATE_MARGIN;
+  } else if (opts.brains || opts.swapSides) {
+    throw new Error('--brains and --swap-sides only work with --spectate');
+  }
+  if (opts.brains && (opts.brains.length !== 2 || !opts.brains.every(b => BRAINS.includes(b)))) {
+    throw new Error(`--brains needs two of ${BRAINS.join(', ')}, separated by a comma`);
+  }
+  if (opts.aiMargin === null) opts.aiMargin = 0;
   if (opts.speed > MAX_SPEED) {
     throw new Error(`--speed can be at most ${MAX_SPEED}`);
   }
@@ -553,6 +603,21 @@ function boardFingerprint(state) {
     .join(',');
 }
 
+/**
+ * The final board of a watched battle, with tiles, plus how many turns it took.
+ * A watched battle is read by polling, which can miss a turn at high speed, so a
+ * turn-by-turn trace could make two identical battles look different; the end
+ * position cannot.
+ */
+function finalFingerprint(state, turns) {
+  const units = (state && state.units || [])
+    .map(u => `${u.id}:${u.alive ? 1 : 0}:${stat(u, 'strength')}/${stat(u, 'armor')}` +
+      `@${u.tile ? `${u.tile.x},${u.tile.y}` : '-'}`)
+    .sort()
+    .join(',');
+  return `${turns}|${units}`;
+}
+
 async function playBattle(session, index, opts, previousBattleId) {
   const record = {
     battle: index,
@@ -576,12 +641,20 @@ async function playBattle(session, index, opts, previousBattleId) {
     computerSuicides: 0,
     suicides: [],
     trace: [],
+    spectate: opts.spectate,
+    aiMargin: opts.aiMargin,
   };
   const started = Date.now();
   const choose = makeChooser(record.battleSeed, opts.variety);
 
   // Before the battle: the brain is read as each computer turn starts.
-  record.brain = await chooseBrain(session, opts);
+  if (opts.spectate) {
+    record.player = 'computer';
+    record.brains = await chooseSides(session, opts, index, record.battleSeed);
+    record.brain = null;
+  } else {
+    record.brain = await chooseBrain(session, opts, record.battleSeed);
+  }
 
   const accepted = await session.send('start_ai_battle');
   if (accepted !== 'ok') {
@@ -617,7 +690,20 @@ async function playBattle(session, index, opts, previousBattleId) {
     fs.writeFileSync(path.join(opts.outDir, `deploy-${index}.json`), JSON.stringify(atDeploy, null, 1));
   }
 
-  const ready = await session.send('battle_deploy_ready');
+  if (opts.spectate && index === 1) {
+    // Settle by running it: does the game leave the deploy screen by itself when
+    // the computer plays both sides, or does it still need Ready?
+    const until = Date.now() + DEPLOY_WATCH_MS;
+    let left = false;
+    while (Date.now() < until && !left) {
+      await pause(500);
+      const s = await session.send('battle_state');
+      left = !s.inBattle || s.state !== 'BattleStateDeploy';
+    }
+    record.deployLeftByItself = left;
+    say(`battle 1: the deploy screen ${left ? 'went away by itself' : `was still up after ${DEPLOY_WATCH_MS / 1000}s; clicking Ready`}`);
+  }
+  const ready = record.deployLeftByItself ? { ok: true } : await session.send('battle_deploy_ready');
   if (!ready.ok) {
     throw new Error(`the game would not accept ready: ${ready.reason}`);
   }
@@ -645,7 +731,11 @@ async function playBattle(session, index, opts, previousBattleId) {
     }
     watch = null;
   };
-  for (;;) {
+  if (opts.spectate) {
+    state = await watchBattle(session, index, opts, record);
+  }
+  // Spectating, the runner plays no turns, so this loop is skipped.
+  while (!opts.spectate) {
     state = await session.until(
       `battle ${index}: the player's turn, or the end`,
       async () => {
@@ -704,6 +794,14 @@ async function playBattle(session, index, opts, previousBattleId) {
   }
   record.turns = finalState && finalState.turn ? finalState.turn.number : lastTurnSeen;
   record.finalState = finalState ? finalState.state : null;
+  if (opts.spectate) {
+    record.trace = [finalFingerprint(finalState && finalState.inBattle ? finalState : state, record.turns)];
+    record.winnerBrain = record.winner === 'player' ? record.brains.player
+      : record.winner === 'computer' ? record.brains.computer : null;
+    // Back to normal play for anything after the run in this game.
+    await session.send('set_ai_sides', { player: false });
+    await session.send('set_ai_brain', { margin: 0 });
+  }
   record.fingerprint = simpleHash(record.trace.join('\n'));
   record.seconds = Math.round((Date.now() - started) / 100) / 10;
   return { record, turnLog };
@@ -716,10 +814,13 @@ async function playBattle(session, index, opts, previousBattleId) {
  * before the switch existed refuses the command; that is only an error when a
  * brain was asked for.
  */
-async function chooseBrain(session, opts) {
+async function chooseBrain(session, opts, seed) {
   let answer;
+  const ask = opts.brain ? { brain: opts.brain } : {};
+  // --ai-margin on a scripted run: the computer's near-best pick, as when spectating.
+  if (opts.aiMargin > 0) Object.assign(ask, { margin: opts.aiMargin, seed });
   try {
-    answer = await session.send('set_ai_brain', opts.brain ? { brain: opts.brain } : {});
+    answer = await session.send('set_ai_brain', ask);
   } catch (err) {
     if (opts.brain) {
       throw new Error(`the game would not switch to the ${opts.brain} brain: ${err.message}`);
@@ -734,6 +835,73 @@ async function chooseBrain(session, opts) {
     throw new Error(`the game would not ${what}: ${answer && answer.reason}`);
   }
   return answer.brain;
+}
+
+/**
+ * AI vs AI: which brain plays which side of battle `index` (--brains a,b puts a
+ * on the player's side; --swap-sides swaps them in even battles), the near-best
+ * margin and this battle's seed, and the computer playing the player's side.
+ * A build from before Wave 4a would quietly set the computer's brain twice and
+ * refuse set_ai_sides, so the answers are checked, not trusted.
+ */
+async function chooseSides(session, opts, index, seed) {
+  const swap = opts.swapSides && index % 2 === 0;
+  const brains = {
+    player: swap ? opts.brains[1] : opts.brains[0],
+    computer: swap ? opts.brains[0] : opts.brains[1],
+  };
+  const one = async (side, extra) => {
+    const answer = await session.send('set_ai_brain', { side, brain: brains[side], ...extra });
+    if (!answer || !answer.ok) {
+      throw new Error(`the game would not give the ${side}'s side the ${brains[side]} brain: ${answer && answer.reason}`);
+    }
+    if (!answer.brains || answer.brains[side] !== brains[side]) {
+      throw new Error('this build has no brain per side (it is older than issue #31 Wave 4a)');
+    }
+    return answer;
+  };
+  await one('player', { margin: opts.aiMargin, seed });
+  await one('computer', {});
+  let sidesAnswer;
+  try {
+    sidesAnswer = await session.send('set_ai_sides', { player: true });
+  } catch (err) {
+    throw new Error(`the game would not play the player's side: ${err.message}`);
+  }
+  if (!sidesAnswer || !sidesAnswer.ok || sidesAnswer.player !== true) {
+    throw new Error(`the game would not play the player's side: ${sidesAnswer && sidesAnswer.reason}`);
+  }
+  return brains;
+}
+
+/**
+ * AI vs AI: watch battle `index` until it ends, playing nothing. A battle whose
+ * turn number stops moving for PATIENCE.turnComesRound is a stall: recorded as
+ * one ("unfinished", stalled), not waited on for ever. Returns the last reading.
+ */
+async function watchBattle(session, index, opts, record) {
+  let lastTurn = -1;
+  let lastChange = Date.now();
+  for (;;) {
+    await pause(500);
+    const s = await session.send('battle_state');
+    if (!s.inBattle || s.finished) return s;
+    const turn = s.turn ? s.turn.number : -1;
+    if (turn !== lastTurn) {
+      lastTurn = turn;
+      lastChange = Date.now();
+    }
+    if (turn >= opts.turnCap) {
+      record.winner = 'unfinished';
+      return s;
+    }
+    if (Date.now() - lastChange > PATIENCE.turnComesRound) {
+      record.winner = 'unfinished';
+      record.stalled = { turn, entityId: s.turn ? s.turn.entityId : null, state: s.state };
+      say(`battle ${index}: STALLED on turn ${turn} (${record.stalled.entityId}, ${s.state}); giving up on it`);
+      return s;
+    }
+  }
 }
 
 /** A short stable hash, so two traces can be compared at a glance. */
@@ -815,6 +983,7 @@ function countLogFlags(runStartedAt, gamesStarted) {
   const totals = {
     found: 0, error1009: 0, fakingWentWrong: 0, error1508: 0, battlesStarted: 0,
     lookAheadPlans: 0, lookAheadTurns: 0, lookAheadChanged: 0, lookAheadFailed: 0, files: [],
+    nearBest: 0, aiVsAiTurns: 0, choices: {},
   };
   for (const file of files) {
     let text;
@@ -840,6 +1009,18 @@ function countLogFlags(runStartedAt, gamesStarted) {
     totals.lookAheadTurns += count(/BSF #31 look-ahead: \S+ (kept|changed) /g);
     totals.lookAheadChanged += count(/BSF #31 look-ahead: \S+ changed its choice/g);
     totals.lookAheadFailed += count(/BSF #31 look-ahead failed/g);
+    // Wave 4a: near-best picks other than the top plan, and player's-side turns
+    // the computer played.
+    totals.nearBest += count(/BSF #31 near-best: /g);
+    totals.aiVsAiTurns += count(/BSF #31 AI vs AI: /g);
+    // Every chosen plan, per brain and ability ("CHOSE PLAN [search] ... abl=id/level").
+    // Lines from builds before Wave 4a carry no brain and are counted as "unnamed".
+    for (const m of text.matchAll(/CHOSE PLAN (?:\[(\w+)\] )?[^\n]*? abl=(\S+)/g)) {
+      const brain = m[1] || 'unnamed';
+      const ability = m[2].split('/')[0];
+      const byAbility = totals.choices[brain] || (totals.choices[brain] = {});
+      byAbility[ability] = (byAbility[ability] || 0) + 1;
+    }
   }
   if (totals.found === 0) {
     totals.reason = `no game log in ${dir} written since the run began mentions a practice battle`;
@@ -863,7 +1044,7 @@ function summarise(results) {
   const ids = results.map(r => r.battleId);
   const prints = results.map(r => r.fingerprint);
   // Older result files lack these fields; say "-" rather than guess.
-  const values = f => [...new Set(results.map(r => r[f] === undefined ? '-' : r[f]))].join(', ');
+  const values = f => [...new Set(results.map(r => r[f] === undefined || r[f] === null ? '-' : r[f]))].join(', ');
   const lines = [
     `battles: ${n}   scripted player: ${[...new Set(results.map(r => r.player || 'strength'))].join(', ')}`,
     `account: ${values('account')}   seed: ${values('seed')}   variety (%): ${values('variety')}   ` +
@@ -888,7 +1069,57 @@ function summarise(results) {
       `distinct battle traces: ${new Set(prints).size} of ${n}`,
     `game restarts needed: ${results.filter(r => r.afterRestart).length}`,
   ];
+  const watched = results.filter(r => r.spectate && r.brains);
+  if (watched.length) lines.push(...summariseBrains(watched));
   return lines.join('\n');
+}
+
+/**
+ * AI vs AI totals: wins and units kept per brain, overall and on each side. In a
+ * watched battle "player" and "computer" are only the two sides of the board;
+ * both are played by the computer. A battle with the same brain on both sides
+ * says nothing about either, so it is left out of that brain's line.
+ */
+function summariseBrains(results) {
+  const names = [...new Set(results.flatMap(r => [r.brains.player, r.brains.computer]))];
+  const deploy = results.find(r => r.deployLeftByItself !== undefined);
+  const lines = [
+    `AI vs AI: ${results.length} battles   near-best margin: ` +
+      `${[...new Set(results.map(r => r.aiMargin))].join(', ')} points   ` +
+      `stalls: ${results.filter(r => r.stalled).length}` +
+      (deploy ? `   deploy screen left by itself: ${deploy.deployLeftByItself ? 'yes' : 'no (Ready needed)'}` : ''),
+  ];
+  for (const name of names) {
+    const sideOf = r => r.brains.player === name ? 'player' : 'computer';
+    const mine = results.filter(r => r.brains.player !== r.brains.computer &&
+      (r.brains.player === name || r.brains.computer === name));
+    const wins = side => mine.filter(r => r.winnerBrain === name && (!side || sideOf(r) === side)).length;
+    const played = side => mine.filter(r => sideOf(r) === side).length;
+    const kept = mine.map(r => r.survivors[sideOf(r)]);
+    lines.push(`  ${name}: won ${wins()} of ${mine.length}` +
+      `   (on the player's side ${wins('player')} of ${played('player')}, ` +
+      `on the computer's side ${wins('computer')} of ${played('computer')})` +
+      `   units kept per battle: ${kept.length ? (kept.reduce((a, b) => a + b, 0) / kept.length).toFixed(2) : '-'}`);
+  }
+  return lines;
+}
+
+// The basic actions every unit has; anything else a brain chose is a special.
+// "null" is a plan with no action (walk only, or stay put).
+const BASIC_ABILITY = /^(null|abl_rest|abl_end|abl_(melee|spear|bow)_(str|arm))$/;
+
+/** The per-brain, per-ability table of chosen plans from the game logs. */
+function summariseChoices(choices) {
+  const brains = Object.keys(choices).sort();
+  if (!brains.length) return ['chosen plans: none found in the game logs'];
+  return brains.map(brain => {
+    const entries = Object.entries(choices[brain]).sort((a, b) => b[1] - a[1]);
+    const total = entries.reduce((n, [, v]) => n + v, 0);
+    const specials = entries.filter(([k]) => !BASIC_ABILITY.test(k));
+    const basics = entries.filter(([k]) => BASIC_ABILITY.test(k));
+    const show = list => list.length ? list.map(([k, v]) => `${k} ${v}`).join(', ') : 'none';
+    return `chosen plans, ${brain}: ${total}   specials: ${show(specials)}   basic: ${show(basics)}`;
+  });
 }
 
 function summariseTurns(turns) {
@@ -926,7 +1157,10 @@ async function main() {
   fs.mkdirSync(outDir, { recursive: true });
   opts.outDir = outDir;
   if (opts.seed === null) opts.seed = Date.now() >>> 0;
-  say(`seed ${opts.seed}, variety ${opts.variety}%, computer brain ${opts.brain || "(the game's own setting)"}`);
+  say(opts.spectate
+    ? `seed ${opts.seed}, AI vs AI: ${opts.brains[0]} on the player's side, ${opts.brains[1]} on the computer's` +
+      `${opts.swapSides ? ', swapped every other battle' : ''}, near-best margin ${opts.aiMargin}`
+    : `seed ${opts.seed}, variety ${opts.variety}%, computer brain ${opts.brain || "(the game's own setting)"}`);
   const turnsPath = path.join(outDir, 'runner-turns.jsonl');
   const summaryPath = path.join(outDir, 'runner-summary.txt');
   say(`writing to ${outDir}`);
@@ -991,6 +1225,10 @@ async function main() {
       allTurns.push(...turnLog);
       fs.appendFileSync(resultsPath, JSON.stringify(record) + '\n');
       for (const t of turnLog) fs.appendFileSync(turnsPath, JSON.stringify(t) + '\n');
+      if (record.brains) {
+        say(`battle ${i}: ${record.brains.player} (player's side) vs ${record.brains.computer} (computer's side): ` +
+          `${record.winnerBrain ? `${record.winnerBrain} won` : record.winner}`);
+      }
       say(`battle ${i}: ${record.winner} won in ${record.turns} turns, ` +
         `survivors player ${record.survivors.player} / computer ${record.survivors.computer}, ` +
         `${record.seconds}s, id ${record.battleId}`);
@@ -1027,9 +1265,11 @@ async function main() {
         `practice battles started x${flags.battlesStarted}, ` +
         `look-ahead: ${flags.lookAheadTurns} turns, ${flags.lookAheadPlans} plans looked at, ` +
         `choice changed x${flags.lookAheadChanged}, failed x${flags.lookAheadFailed}, ` +
+        `near-best picks x${flags.nearBest}, player's-side turns played by the computer x${flags.aiVsAiTurns}, ` +
         `sound-extension #1508 x${flags.error1508} (3 per game start under adl; ` +
         `a shortfall means check which log was read, not that the count is wrong)`
       : `game logs NOT COUNTED: ${flags.reason}. Read them by hand before trusting this run.`,
+    ...(flags.found > 0 ? summariseChoices(flags.choices) : []),
     ...(flags.warning ? [`WARNING: ${flags.warning}. Read the logs by hand before trusting the count.`] : []),
     `game closed: ${sessions.map(x => x.closedPolitely ? 'politely' : 'BY FORCE').join(', ')}`,
   ].join('\n');

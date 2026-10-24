@@ -161,7 +161,8 @@ all when the top-level game state is built (`GameFsm.as:171` and `:183`):
 | **`battle_move`** | Walks the unit whose turn it is to a tile. | `{"ok":…}` |
 | **`battle_attack`** | Has that unit swing at another one. Ends its turn. | `{"ok":…}` |
 | **`set_game_speed`** | Fast-forwards the game clock, `{"scale":N}` with N from 1 to 8 — see below. | `{"ok":…,"scale":N}` |
-| **`set_ai_brain`** | Picks the offline computer opponent's brain, `{"brain":"dredge"}` or `{"brain":"search"}`; with no `brain`, only reports it — see below. | `{"ok":…,"brain":…}` |
+| **`set_ai_brain`** | Picks the offline computer's brain, `{"brain":"dredge"}` or `{"brain":"search"}`, for one side (`"side"`, default the computer's), and the near-best pick (`"margin"`, `"seed"`); with no fields, only reports — see below. | `{"ok":…,"brain":…,"brains":{…},"margin":N}` |
+| **`set_ai_sides`** | `{"player":true}` has the computer play the player's side of an offline battle too (AI vs AI); `false` stops it; with no `player`, only reports — see below. | `{"ok":…,"player":…}` |
 
 Together they are enough to play a battle from start to finish without a mouse:
 `start_ai_battle` → `battle_deploy_ready` → (`battle_move`, `battle_attack` or `battle_end_turn`) per turn.
@@ -193,12 +194,44 @@ Like the speed, it lasts until it is set again or the game restarts. Any other v
 `brain must be "dredge" or "search"`. A build from before this command answers with an `ERROR` line
 (unknown command), which the match runner records as an unknown brain.
 
+Since issue #31's Wave 4a it takes three more fields, all optional. Everything is checked before
+anything changes, so a refusal changes nothing:
+
+- **`side`**: `"computer"` (the default, so older scripts behave as before) or `"player"`. The player's
+  side has its own brain, used only while `set_ai_sides` has the computer play that side. Anything
+  else answers `side must be "computer" or "player"`.
+- **`margin`**: the **near-best pick**, for measuring runs. Two fixed brains replay one battle move for
+  move, so with a margin above 0 each brain picks at random among its plans scoring within that many
+  points of its best. Plan scores weigh a point of strength damage at 45 and a kill at 200. `0`, the
+  default, is the normal brain. A whole number from 0 to 1000, or `margin must be a whole number from 0
+  to 1000`. It applies to both sides.
+- **`seed`**: a number that starts the near-best pick's random numbers, so a run can be repeated. They
+  come from a generator of their own, never from the game's dice. With a margin but no seed ever sent,
+  the brain still plays its best plan.
+
+The reply names the brain of the side asked about (`brain`), both sides' brains (`brains`) and the
+margin. A build from before Wave 4a ignores the new fields and sets the computer's brain, which is why
+the match runner checks `brains` before trusting the answer.
+
+**`set_ai_sides` has the computer play the player's side too** (added for issue #31, Wave 4a: AI vs
+AI). Offline battles are mirror matches, so with `{"player":true}` one brain plays another head to
+head. The game reads the switch as each turn starts and sends the player's units to the computer's
+turn code instead of the mouse, using the player's side's brain from `set_ai_brain`. **It is ignored
+in an online battle**, where the player's side belongs to a person: the check is made at every turn
+(`BattleStateNextTurn`), not only when the switch is set. The deploy screen still needs
+`battle_deploy_ready` (measured 2026-10-23). It lasts until it is set again or the game restarts; the
+match runner sets it back after every watched battle. A value other than `true` or `false` answers
+`player must be true or false`.
+
+It is not the older `spectate` flag of `start_ai_battle`. That flag is stored when a battle loads but
+nothing acts on it yet ([`offline-ai.md`](./offline-ai.md) §7).
+
 The offline battle `start_ai_battle` launches is documented in [`offline-ai.md`](./offline-ai.md). A host
 author registers their own commands the same way, via `registerCommand`.
 
 ### Reading and playing a battle
 
-All seven battle commands live in `ModBattleControl.as`, kept apart from the bridge itself so `GameFsm`
+All eight battle commands live in `ModBattleControl.as`, kept apart from the bridge itself so `GameFsm`
 stays a plain registration site.
 
 **They add no behaviour the game did not already have.** Reading touches getters only, and each of the

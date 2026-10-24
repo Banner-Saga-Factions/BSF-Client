@@ -74,6 +74,17 @@ runner's output folders are in `_build\runner\` (not committed).
 | 2026-10-17 | The same build, brain `search` (look-ahead), same seed and account | `armor-first` | 4 (4) | 4 (100%) | 3.25 | 0 | 53.5 | 0 | 0 |
 | 2026-10-17 | The same build, brain `dredge`, seed `1198581929`, account `443456` | `armor-first` | 4 (4) | 4 (100%) | 3.25 | 0 | 66.3 | 1 | 0 |
 | 2026-10-17 | The same build, brain `search`, same seed and account | `armor-first` | 4 (4) | 4 (100%) | 3.75 | 0 | 59.8 | 0 | 0 |
+| 2026-10-23 | Wave 4a build, both new switches off (brain `search`), `--speed 4`, variety 25, seed `1197659914`, account `test2` | `armor-first` | 4 (4) | 4 (100%) | 4.75 | 0 | 44.5 | 2 | 0 |
+| 2026-10-23 | The same, seed `1198581929`, account `443456` (a first try froze when the laptop went to sleep; rerun) | `armor-first` | 4 (4) | 4 (100%) | 2.50 | 0 | 70.0 | 1 | 0 |
+
+**Head to head, from Wave 4a on.** The computer plays both sides (`--spectate`), one brain per side,
+swapped every other battle, with the near-best pick at 25 points so battles differ. "Player's side"
+and "computer's side" are only the two halves of the board; both are played by the computer.
+
+| Date | Build | Account, seed | Brains | Battles (distinct) | Wins | On the player's side | On the computer's side | Units kept, avg | Turns, avg | Stalls | `#1009` |
+| ---- | ----- | ------------- | ------ | ------------------ | ---- | -------------------- | ---------------------- | --------------- | ---------- | ------ | ------- |
+| 2026-10-23 | Wave 4a, `--speed 4` | `test2`, `4102` | `search` vs `dredge` | 8 (8) | `search` 8, `dredge` 0 | `search` 4 of 4 | `search` 4 of 4 | `search` 2.38, `dredge` 0 | 39.0 | 0 | 0 |
+| 2026-10-23 | The same | `443456`, `4103` | `search` vs `dredge` | 8 (8) | `search` 2, `dredge` 6 | `search` 2 of 4, `dredge` 4 of 4 | `search` 0 of 4, `dredge` 2 of 4 | `search` 0.50, `dredge` 1.50 | 74.1 | 0 | 0 |
 
 "Distinct" counts battles whose fingerprints differ (the summary's "distinct battle traces"). A
 battle that repeats another turn for turn adds no evidence; see
@@ -124,6 +135,20 @@ failed look-ahead in 233 computer turns. It changed the normal choice on 12 of 1
 the two (the seam only moves "take the top plan" into its own function). So 4 battles on `test2` swing
 widely, and that account's gap is mostly noise. The `443456` gap is small. What the runs do show is
 that the look-ahead breaks nothing and costs about a quarter of a second per computer turn.
+
+**Wave 4a played the two brains against each other (2026-10-23).** On `test2`, `search` won all 8,
+4 on each side. On `443456` it lost 6 of 8: it won only on the player's side (2 of 4), and the
+player's side won 6 of the 8 whichever brain held it. So that account has a side advantage, and
+`search` is behind there. The game log confirms each brain played the side it was meant to in every
+battle. Two likely causes, neither measured: the look-ahead's reply ignores damage resistance, and
+that party has a Shieldmaster (Wave 4b's point 6); and the two sides deploy differently, the
+player's side by the Ready command and the computer's by its own deployment code. Against the
+scripted player the earlier gap on `443456` was small (3.75 against 3.25 units kept), so this does not
+contradict Wave 4. It is the first time the yardstick has said something the scripted player could
+not. **This row is the baseline Wave 4b is judged against.** Specials chosen across both runs:
+`search` Sundering Impact 17, Bloody Flail 4, Bring the Pain 3, Bird of Prey 2; `dredge` Bird of Prey
+10, Bloody Flail 11, Sundering Impact 5, Bring the Pain 2. No `#1009`, no faking errors, no failed
+look-ahead, no stalls.
 
 ## What reading the code found (2026-10-16; findings 1–4 fixed and measured in Wave 2)
 
@@ -356,6 +381,28 @@ judged mainly by **computer survivors**, the bar's tie-breaker.
   22 of its 23 computer turns (the 23rd had no plan to look at; 131 plans looked at), one changed choice, and no errors.
 - **Next:** Wave 4b below, or close #31 (owner's call).
 - **Branch:** `feat/ai-lookahead-31`, stacked on `feat/ai-specials-31`. **Model:** Opus, high.
+
+### Wave 4a: the computer plays both sides (done 2026-10-23)
+
+Planned 2026-10-23 with the specials (issue
+[#86](https://github.com/Banner-Saga-Factions/BSF-Client/issues/86)), because the computer already
+won every battle against the scripted player, so that yardstick no longer told brains apart.
+
+- **What changed:** a switch (`ModAiSides`, bridge `set_ai_sides`) sends the player's units to the
+  computer's turn code in an offline battle, never online (`BattleStateNextTurn` overlay). `ModAiBrain`
+  holds a brain per side (`set_ai_brain`'s `side`). A seeded near-best pick (`margin`, `seed`; off
+  by default) makes battles differ. The `CHOSE PLAN` log line names its brain. The runner gained
+  `--spectate`, `--brains a,b`, `--swap-sides`, `--ai-margin`, per-brain wins, and per-brain,
+  per-ability counts of chosen plans ([`../docs/match-runner.md`](../docs/match-runner.md) §1, "The computer
+  against itself").
+- **Settled by running it:** the deploy screen still needs `battle_deploy_ready`. A battle takes about
+  130 s on `test2` and 220 s on `443456` at ×4. All 16 battles were distinct at margin 25. The battle
+  screen behaves while the computer plays the player's units: the owner watched one at normal speed
+  (`search` won in 39 turns) and saw nothing stuck. What a mouse click does during those turns was not
+  tried.
+- **Results:** *Measurements* above. `search` 8–0 on `test2`, 2–6 on `443456`.
+- **Next:** Wave 4b, judged head to head against this build's `search` on both accounts.
+- **Branch:** `feat/ai-vs-ai-31`. **Model:** Opus, high.
 
 ### Wave 4b (proposed 2026-10-17): units that get stuck, or box in a friend
 

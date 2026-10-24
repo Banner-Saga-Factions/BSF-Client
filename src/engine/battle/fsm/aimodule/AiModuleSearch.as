@@ -11,9 +11,9 @@ package engine.battle.fsm.aimodule
    import engine.battle.entity.model.BattleEntity;
    import engine.battle.fsm.BattleMove;
    import engine.battle.fsm.state.BattleStateTurnAi;
+   import engine.mod.ModAiBrain;
    import engine.stat.def.StatType;
    import engine.tile.Tile;
-   import flash.utils.Dictionary;
 
    /**
     * AiModuleSearch — NEW FILE (not in original decompile). BSF-Client #31, Wave 4.
@@ -86,18 +86,26 @@ package engine.battle.fsm.aimodule
          super(param1);
       }
 
+      override protected function get brainName() : String
+      {
+         return ModAiBrain.SEARCH;
+      }
+
       override protected function pickPlan(param1:Vector.<AiPlan>) : AiPlan
       {
          var _loc2_:AiPlan = param1[0];
          try
          {
-            var _loc3_:Vector.<AiPlan> = distinctTopPlans(param1);
+            var _loc3_:Vector.<AiPlan> = distinctTopPlans(param1,MAX_PLANS);
             var _loc4_:Number = -Infinity;
+            // Wave 4a: each looked-at plan's score after the reply, for the near-best pick.
+            var _loc8_:Vector.<Number> = new Vector.<Number>();
             for each(var _loc5_:AiPlan in _loc3_)
             {
                var _loc6_:Object = scoreReply(_loc5_);
                var _loc7_:Number = _loc5_.weight - WEIGHT_REPLY * _loc6_.points;
                ss.logger.debug("BSF #31 look-ahead: plan " + _loc5_.planId + " old " + _loc5_.weight + " reply " + Math.round(_loc6_.points) + " by " + _loc6_.by + " on " + _loc6_.on + " -> " + Math.round(_loc7_));
+               _loc8_.push(_loc7_);
                // Strictly better only, so a tie keeps the plan the normal brain ranked higher.
                if(_loc7_ > _loc4_)
                {
@@ -113,38 +121,14 @@ package engine.battle.fsm.aimodule
             {
                ss.logger.debug("BSF #31 look-ahead: " + caster.id + " kept plan " + _loc2_.planId + " after looking at " + _loc3_.length + " plans");
             }
+            // Wave 4a: in a measuring run, any plan within the margin of the best score
+            // after the reply may be played instead (off, margin 0, in normal play).
+            _loc2_ = pickNearBest(_loc3_,_loc8_,_loc2_);
          }
          catch(e:Error)
          {
             ss.logger.error("BSF #31 look-ahead failed, playing the top plan: " + (caster ? caster.id : "?") + ": " + e.getStackTrace());
             return param1[0];
-         }
-         return _loc2_;
-      }
-
-      /**
-       * The best MAX_PLANS plans, keeping only the first of any that end on the same tile with
-       * the same ability (and level) on the same target. findPlans makes the same rest plan
-       * once per enemy, so without this the look-ahead could spend its six looks on one idea.
-       */
-      private function distinctTopPlans(param1:Vector.<AiPlan>) : Vector.<AiPlan>
-      {
-         var _loc2_:Vector.<AiPlan> = new Vector.<AiPlan>();
-         var _loc3_:Dictionary = new Dictionary();
-         for each(var _loc4_:AiPlan in param1)
-         {
-            if(_loc2_.length >= MAX_PLANS)
-            {
-               break;
-            }
-            var _loc5_:Tile = _loc4_.mv ? _loc4_.mv.last : null;
-            var _loc6_:String = (_loc5_ ? _loc5_.x + "," + _loc5_.y : "here") + "|" + (_loc4_.abldef ? _loc4_.abldef.id + "/" + _loc4_.abldef.level : "none") + "|" + (_loc4_.target ? _loc4_.target.id : "none");
-            if(_loc3_[_loc6_])
-            {
-               continue;
-            }
-            _loc3_[_loc6_] = true;
-            _loc2_.push(_loc4_);
          }
          return _loc2_;
       }

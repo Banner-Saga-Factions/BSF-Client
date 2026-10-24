@@ -32,7 +32,9 @@ package engine.mod
     * practice battle, but it stays raised until it is set back, even after the
     * battle (BSF-Client #72). It is meant to change timing only; that rests on
     * reading the code, not on a measured comparison. A seventh, "set_ai_brain",
-    * picks which brain the offline computer opponent thinks with (ModAiBrain).
+    * picks which brain the offline computer opponent thinks with (ModAiBrain). An
+    * eighth, "set_ai_sides", has the computer play the player's side of an offline
+    * battle too (ModAiSides), so two brains can play each other (#31, Wave 4a).
     *
     * WHY IT DUCK-TYPES ONE HOP: the path from the game's state machine down to a
     * battle runs through SceneState, which is game-layer code, while this class
@@ -54,7 +56,7 @@ package engine.mod
     *   battle_attack        what the execute button does
     *                        (BattleHudPage.executeTurnAbility)
     *
-    * So apart from set_game_speed and set_ai_brain, none of this adds behaviour the game did not already have — it only
+    * So apart from set_game_speed, set_ai_brain and set_ai_sides, none of this adds behaviour the game did not already have — it only
     * makes the moment deterministic instead of timed, and reachable without a
     * screen. Two places where the likeness is not exact, both found in review:
     * the move commands skip setWayPoint, so the on-screen waypoint marker stays
@@ -182,44 +184,143 @@ package engine.mod
                };
             }
          });
+         ModBridge.registerCommand("set_ai_sides",function(cmd:Object):Object
+         {
+            try
+            {
+               return setAiSides(cmd);
+            }
+            catch(e5:Error)
+            {
+               return {
+                  "ok":false,
+                  "reason":"could not change which sides the computer plays",
+                  "error":e5.message
+               };
+            }
+         });
          if(logger)
          {
-            logger.info("ModBridge commands registered: battle_state, battle_deploy_ready, battle_end_turn, battle_move, battle_attack, set_game_speed, set_ai_brain");
+            logger.info("ModBridge commands registered: battle_state, battle_deploy_ready, battle_end_turn, battle_move, battle_attack, set_game_speed, set_ai_brain, set_ai_sides");
          }
       }
 
       /**
        * [Inference] BSF-Client #31: {"brain":"dredge"|"search"} picks which brain the offline
-       * computer opponent thinks with (ModAiBrain); with no "brain" it only reports the one in
-       * use. Allowed at any time: only an offline battle has a computer opponent, and the brain
+       * computer thinks with (ModAiBrain). Every field is optional, and with none it only
+       * reports the settings:
+       *
+       *   side    "computer" (the default, the opponent) or "player" (the player's side,
+       *           used only while set_ai_sides has the computer play it; Wave 4a)
+       *   margin  the near-best pick for measuring runs: a whole number of points, 0 to
+       *           1000; 0 (the default) is the normal brain (Wave 4a)
+       *   seed    a number that starts the near-best pick's random numbers (Wave 4a)
+       *
+       * Everything is checked before anything changes, so a refusal changes nothing.
+       * Allowed at any time: only an offline battle has a computer opponent, and the brain
        * is read when each computer turn starts, so a change takes effect from the next one. It
        * lasts until it is set again or the game restarts.
        */
       private static function setAiBrain(cmd:Object) : Object
       {
-         var wanted:* = cmd != null ? cmd.brain : undefined;
-         if(wanted === undefined || wanted === null)
+         var side:* = cmd != null ? cmd.side : undefined;
+         if(side === undefined || side === null)
+         {
+            side = ModAiBrain.COMPUTER;
+         }
+         if(!(side is String) || !ModAiBrain.isSide(side))
          {
             return {
-               "ok":true,
-               "brain":ModAiBrain.brainName
+               "ok":false,
+               "reason":"side must be \"" + ModAiBrain.COMPUTER + "\" or \"" + ModAiBrain.PLAYER + "\""
             };
          }
-         if(wanted !== ModAiBrain.DREDGE && wanted !== ModAiBrain.SEARCH)
+         var wanted:* = cmd != null ? cmd.brain : undefined;
+         var hasBrain:Boolean = wanted !== undefined && wanted !== null;
+         if(hasBrain && wanted !== ModAiBrain.DREDGE && wanted !== ModAiBrain.SEARCH)
          {
             return {
                "ok":false,
                "reason":"brain must be \"" + ModAiBrain.DREDGE + "\" or \"" + ModAiBrain.SEARCH + "\""
             };
          }
-         ModAiBrain.lookahead = wanted === ModAiBrain.SEARCH;
-         if(s_logger)
+         var margin:* = cmd != null ? cmd.margin : undefined;
+         var hasMargin:Boolean = margin !== undefined && margin !== null;
+         if(hasMargin && (!(margin is Number) || margin < 0 || margin > 1000 || margin != Math.floor(margin)))
          {
-            s_logger.info("ModBattleControl.setAiBrain brain=" + ModAiBrain.brainName);
+            return {
+               "ok":false,
+               "reason":"margin must be a whole number from 0 to 1000"
+            };
+         }
+         var seed:* = cmd != null ? cmd.seed : undefined;
+         var hasSeed:Boolean = seed !== undefined && seed !== null;
+         if(hasSeed && (!(seed is Number) || isNaN(seed)))
+         {
+            return {
+               "ok":false,
+               "reason":"seed must be a number"
+            };
+         }
+         if(hasBrain)
+         {
+            ModAiBrain.setBrain(side,wanted);
+         }
+         if(hasMargin)
+         {
+            ModAiBrain.margin = int(margin);
+         }
+         if(hasSeed)
+         {
+            ModAiBrain.seed(int(seed));
+         }
+         if(s_logger && (hasBrain || hasMargin || hasSeed))
+         {
+            s_logger.info("ModBattleControl.setAiBrain computer=" + ModAiBrain.brainNameFor(ModAiBrain.COMPUTER) + " player=" + ModAiBrain.brainNameFor(ModAiBrain.PLAYER) + " margin=" + ModAiBrain.margin + (hasSeed ? " seed=" + seed : ""));
          }
          return {
             "ok":true,
-            "brain":ModAiBrain.brainName
+            "brain":ModAiBrain.brainNameFor(side),
+            "brains":{
+               "computer":ModAiBrain.brainNameFor(ModAiBrain.COMPUTER),
+               "player":ModAiBrain.brainNameFor(ModAiBrain.PLAYER)
+            },
+            "margin":ModAiBrain.margin
+         };
+      }
+
+      /**
+       * [Inference] BSF-Client #31, Wave 4a: {"player":true|false} has the computer play the
+       * player's side of an offline battle too, or stops it (ModAiSides); with no "player" it
+       * only reports the setting. Allowed at any time, taking effect from the next turn. It is
+       * ignored in an online battle (BattleStateNextTurn checks), where the player's side
+       * belongs to a person. It lasts until it is set again or the game restarts.
+       */
+      private static function setAiSides(cmd:Object) : Object
+      {
+         var wanted:* = cmd != null ? cmd.player : undefined;
+         if(wanted === undefined || wanted === null)
+         {
+            return {
+               "ok":true,
+               "player":ModAiSides.playerSide
+            };
+         }
+         if(!(wanted is Boolean))
+         {
+            return {
+               "ok":false,
+               "reason":"player must be true or false"
+            };
+         }
+         ModAiSides.playerSide = wanted;
+         if(s_logger)
+         {
+            s_logger.info("ModBattleControl.setAiSides player=" + ModAiSides.playerSide);
+         }
+         return {
+            "ok":true,
+            "player":ModAiSides.playerSide
          };
       }
 

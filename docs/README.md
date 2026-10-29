@@ -49,9 +49,9 @@ Architecture, build workflow, wire protocol, and reference material for the patc
 
 ### "I'm working on Discord/mobile crossplay"
 
-1. `bsf-server/misc/Findings-Client-ActionScript-Crossplay.md` ([local](../../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Findings-Client-ActionScript-Crossplay.md)) — read all 6 items, especially Item 2 (Steam auth → Discord OAuth swap) and Item 6 (mobile OS branches).
+1. `bsf-server/misc/Findings-Client-ActionScript-Crossplay.md` ([local](../../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Findings-Client-ActionScript-Crossplay.md)) — especially Item 6 (mobile OS branches).
 2. [`reference-codebases.md`](./reference-codebases.md) — find each class you'll touch in either the 2013 source or the decompile.
-3. [`wire-protocol.md`](./wire-protocol.md) → "Login flow walkthrough" — the patch point is `PreAuthState.as:33`.
+3. [`wire-protocol.md`](./wire-protocol.md) → "Discord sign-in" — how the game signs in without Steam today.
 4. `bsf-server/misc/Plan-Enable-Mobile-Windows-Crossplay.md` ([local](../../bsf-server/misc/Plan-Enable-Mobile-Windows-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Plan-Enable-Mobile-Windows-Crossplay.md)) — server-side prerequisites.
 
 ### "I'm a server dev and need to understand what the client expects"

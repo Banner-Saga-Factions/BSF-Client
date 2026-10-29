@@ -6,8 +6,7 @@ package game.session.actions
 
    /**
     * BSF patch (#2): asks the server whether the player has finished the Discord step in the
-    * browser. The answer is 200 with status pending / ready / failed / expired, so the game's
-    * own automatic re-send (404 and 5xx only) never starts.
+    * browser. The answer is 200 with status pending / ready / failed / expired.
     */
    public class DiscordPollTxn extends HttpJsonAction
    {

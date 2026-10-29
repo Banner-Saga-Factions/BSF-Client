@@ -102,6 +102,7 @@ After this, `_decompiled/` mirrors the package layout described in [`subsystem-i
 
 - _"JPEXS not found"_ — set the install path explicitly: `$env:JPEXS_HOME = "C:\Program Files (x86)\FFDec"` and re-run.
 - _"Cannot open SWF"_ — the script defaults to the Steam install path. If your SWF lives elsewhere, edit the path at the top of `decompile.ps1` or pass it as an argument.
+- **The default is whatever is installed in the Steam folder** — not the original if you have installed one of our own builds there for testing. Then pass `-SwfPath` with the stock copy (the fallback in the table above), or `_decompiled/` starts out already patched.
 - _"Out of heap space"_ — JPEXS by default uses 512 MB. Edit `ffdec.bat` to bump `-Xmx` to `2g`.
 
 ## Step 2 — `apply-patches.ps1`

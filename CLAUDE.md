@@ -18,7 +18,7 @@ Key patch files (a representative subset — the full 46-file inventory is [`doc
 
 | File | Change |
 |------|--------|
-| `src/game/session/states/PreAuthState.as` | Steam proof first, as stock; when Steam gives nothing usable (not running, no proof, proof refused), starts the Discord sign-in instead of the stock endless "Authenticating…" wait |
+| `src/game/session/states/PreAuthState.as` | Steam proof first, as stock; when Steam gives nothing usable (not running, no proof, proof refused), starts the Discord sign-in |
 | `src/game/session/states/DiscordSignIn.as` | New — the Discord sign-in (BSF-Client #2): code on screen, browser opened, "done yet?" every two seconds, then the ordinary sign-in with `password = "discord:<key>"`. `StartState.as` and `AuthState.as` route Steam failures to it. Flow and routes: [`docs/wire-protocol.md`](./docs/wire-protocol.md) → "Discord sign-in" |
 | `src/engine/mod/ModBridge.as` | New — NativeProcess event bus to an external mod host (`mods/host.json` names it, or `mods/host.exe`); newline-delimited JSON over stdin/stdout, command registry, restart/shutdown lifecycle, secret-field redaction |
 | `src/engine/mod/ModBattleControl.as` | New — the `battle_state` / `battle_deploy_ready` / `battle_end_turn` / `battle_move` / `battle_attack` bridge commands; enough to play a whole battle without a mouse, and the control channel for testing the client ([`docs/driving-the-client.md`](./docs/driving-the-client.md) → "Two channels") |
@@ -105,7 +105,7 @@ Agent({ subagent_type: "general-purpose", description: "Code review",
   prompt: "Review the changes in <files> for correctness, AS3 typing, and edge cases..." })
 ```
 
-Look for: missing `override` keywords and type mismatches left behind by the decompiler, calls to functions not defined in the same class, listeners added without a matching removal, patched files that drifted from their `_decompiled/` original in ways the change did not intend, and request fields that no longer match what `../bsf-server` expects.
+Look for: missing `override` keywords and type mismatches left behind by the decompiler, calls to functions not defined in the same class, listeners added without a matching removal, patched files that drifted from the shipped original in ways the change did not intend (compare with `%USERPROFILE%\Code\bsf-refs\client-decompiled-as3\`, not `_decompiled/`, which the build overwrites with `src/`), and request fields that no longer match what `../bsf-server` expects.
 
 The second reviewer, briefed to *disprove*:
 

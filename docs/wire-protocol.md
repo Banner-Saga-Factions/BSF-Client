@@ -37,11 +37,11 @@ Final form: `<hostUrl>/services/<path><urlCred>[/<suffix>]`. The `<hostUrl>` is 
 
 ### Login flow walkthrough
 
-1. **`PreAuthState.handleEnteredState`** (`game/session/states/PreAuthState.as:18`) fires when the client transitions to pre-auth. It either:
-   - Reads a real Steam ticket (`SteamUser_GetAuthSessionTicketHandle()` + `SteamUser_GetAuthSessionTicket(handle)` at lines 38–42), or
-   - Uses the `overrideSteamId` bypass (lines 31–34) — sets `steamAuthTicket = "override-authticket"`, or
+1. **`PreAuthState.handleEnteredState`** (`game/session/states/PreAuthState.as`) fires when the client transitions to pre-auth. It either:
+   - Reads a real Steam ticket (`SteamUser_GetAuthSessionTicketHandle()` + `SteamUser_GetAuthSessionTicket(handle)`), or
+   - Uses the `overrideSteamId` bypass — sets `steamAuthTicket = "override-authticket"`, or
    - in our build, when neither gives a usable proof, starts the Discord sign-in instead of waiting forever — see *Discord sign-in* below.
-2. **`credentials.commit()`** dispatches `Credentials.EVENT_COMMITTED`. The state listens (line 25) and on a valid `Credentials` transitions to `StatePhase.COMPLETED`.
+2. **`credentials.commit()`** dispatches `Credentials.EVENT_COMMITTED`. The state listens and on a valid `Credentials` transitions to `StatePhase.COMPLETED`.
 3. **`GameFsm`** advances to `LoginQueueState` → `AuthState`, which constructs an `AuthTxn` with the credentials.
 4. **`AuthTxn`** POSTs the body at lines 17–26 to `services/auth/login/11`. On 200, `handleJsonResponseProcessing` (lines 31–59) writes the response fields back into `credentials`.
 5. **`credentials.sessionKey = ...`** at line 52 (the line comment explicitly says `set session key last`) is the gate — Credentials becomes `valid` once both `sessionKey` and `userId` are set, fires `EVENT_COMMITTED` again, and `AuthState` transitions to the main-menu lifecycle.
@@ -192,8 +192,8 @@ When Steam cannot be used — it will not start, gives no proof, or the server r
 
 The flow lives in `game/session/states/DiscordSignIn.as`, started from `PreAuthState.as`; `StartState.as` no longer stops the game when Steam fails, and `AuthState.as` sends a refused Steam sign-in to the Discord step. Two things the patch does on purpose:
 
-- **The Discord sign-in is marked "must succeed" before it is sent** (`AUTH_REQUIRE`), so a refusal goes straight to "Login Failed" with the server's own words. The stock game otherwise swallows the first refusal and asks again later — by which time the key is used up, and the second answer would say "expired" instead of the real reason.
-- **Nothing starts a second hand-off by itself.** Every way the hand-off ends without signing in — Cancel, expired, refused — lands on the stock "Login Failed" dialog; only its Retry starts a new one.
+- **The Discord sign-in is marked "must succeed" before it is sent** (`AUTH_REQUIRE`), so a refusal goes straight to "Login Failed" with the server's own words. The stock game otherwise swallows the first refusal and asks again later — by which time the key is used up, and the second answer would say "expired" instead of the real reason. For the same reason a Discord sign-in that gets no answer, a `404` or a `5xx` is never sent again: it goes to "Login Failed" too.
+- **Nothing starts a second hand-off by itself.** Every way the hand-off ends without signing in — Cancel, expired, refused — lands on the stock "Login Failed" dialog, whose Retry starts a new one. So does OK on "Disconnected From Server", which a server restart brings up: a Discord player then goes through the browser again.
 
 The key is kept out of the game's log (both requests mark their replies as handled, so `GameFsm` does not write them out) and out of the mod bridge (`ModBridge.as` hides any field named `key`). What the server expects, step by step: `bsf-server/docs/client-contract.md` ([local](../../bsf-server/docs/client-contract.md#signing-in-through-discord--what-the-patched-game-must-do-251) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/client-contract.md#signing-in-through-discord--what-the-patched-game-must-do-251)) → *Signing in through Discord*; every route and reply: `bsf-server/docs/serverEndpoints.md` ([local](../../bsf-server/docs/serverEndpoints.md#discord-sign-in-hand-off-endpoints) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/serverEndpoints.md#discord-sign-in-hand-off-endpoints)) → *Discord sign-in (hand-off) Endpoints*.
 

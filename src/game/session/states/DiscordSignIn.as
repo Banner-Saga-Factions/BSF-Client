@@ -23,8 +23,8 @@ package game.session.states
     *   4. when it says ready, hand the key to the ordinary sign-in as its password.
     *
     * Anything that ends the hand-off without signing in goes to the game's own "Login Failed"
-    * dialog (AuthFailedState), whose Retry is the only thing that starts a new hand-off — this
-    * class never starts one by itself, which would open the browser again unasked.
+    * dialog (AuthFailedState), whose Retry starts a new hand-off. This class never starts one by
+    * itself, which would open the browser again unasked.
     *
     * What the server expects: bsf-server/docs/client-contract.md, "Signing in through Discord".
     * The key is never written to the log.
@@ -106,11 +106,9 @@ package game.session.states
             timer.stop();
             timer = null;
          }
-         if(handoffTxn)
-         {
-            handoffTxn.abort();
-            handoffTxn = null;
-         }
+         // Forgotten, not cancelled: the game writes a cancelled request's late reply to its debug
+         // log, and this reply carries the key. handoffHandler ignores it once stopped.
+         handoffTxn = null;
          if(pollTxn)
          {
             pollTxn.abort();
@@ -131,6 +129,13 @@ package game.session.states
             fail(txn.refusal ? txn.refusal : "Could not reach the server to start Discord sign-in.");
             return;
          }
+         // Only a web page is opened. Any other kind of address could start something else on
+         // the player's computer, and the address comes from whichever server the game was given.
+         if(!isWebAddress(txn.pageUrl))
+         {
+            fail("The server sent a sign-in page address the game will not open.");
+            return;
+         }
          key = txn.key;
          code = txn.code;
          pageUrl = txn.pageUrl;
@@ -138,6 +143,12 @@ package game.session.states
          openBrowser();
          showDialog();
          schedulePoll(POLL_MS);
+      }
+
+      private static function isWebAddress(address:String) : Boolean
+      {
+         var lower:String = address.toLowerCase();
+         return lower.indexOf("https://") == 0 || lower.indexOf("http://") == 0;
       }
 
       private function schedulePoll(delayMs:int) : void
@@ -238,7 +249,9 @@ package game.session.states
       {
          closeDialog();
          dialog = config.gameGuiContext.createDialog();
-         dialog.openTwoBtnDialog("Sign in with Discord","Your code: <font color=\'#ffdd00\'>" + code + "</font>\n\n" + "A Discord sign-in page has opened in your browser. It may be behind the game.\n" + "Check it shows the same code, press Continue, then Authorize.\n\n" + "Retry opens the page again.",RETRY,CANCEL,dialogHandler);
+         // Kept short: in the stock dialog a longer body rides up into the title and loses its
+         // last line.
+         dialog.openTwoBtnDialog("Sign in with Discord","Your code: <font color=\'#ffdd00\'>" + code + "</font>\n" + "In your browser (it may be behind the game), check the code, then press Continue and Authorize. " + "Retry opens the page again.",RETRY,CANCEL,dialogHandler);
       }
 
       private function closeDialog() : void
@@ -262,7 +275,7 @@ package game.session.states
          dialog = null;
          if(button == CANCEL)
          {
-            fail("Discord sign-in was cancelled.");
+            fail("Discord sign-in was cancelled. Have the game on Steam? Start Steam, then the game.");
             return;
          }
          logger.info("DiscordSignIn Retry: opening the page again");

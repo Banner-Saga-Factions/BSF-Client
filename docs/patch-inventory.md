@@ -21,9 +21,9 @@ faithful repairs of code the JPEXS decompiler mangled (illegal class names, lost
 bytecode opcodes). The rest are real fork changes: signing in without Steam, offline AI, the mod
 bridge, and gui compatibility. Each row below says which it is.
 
-> **`DiscordSteamworks.as` was never built.** Some older docs and `scripts/run-adl.ps1` mention a
-> `DiscordSteamworks` driver. It does not exist and is no longer planned: the Discord sign-in is the
-> five `src/` files in the next section, and no Steam stand-in feeds Discord through the Steam path.
+> **`DiscordSteamworks.as` was never built.** Older plans mention a `DiscordSteamworks` driver. It
+> does not exist and is no longer planned: the Discord sign-in is six of the `src/` files in the next
+> section, and no Steam stand-in feeds Discord through the Steam path.
 
 ---
 
@@ -37,9 +37,9 @@ sign-in*.
 |---|---|---|
 | `src/GameMainAir.as` | The AIR entry point and top of the boot spine (see [`client-overview.md`](./client-overview.md)). | Overlaid so the boot path can wire the fork's additions. `[Inference]` — there is no in-file patch comment; its role is confirmed by its imports (`FmodSoundDriver`/`NullSoundDriver`, `SteamworksAne`, `GameWrapper`, `GameConfig`). |
 | `src/game/session/states/StartState.as` | When Steam will not start, swaps in the do-nothing Steam stand-in (`NullSteamworks`, the one `--steam false` uses) and carries on, instead of the stock "Steam Error" dialog that closed the game. | A player without Steam can still reach the Discord sign-in. |
-| `src/game/session/states/PreAuthState.as` | Steam proof first, as stock. Where the stock game would show "Authenticating…" and wait forever — no Steam id, no proof, or a proof the server refused — it starts the Discord sign-in. The `--steam_id` test route keeps its stock ending. | The stock game has no username/password screen, so that wait never ended. |
-| `src/game/session/states/AuthState.as` | A Steam sign-in the server refuses (`401` or `400`) goes to the Discord sign-in at once, instead of being swallowed and sent again later. | Covers "Steam is running but its proof is refused". |
-| `src/game/session/states/DiscordSignIn.as` | **New file.** One hand-off: asks the server for a code, opens the page in the browser, shows the code with Retry / Cancel, asks "done yet?" every two seconds, then signs in with `password = "discord:<key>"`. Every way it ends without signing in lands on the stock "Login Failed" dialog. | The client half of the server's Discord hand-off. |
+| `src/game/session/states/PreAuthState.as` | Steam proof first, as stock. Where the stock game would show "Authenticating…" and wait forever — no Steam id, or no proof — it starts the Discord sign-in, and so it does after a proof the server refused. The `--steam_id` test route keeps its stock ending. | The stock game has no username/password screen, so that wait never ended. |
+| `src/game/session/states/AuthState.as` | A Steam sign-in the server refuses (`401` or `400`) goes to the Discord sign-in at once, instead of being swallowed and sent again later. A Discord sign-in is never sent twice: with no answer, a `404` or a `5xx` it goes to "Login Failed". | Covers "Steam is running but its proof is refused". |
+| `src/game/session/states/DiscordSignIn.as` | **New file.** One hand-off: asks the server for a code, opens the page in the browser, shows the code with Retry / Cancel, asks "done yet?" every two seconds, then signs in with `password = "discord:<key>"`. Every way it ends without signing in lands on the stock "Login Failed" dialog. It opens only an `http` or `https` address. | The client half of the server's Discord hand-off. |
 | `src/game/session/actions/DiscordHandoffTxn.as` | **New file.** The "start a hand-off" request. Marks its reply as handled so the key never reaches the game's log. | — |
 | `src/game/session/actions/DiscordPollTxn.as` | **New file.** The "done yet?" request, with the key in a JSON body. | — |
 

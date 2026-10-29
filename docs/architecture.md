@@ -12,7 +12,7 @@ This repo holds **only the files being patched or added** — the full ~1,272-cl
 
 ```
 bsf-client/
-├── src/                          ← committed: 33 .as overlays + fonts (see patch-inventory.md)
+├── src/                          ← committed: .as overlays + fonts (see patch-inventory.md)
 │   └── game/session/states/PreAuthState.as
 ├── _decompiled/                  ← gitignored: ~1,272 .as files from JPEXS
 ├── META-INF/AIR/application.xml  ← committed: AIR descriptor
@@ -43,7 +43,7 @@ The client is an Adobe AIR application — Flash Player runtime packaged with a 
 | **Adobe AIR (HARMAN SDK 33.1+)** | Hosts the Flash runtime + native OS bridge.                                                                                                                                                                                                                                                                                                                                     | HARMAN took over from Adobe in 2019 — older Adobe AIR SDKs no longer work for compile + packaging.                                                                      |
 | **Flash Player 32 VM**           | Executes the compiled AS3 bytecode.                                                                                                                                                                                                                                                                                                                                             | Same VM as the dead-on-the-web Flash plugin, but inside AIR it still runs.                                                                                              |
 | **Starling (Stage3D)**           | A GPU 2D renderer **bundled in the SWF but never started** — `new Starling` appears nowhere and `GameMainAir` declares an `s:Starling` field it never assigns. Rendering is entirely on the **native Flash display list**: menus/HUD via `GuiSprite`/`GuiBase`, the isometric board/scenes via the **`as3isolib`** library. `[Inference]` See [`ui-system.md`](./ui-system.md). | Bundled with the original SWF; `[Inference]` vestigial — not used.                                                                                                      |
-| **Steamworks ANE**               | Native extension wrapping the Steam C API.                                                                                                                                                                                                                                                                                                                                      | Removed for mobile builds; **planned** to be replaced by a `DiscordSteamworks` crossplay driver — not yet in `src/` (see [`patch-inventory.md`](./patch-inventory.md)). |
+| **Steamworks ANE**               | Native extension wrapping the Steam C API.                                                                                                                                                                                                                                                                                                                                      | Removed for mobile builds (**planned**, see below). |
 
 The AIR descriptor `META-INF/AIR/application.xml` declares the runtime version (AIR 3.7), app ID, the supported profiles (`extendedDesktop` plus the two mobile profiles), and both platform ANEs (FMOD + Steamworks). The mobile Steamworks-ANE removal is **planned — not yet in the committed descriptor**. The Discord sign-in needs no `bsf://` URL scheme: the game opens the browser and then asks the server until the player has finished.
 
@@ -215,13 +215,10 @@ Signing in without Steam lives in `bsf-client/src/` (the full 46-file `src/` ove
 
 | File                                         | Role                                                                                                                                  |
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/game/session/states/PreAuthState.as`    | Steam proof first; when Steam gives nothing usable, starts the Discord sign-in instead of the stock endless "Authenticating…" wait.   |
+| `src/game/session/states/PreAuthState.as`    | Steam proof first; when Steam gives nothing usable, starts the Discord sign-in.   |
 | `src/game/session/states/DiscordSignIn.as`   | The Discord sign-in itself: a code on screen, the browser opened, "done yet?" every two seconds, then the ordinary sign-in.           |
-| `src/game/session/states/StartState.as`, `AuthState.as` | Send a Steam that will not start, or a Steam proof the server refuses, to the Discord sign-in. Both swap in `NullSteamworks` (the original Stoic do-nothing `ISteamworks`). |
+| `src/game/session/states/StartState.as`, `AuthState.as` | Send a Steam that will not start, or a Steam proof the server refuses, to the Discord sign-in. |
 | `META-INF/AIR/application.xml`               | **Planned** (not yet in the committed descriptor): for mobile targets, remove the Steamworks `<extensionID>`. No `bsf://` scheme is needed for the Discord sign-in. |
-
-The patch surface is small by design — replacing one class plus a config tweak is all the original architecture demands. See `bsf-server/misc/Findings-Client-ActionScript-Crossplay.md` ([local](../../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Findings-Client-ActionScript-Crossplay.md)) Items 2 + 6.
-
 ## What this client expects from the server
 
 Constraints the client imposes on any backend that wants to serve it (covered in detail in [`wire-protocol.md`](./wire-protocol.md)):

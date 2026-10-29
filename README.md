@@ -69,15 +69,12 @@ is the canonical historical artifact and is cited throughout the new docs.
 
 | File                                         | Change                                                                                       |
 | -------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `src/game/session/states/PreAuthState.as`    | Steam first; when Steam gives nothing usable, starts the Discord sign-in instead of waiting forever |
+| `src/game/session/states/PreAuthState.as`    | Steam first; when Steam gives nothing usable, starts the Discord sign-in |
 | `src/game/session/states/DiscordSignIn.as`   | The Discord sign-in: a code on screen, the browser opened, then the ordinary sign-in          |
 | `src/game/session/states/StartState.as`, `AuthState.as` | Send a Steam that will not start, or a Steam proof the server refuses, to the Discord sign-in |
 
 The full list is in [`docs/patch-inventory.md`](./docs/patch-inventory.md) → "Sign-in & startup"; the flow and its
 routes are in [`docs/wire-protocol.md`](./docs/wire-protocol.md) → "Discord sign-in".
-
-Server-side prerequisites are tracked in `bsf-server/misc/Plan-Enable-Mobile-Windows-Crossplay.md` ([local](../bsf-server/misc/Plan-Enable-Mobile-Windows-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Plan-Enable-Mobile-Windows-Crossplay.md)).
-
 ## Build notes
 
 - `build.ps1` is a starting template. First compile will likely surface a handful of JPEXS

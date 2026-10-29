@@ -82,6 +82,18 @@ package game.session.states
          }
          else if(param1.canRetry)
          {
+            // PATCH begin (#2): a Discord sign-in is never sent twice. The server may already have
+            // used up its key, and a second try would then be told "expired", hiding the reason.
+            if(DiscordSignIn.isDiscordPassword(credentials.password))
+            {
+               logger.info("AuthState Discord sign-in got " + param1.responseCode + "; not sending it again");
+               this.action.abort();
+               this.action = null;
+               data.setValue(GameStateDataEnum.SERVER_MESSAGE,"Could not finish signing in. Press Retry to start again.");
+               phase = StatePhase.FAILED;
+               return;
+            }
+            // PATCH end
             if(_loc2_)
             {
                param1.resend(communicator,5000);
@@ -123,9 +135,11 @@ package game.session.states
       // PATCH begin (#2): a Steam sign-in carries a Steam proof and no Discord key. The
       // server's Steam refusals are 401 (proof not accepted) and 400 (id not usable, or held
       // by a Discord player). A refused Discord sign-in is not one: it goes to "Login Failed".
+      // Only the first refusal in a run counts: kiosk mode sends the refused proof again, and
+      // without this it would go round in a loop.
       private function isRefusedSteamSignIn(param1:AuthTxn) : Boolean
       {
-         if(!credentials.steamAuthTicket || DiscordSignIn.isDiscordPassword(credentials.password))
+         if(DiscordSignIn.steamRefused || !credentials.steamAuthTicket || DiscordSignIn.isDiscordPassword(credentials.password))
          {
             return false;
          }

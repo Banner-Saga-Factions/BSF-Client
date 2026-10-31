@@ -113,7 +113,7 @@ Today's `src/` is intentionally small:
 
 | File                                      | Replaces                                                                            |
 | ----------------------------------------- | ----------------------------------------------------------------------------------- |
-| `src/game/session/states/PreAuthState.as` | `_decompiled/game/session/states/PreAuthState.as` (Steam-auth bypass for crossplay) |
+| `src/game/session/states/PreAuthState.as` | `_decompiled/game/session/states/PreAuthState.as` (Discord sign-in when Steam gives nothing usable) |
 | `META-INF/AIR/application.xml`            | (does not overlay — used directly by `adt` in step 3)                               |
 
 To add a new patch: drop a file at `src/<same-package-path>/<ClassName>.as` and re-run.

@@ -19,7 +19,7 @@ Architecture, build workflow, wire protocol, and reference material for the patc
 | [`asset-loading.md`](./asset-loading.md)             | The loader pipeline beneath UI **and** battle/anim/sound: `ResourceManager`, the resource types, the two loaders, and object pools.                 |
 | [`subsystem-index.md`](./subsystem-index.md)         | "Where do I look for X?" — package-by-package map of notable classes with both decompile and 2013-source paths.                                     |
 | [`reference-codebases.md`](./reference-codebases.md) | When do I read `client-2013-as3` vs `client-decompiled-as3`? Which 12 files are stale in the 2013 source?                                           |
-| [`patch-inventory.md`](./patch-inventory.md)         | Exactly what does our fork change? The 33 `src/` overlays grouped by concern, each with what changed and why.                                       |
+| [`patch-inventory.md`](./patch-inventory.md)         | Exactly what does our fork change? The `src/` overlays grouped by concern, each with what changed and why.                                       |
 | [`data-model.md`](./data-model.md)                   | How does a JSON def become a typed object? The `Def`/`Vars`/`Wrangler` triad, the entity model, and why battle stats come from your roster.          |
 | [`offline-ai.md`](./offline-ai.md)                   | How do offline practice battles work? Starting one, how the AI picks its move, what it can't do, and what our fork fixed.                            |
 | [`mod-bridge.md`](./mod-bridge.md)                   | How does the mod bridge talk to `mods/host.exe`? The wire protocol, the command registry, the lifecycle — and the known security gap.               |

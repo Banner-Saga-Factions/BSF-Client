@@ -105,7 +105,7 @@ The entry point is `GameMainAir.extends Sprite`. Important phases, in order:
    Two fields are dead weight today. `fullscreen` is never read anywhere outside the constructor — the real fullscreen behavior comes entirely from the separate `--fullscreen` CLI flag, unrelated to run mode. `town` is `true` for every mode currently defined, so every `if (runMode.town)` check in the codebase (`VersusFailState.as:23`, `VersusCancelState.as:58`, `SceneState.as:211`) always passes regardless of mode; it only still matters as the negated half of `FactionsState.as:38`'s `!config.runMode.town || config.runMode == RunMode.KIOSK`, which today reduces to just the `== KIOSK` check.
 
    The three fields that still do something:
-   - **`autologin` (KIOSK only).** `PreAuthState.as:51` logs in with the fixed guest credentials `kiosk`/`kiosk` instead of asking for one; `VersusStartMatchTxn.as:19` requests high matchmaking priority (`priority = 100`); `LoginQueuePage.as:37` skips the page's "ready" gate. All three exist for unattended retail-kiosk demos, not for testing.
+   - **`autologin` (KIOSK only).** `PreAuthState.as` logs in with the fixed guest credentials `kiosk`/`kiosk` instead of asking for one; `VersusStartMatchTxn.as:19` requests high matchmaking priority (`priority = 100`); `LoginQueuePage.as:37` skips the page's "ready" gate. All three exist for unattended retail-kiosk demos, not for testing.
    - **`mainMenu` (DEVELOPER only).** `TownState.as:65` — its only read site in the whole client — sends a fire-tower click to the main menu instead of the quit dialog. [`driving-the-client.md`](./driving-the-client.md) → "Landing at camp instead" records the same thing from the player's side.
    - **`developer` (DEVELOPER only).** Unlocks several things at once:
      - `RunMode.isClassAvailable()` (`RunMode.as:39–66`) returns `true` for every unit class instead of checking a 16-class whitelist — the mead house (`GuiMeadHouse.as:392`), the promotion screen (`GuiPromotion.as:124`), and `PurchasableUnits.as:40` all call through this, so DEVELOPER mode can hire or promote into any class, not just the base 16.
@@ -219,6 +219,7 @@ Signing in without Steam lives in `bsf-client/src/` (the full 46-file `src/` ove
 | `src/game/session/states/DiscordSignIn.as`   | The Discord sign-in itself: a code on screen, the browser opened, "done yet?" every two seconds, then the ordinary sign-in.           |
 | `src/game/session/states/StartState.as`, `AuthState.as` | Send a Steam that will not start, or a Steam proof the server refuses, to the Discord sign-in. |
 | `META-INF/AIR/application.xml`               | **Planned** (not yet in the committed descriptor): for mobile targets, remove the Steamworks `<extensionID>`. No `bsf://` scheme is needed for the Discord sign-in. |
+
 ## What this client expects from the server
 
 Constraints the client imposes on any backend that wants to serve it (covered in detail in [`wire-protocol.md`](./wire-protocol.md)):

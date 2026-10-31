@@ -58,8 +58,6 @@ Battle code has the most 12-stale-file exceptions; **read decompile for the file
 
 ## `engine/steamworks/` — auth ANE stubs ★
 
-Crossplay's main patch zone.
-
 | Class                     | Role                                                                                                                       | Decompile path                                 | 2013 path     |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ------------- |
 | `ISteamworks`             | Interface every Steam call goes through.                                                                                   | `engine/steamworks/ISteamworks.as`             | (not in 2013) |

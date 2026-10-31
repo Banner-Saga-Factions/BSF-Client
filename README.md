@@ -27,7 +27,7 @@ is the canonical historical artifact and is cited throughout the new docs.
 | [`docs/asset-loading.md`](./docs/asset-loading.md) | The resource-loading pipeline beneath UI **and** battle/anim/sound. |
 | [`docs/subsystem-index.md`](./docs/subsystem-index.md) | "Where do I look for X?" package-by-package class map with decompile and 2013-source paths. |
 | [`docs/reference-codebases.md`](./docs/reference-codebases.md) | Guide to the three client mirrors under `bsf-refs/` and the 12-stale-file exception list. |
-| [`docs/patch-inventory.md`](./docs/patch-inventory.md) | Everything in `src/` — the fork's 33 overlays grouped by concern, each with what/why. |
+| [`docs/patch-inventory.md`](./docs/patch-inventory.md) | Everything in `src/` — the fork's overlays grouped by concern, each with what/why. |
 | [`docs/doc-gaps.md`](./docs/doc-gaps.md) | The tracked, closeable list of remaining client-doc gaps. |
 
 ## Prerequisites
@@ -75,6 +75,7 @@ is the canonical historical artifact and is cited throughout the new docs.
 
 The full list is in [`docs/patch-inventory.md`](./docs/patch-inventory.md) → "Sign-in & startup"; the flow and its
 routes are in [`docs/wire-protocol.md`](./docs/wire-protocol.md) → "Discord sign-in".
+
 ## Build notes
 
 - `build.ps1` is a starting template. First compile will likely surface a handful of JPEXS

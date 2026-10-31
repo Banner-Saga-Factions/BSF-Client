@@ -19,7 +19,7 @@ Architecture, build workflow, wire protocol, and reference material for the patc
 | [`asset-loading.md`](./asset-loading.md)             | The loader pipeline beneath UI **and** battle/anim/sound: `ResourceManager`, the resource types, the two loaders, and object pools.                 |
 | [`subsystem-index.md`](./subsystem-index.md)         | "Where do I look for X?" — package-by-package map of notable classes with both decompile and 2013-source paths.                                     |
 | [`reference-codebases.md`](./reference-codebases.md) | When do I read `client-2013-as3` vs `client-decompiled-as3`? Which 12 files are stale in the 2013 source?                                           |
-| [`patch-inventory.md`](./patch-inventory.md)         | Exactly what does our fork change? The 33 `src/` overlays grouped by concern, each with what changed and why.                                       |
+| [`patch-inventory.md`](./patch-inventory.md)         | Exactly what does our fork change? The `src/` overlays grouped by concern, each with what changed and why.                                       |
 | [`data-model.md`](./data-model.md)                   | How does a JSON def become a typed object? The `Def`/`Vars`/`Wrangler` triad, the entity model, and why battle stats come from your roster.          |
 | [`offline-ai.md`](./offline-ai.md)                   | How do offline practice battles work? Starting one, how the AI picks its move, what it can't do, and what our fork fixed.                            |
 | [`mod-bridge.md`](./mod-bridge.md)                   | How does the mod bridge talk to `mods/host.exe`? The wire protocol, the command registry, the lifecycle — and the known security gap.               |
@@ -49,9 +49,9 @@ Architecture, build workflow, wire protocol, and reference material for the patc
 
 ### "I'm working on Discord/mobile crossplay"
 
-1. `bsf-server/misc/Findings-Client-ActionScript-Crossplay.md` ([local](../../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Findings-Client-ActionScript-Crossplay.md)) — read all 6 items, especially Item 2 (Steam auth → Discord OAuth swap) and Item 6 (mobile OS branches).
+1. `bsf-server/misc/Findings-Client-ActionScript-Crossplay.md` ([local](../../bsf-server/misc/Findings-Client-ActionScript-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Findings-Client-ActionScript-Crossplay.md)) — especially Item 6 (mobile OS branches).
 2. [`reference-codebases.md`](./reference-codebases.md) — find each class you'll touch in either the 2013 source or the decompile.
-3. [`wire-protocol.md`](./wire-protocol.md) → "Login flow walkthrough" — the patch point is `PreAuthState.as:33`.
+3. [`wire-protocol.md`](./wire-protocol.md) → "Discord sign-in" — how the game signs in without Steam today.
 4. `bsf-server/misc/Plan-Enable-Mobile-Windows-Crossplay.md` ([local](../../bsf-server/misc/Plan-Enable-Mobile-Windows-Crossplay.md) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/misc/Plan-Enable-Mobile-Windows-Crossplay.md)) — server-side prerequisites.
 
 ### "I'm a server dev and need to understand what the client expects"

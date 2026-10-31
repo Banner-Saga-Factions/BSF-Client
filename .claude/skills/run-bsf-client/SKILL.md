@@ -41,6 +41,12 @@ folder.
 If any of those live elsewhere, say so with `BSF_GAME_PATH`, `BSF_SERVER_URL`,
 `BSF_USERNAME`, `BSF_STEAM_ID` rather than editing anything.
 
+To reach the Discord sign-in instead of the made-up Steam number, set `BSF_STEAM_ID=none` (no
+number at all). Add `BSF_WITH_STEAM=1` to have the game try to start Steam, which under the
+debug launcher always fails (a bundle carries the real Steam plugin) — what a player whose
+Steam will not start sees. Either way `ready` waits
+for someone to finish the Discord step in the browser, within its ninety seconds.
+
 **To drive the packaged bundle instead** (its own runtime, with sound), set `BSF_BUNDLE=1`
 and point `BSF_GAME_PATH` at the bundle's `win32` folder. The Setup step below does not apply: instead,
 after each recompile rebuild the bundle and copy the contents of `_build\bundle\win32` over that folder, or the

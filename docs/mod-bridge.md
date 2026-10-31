@@ -64,8 +64,8 @@ anything multi-line or non-JSON is re-encoded as a quoted JSON string. On the re
 must read one line at a time. The bridge itself reassembles the host's output across arbitrary chunk
 boundaries and only acts on complete lines (`drainStdout`, `:513-564`).
 
-**One exception to "verbatim": secrets are removed.** A body carrying a password, a Steam ticket or a
-session key is re-encoded with those values replaced by `[redacted]` (§8). Every other body is passed
+**One exception to "verbatim": secrets are removed.** A body carrying a password, a Steam ticket, a
+session key or a Discord hand-off key is re-encoded with those values replaced by `[redacted]` (§8). Every other body is passed
 through untouched, so a host that hashes or compares raw bodies should expect the login to differ from
 what the server actually sent.
 
@@ -472,7 +472,7 @@ public so future input-gating (e.g. suppressing a spectator's battle actions) ca
 
 ## 8. What the host can and cannot see
 
-**Secrets are removed before anything is sent.** Four field names are stripped wherever they appear, in
+**Secrets are removed before anything is sent.** Five field names are stripped wherever they appear, in
 either direction, and their values replaced with `[redacted]`:
 
 | Field | Where it used to escape |
@@ -481,6 +481,7 @@ either direction, and their values replaced with `[redacted]`:
 | `steam_auth_ticket` | the login request |
 | `session_key` | the login reply |
 | `steamCredentials` | the login reply |
+| `key` | the Discord hand-off reply and every "done yet?" request (hidden from the start, #2) |
 
 Three details matter if you are relying on this:
 
@@ -488,8 +489,8 @@ Three details matter if you are relying on this:
   route that starts echoing a session key is covered the day it does.
 - **It fails closed.** A body that mentions one of those names but will not parse as JSON is replaced
   whole rather than passed through. Losing a line beats leaking a password on a body we could not read.
-- **The cost is near zero.** Every body is scanned for those four names — a plain substring search — and
-  only a body that hits one is parsed and rewritten.
+- **The cost is near zero.** Every body is scanned for those five names — a plain substring search, for
+  `key` only in its quoted form `"key"` — and only a body that hits one is parsed and rewritten.
 
 **Where it stops, stated plainly:** it redacts a **field**, not a secret. `{"password":"hunter2"}`
 becomes `[redacted]`; `{"note":"my password is hunter2"}` does **not**, because no field is named
@@ -499,8 +500,7 @@ into a message string would slip through. If you add one, add its field to `SECR
 (`ModBridge.as:81`) — don't rely on the text being noticed.
 
 *Correction to an earlier version of this doc:* it named a **Discord OAuth token** among the leaked
-fields. There is no Discord token in the client — the whole source tree has no mention of Discord, and
-Discord identity is resolved on the server. The fields above are what actually travelled.
+fields. There is no Discord OAuth token in the client; Discord identity is resolved on the server. The fields above are what actually travelled.
 
 ### What a host still sees, and why that is not "safe"
 

@@ -67,7 +67,7 @@ In practice: when in doubt, open both — they sit side-by-side and a quick diff
 
 When something looks wrong — a context is missing a member, a method does nothing — the first question is always: **is this pre-existing in Stoic's shipped game, or did our decompile/recompile introduce it?** The answer changes everything (a pre-existing skew is a bounded thing to shim; a decompile artifact means the rebuild is lossy). The two read-only mirrors are the oracles, because **they predate and are untouched by our patching.**
 
-**Integrity check first.** Confirm `client-decompiled-as3\` really is the pristine original: it must contain **none of our new files** (`ModBridge.as`, `AiBattleLoadState.as`, …). (`DiscordSteamworks.as` is *planned*, not yet created — it is not a reliable marker.) If those are absent, the mirror is the untouched shipped decompile and is safe to trust as the "what shipped" oracle.
+**Integrity check first.** Confirm `client-decompiled-as3\` really is the pristine original: it must contain **none of our new files** (`ModBridge.as`, `AiBattleLoadState.as`, `DiscordSignIn.as`, …). If those are absent, the mirror is the untouched shipped decompile and is safe to trust as the "what shipped" oracle.
 
 **The recipe:**
 
@@ -118,7 +118,7 @@ If a newer SWF is ever adopted, bump the version here and re-run the pass-2 sign
 2013 mirror**.
 
 1. `game/session/GameFsm.as` — the top-level state machine; the spine of [`game-flow.md`](./game-flow.md).
-2. `game/session/states/PreAuthState.as` — the crossplay auth patch point (`:31–33`).
+2. `game/session/states/PreAuthState.as` — where our build starts the Discord sign-in.
 3. `engine/battle/fsm/BattleFsm.as` — the battle state machine ([`battle-engine.md`](./battle-engine.md)). (Its `*Config`/`*Init`/`*Deploy`/`*TurnOrder` siblings **are** on the 12-stale list — read `_decompiled/` for those.)
 4. `engine/battle/board/model/BattleBoard.as` † — entity-ID construction (`:456`) + per-battle RNG seed.
 5. `engine/battle/fsm/state/BattleStateNextTurn.as` — the per-turn DJB sync hash (`:130`).

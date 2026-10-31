@@ -11,6 +11,22 @@ been removed. The current download is on the
 
 ## [Unreleased]
 
+### Players without a working Steam can sign in through Discord
+
+The game used to need Steam to sign in: without it, it sat on "Authenticating…" for ever, or
+showed "Steam Error" and closed. It still tries Steam first. When Steam will not start, gives no
+proof, or the server refuses that proof, it now signs in through Discord: it shows a short code and
+opens the server's page in the browser; the player checks the code, presses Continue, then
+Authorize, and the game carries on by itself. Retry opens the page again. Cancel, or a sign-in that
+runs out of time or fails, shows the game's "Login Failed" box with the reason, and its Retry starts
+afresh. The secret part of the sign-in stays out of the game's log and the channel helper programs
+read.
+
+*Technical:* new `DiscordSignIn.as`, `DiscordHandoffTxn.as`, `DiscordPollTxn.as`; overlays
+`StartState.as`, `AuthState.as`, `PreAuthState.as`; `ModBridge.as` hides a quoted `key` field;
+`run-adl.ps1 -SteamId none -WithSteam`. BSF-Client #2; server half BSF-Custom-Server #386.
+[#89](https://github.com/Banner-Saga-Factions/BSF-Client/pull/89).
+
 ### The computer opponent now thinks one move ahead
 
 In offline practice battles the computer opponent used to pick each move only for what it does now.

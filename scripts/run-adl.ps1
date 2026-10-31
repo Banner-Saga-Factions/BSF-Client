@@ -26,7 +26,13 @@ param(
     [string]$GamePath  = "C:\Program Files (x86)\Steam\steamapps\common\The Banner Saga Factions\win32",
     [string]$ServerUrl = "http://localhost:8082/",
     [string]$Username  = "test2",
+    # "none" passes no Steam number at all, so the game has nothing to sign in with through Steam and
+    # goes to the Discord sign-in (BSF-Client #2). Single player only.
     [string]$SteamId   = "123456",
+    # LET THE GAME TRY TO START STEAM: leaves out --steam false. Under adl the Steam plugin is stripped
+    # from the descriptor (below), so Steam always fails to start - which is the way to see what a player
+    # whose Steam will not start sees. Not for a bundle, which carries the real plugin.
+    [switch]$WithSteam,
     # Launch whatever SWF is installed, even when it is not the one we just built. Off by default,
     # because launching the shipped build by accident looks exactly like launching ours.
     [switch]$AllowUnpatched,
@@ -127,7 +133,7 @@ if ($nameCount -gt 1) {
 #   1. Bump the AIR namespace 3.7 -> 51.0 so SDK 51's adl accepts it.
 #   2. Strip the <extensions> block so adl does not demand the FMOD/Steamworks ANEs via -extdir; the
 #      code falls back to NullSoundDriver (sound) and NullSteamworks (Steam auth) when those
-#      extensions are absent. (Discord auth lives in PreAuthState, not a Steamworks subclass.)
+#      extensions are absent. (The Discord sign-in lives in DiscordSignIn, started by PreAuthState.)
 # A bundle carries its own descriptor, so it needs none of this.
 if (-not $Bundle) {
     $desc = Get-Content -Raw $srcDesc
@@ -168,10 +174,12 @@ $gameArgs = @(
 # leaving out --versus_start is what lets FactionsState run out of branches, complete, and hand on
 # through TownLoadState to the town.
 $gameArgs += @("--factions")
-$gameArgs += @(
-    "--steam_id", $SteamId,
-    "--steam", "false"
-)
+if ($SteamId -ne "none") {
+    $gameArgs += @("--steam_id", $SteamId)
+}
+if (-not $WithSteam) {
+    $gameArgs += @("--steam", "false")
+}
 if ($Landing -eq 'versus') {
     $gameArgs += @("--versus_start")
 }

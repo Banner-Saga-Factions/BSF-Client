@@ -25,6 +25,7 @@ read.
 *Technical:* new `DiscordSignIn.as`, `DiscordHandoffTxn.as`, `DiscordPollTxn.as`; overlays
 `StartState.as`, `AuthState.as`, `PreAuthState.as`; `ModBridge.as` hides a quoted `key` field;
 `run-adl.ps1 -SteamId none -WithSteam`. BSF-Client #2; server half BSF-Custom-Server #386.
+[#89](https://github.com/Banner-Saga-Factions/BSF-Client/pull/89).
 
 ### The computer opponent now thinks one move ahead
 

@@ -86,7 +86,7 @@ sets the brains, starts the battle, clicks Ready on the deploy screen, and watch
 - **`--brains a,b`** (needed with `--spectate`): brain `a` plays the player's side, `b` the computer's.
 - **`--swap-sides`**: swaps them in every even-numbered battle, so 8 battles give each brain 4 on each
   side, and neither keeps the same side all run.
-- **`--ai-margin N`**: the near-best pick. Two fixed brains replay one battle move for move, so each
+- **`--ai-margin N`**: the near-best pick. Two fixed brains often replay one battle move for move, so each
   picks at random among its plans scoring within N points of its best, seeded from the battle's seed.
   25 by default with `--spectate` (a point of strength damage scores 45, a kill 200); `0` turns it off.
   Given without `--spectate`, it applies to the computer against the scripted player too.
@@ -154,7 +154,7 @@ failed and fell back to the normal choice.
 battle. "Distinct battle traces" then compares each battle's **final board** (who is alive, where, with
 what strength and armor) and its length, not a turn-by-turn trace: the runner reads a watched battle by
 polling, which can miss a turn at ×4 and would make two identical battles look different. A battle
-whose turn number does not move for two minutes is recorded as a **stall** and the run goes on. From
+whose turn number does not move for two minutes is recorded as a **stall** and, if the game still answers, the run goes on. From
 the game's log it also counts **each brain's chosen plans, ability by ability**, specials apart from
 basic attacks (`CHOSE PLAN [brain] … abl=…` lines), the near-best picks other than the top plan, and the
 player's-side turns the computer played. Those counts cover the whole run, not one battle.

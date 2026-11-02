@@ -209,8 +209,8 @@ package engine.battle.fsm.aimodule
       
       /**
        * [Inference] BSF-Client #31: the one seam for the look-ahead brain. Given the plans
-       * sorted best first (never empty), return the one to play. This brain takes the top
-       * plan, as the original did; AiModuleSearch overrides it.
+       * sorted best first (never empty), return the one to play. In normal play this brain
+       * takes the top plan, as the original did; AiModuleSearch overrides it.
        */
       protected function pickPlan(param1:Vector.<AiPlan>) : AiPlan
       {
@@ -231,15 +231,15 @@ package engine.battle.fsm.aimodule
 
       /**
        * [Inference] BSF-Client #31, Wave 4a: the near-best pick, so that two fixed brains do
-       * not replay one battle move for move. Given candidate plans, their scores (same order)
+       * not keep replaying one battle. Given candidate plans, their scores (same order)
        * and the plan the brain would normally play, return one picked at random among those
        * scoring within ModAiBrain.margin of the best score. The random numbers are
        * ModAiBrain's own (seeded by the match runner), not the game's dice. With margin 0,
-       * or only one plan near the top, it returns the normal plan.
+       * no seed sent, or only one plan near the top, it returns the normal plan.
        */
       protected function pickNearBest(param1:Vector.<AiPlan>, param2:Vector.<Number>, param3:AiPlan) : AiPlan
       {
-         if(ModAiBrain.margin <= 0 || param1.length < 2 || param1.length != param2.length)
+         if(ModAiBrain.margin <= 0 || !ModAiBrain.seeded || param1.length < 2 || param1.length != param2.length)
          {
             return param3;
          }

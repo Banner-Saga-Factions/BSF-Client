@@ -37,7 +37,7 @@
 // computer plays the player's side with brain a and its own side with brain b
 // (the game's set_ai_sides and per-side set_ai_brain). --swap-sides swaps the
 // two every other battle, so neither brain keeps the same side all run.
-// Two fixed brains would replay one battle move for move, so each brain picks at
+// Two fixed brains often replay one battle move for move, so each brain picks at
 // random among its plans scoring within --ai-margin points of its best (25 by
 // default here, 0 = always the best), seeded from the battle's own seed. The
 // runner clicks Ready on the deploy screen, then only watches until the end.
@@ -124,8 +124,8 @@ const MAX_SPEED = 8;
 const BRAINS = ['dredge', 'search'];
 
 // The near-best margin, in plan-score points, when spectating without --ai-margin.
-// Plan scores weigh a point of strength damage at 45 and a kill at 200, so 25
-// varies near-ties without throwing a real hit away (owner's choice, 2026-10-23).
+// Plan scores weigh a point of strength damage at 45 and a kill at 200
+// (owner's choice, 2026-10-23).
 const DEFAULT_SPECTATE_MARGIN = 25;
 const MAX_MARGIN = 1000;
 
@@ -697,8 +697,8 @@ async function playBattle(session, index, opts, previousBattleId) {
     let left = false;
     while (Date.now() < until && !left) {
       await pause(500);
-      const s = await session.send('battle_state');
-      left = !s.inBattle || s.state !== 'BattleStateDeploy';
+      const s = await readBattle(session);
+      left = !!s && (!s.inBattle || s.state !== 'BattleStateDeploy');
     }
     record.deployLeftByItself = left;
     say(`battle 1: the deploy screen ${left ? 'went away by itself' : `was still up after ${DEPLOY_WATCH_MS / 1000}s; clicking Ready`}`);
@@ -732,7 +732,7 @@ async function playBattle(session, index, opts, previousBattleId) {
     watch = null;
   };
   if (opts.spectate) {
-    state = await watchBattle(session, index, opts, record);
+    state = await watchBattle(session, index, opts, record, atDeploy);
   }
   // Spectating, the runner plays no turns, so this loop is skipped.
   while (!opts.spectate) {
@@ -798,7 +798,7 @@ async function playBattle(session, index, opts, previousBattleId) {
     record.trace = [finalFingerprint(finalState && finalState.inBattle ? finalState : state, record.turns)];
     record.winnerBrain = record.winner === 'player' ? record.brains.player
       : record.winner === 'computer' ? record.brains.computer : null;
-    // Back to normal play for anything after the run in this game.
+    // AI vs AI and the near-best pick off again. The brains keep their settings.
     await session.send('set_ai_sides', { player: false });
     await session.send('set_ai_brain', { margin: 0 });
   }
@@ -833,6 +833,10 @@ async function chooseBrain(session, opts, seed) {
   if (!answer || !answer.ok) {
     const what = opts.brain ? `switch to the ${opts.brain} brain` : 'say which brain it uses';
     throw new Error(`the game would not ${what}: ${answer && answer.reason}`);
+  }
+  // A build from before Wave 4a ignores the margin and still answers ok.
+  if (opts.aiMargin > 0 && answer.margin !== opts.aiMargin) {
+    throw new Error(`the game would not use near-best margin ${opts.aiMargin}: it answered ${answer.margin}`);
   }
   return answer.brain;
 }
@@ -877,30 +881,49 @@ async function chooseSides(session, opts, index, seed) {
 /**
  * AI vs AI: watch battle `index` until it ends, playing nothing. A battle whose
  * turn number stops moving for PATIENCE.turnComesRound is a stall: recorded as
- * one ("unfinished", stalled), not waited on for ever. Returns the last reading.
+ * one ("unfinished", stalled), not waited on for ever. Returns the last reading,
+ * which starts as `atDeploy` in case the game never answers again.
  */
-async function watchBattle(session, index, opts, record) {
+async function watchBattle(session, index, opts, record, atDeploy) {
+  let last = atDeploy;
   let lastTurn = -1;
   let lastChange = Date.now();
   for (;;) {
     await pause(500);
-    const s = await session.send('battle_state');
-    if (!s.inBattle || s.finished) return s;
-    const turn = s.turn ? s.turn.number : -1;
-    if (turn !== lastTurn) {
-      lastTurn = turn;
-      lastChange = Date.now();
-    }
-    if (turn >= opts.turnCap) {
-      record.winner = 'unfinished';
-      return s;
+    const s = await readBattle(session);
+    if (s) {
+      if (!s.inBattle || s.finished) return s;
+      last = s;
+      const turn = s.turn ? s.turn.number : -1;
+      if (turn !== lastTurn) {
+        lastTurn = turn;
+        lastChange = Date.now();
+      }
+      if (turn >= opts.turnCap) {
+        record.winner = 'unfinished';
+        return s;
+      }
     }
     if (Date.now() - lastChange > PATIENCE.turnComesRound) {
       record.winner = 'unfinished';
-      record.stalled = { turn, entityId: s.turn ? s.turn.entityId : null, state: s.state };
-      say(`battle ${index}: STALLED on turn ${turn} (${record.stalled.entityId}, ${s.state}); giving up on it`);
-      return s;
+      record.stalled = { turn: lastTurn, entityId: last.turn ? last.turn.entityId : null, state: last.state };
+      say(`battle ${index}: STALLED on turn ${lastTurn} (${record.stalled.entityId}, ${last.state}); giving up on it`);
+      return last;
     }
+  }
+}
+
+/**
+ * One reading of the battle, or null if the game was too slow to answer. A slow
+ * answer is not a failure (session.until treats it the same way): the game is
+ * single-threaded, so one long pause must not end a run. Anything else goes up.
+ */
+async function readBattle(session) {
+  try {
+    return await session.send('battle_state');
+  } catch (err) {
+    if (!err.timedOut) throw err;
+    return null;
   }
 }
 
@@ -1045,10 +1068,14 @@ function summarise(results) {
   const prints = results.map(r => r.fingerprint);
   // Older result files lack these fields; say "-" rather than guess.
   const values = f => [...new Set(results.map(r => r[f] === undefined || r[f] === null ? '-' : r[f]))].join(', ');
+  // Watched battles have no scripted player, so its settings and the suicide
+  // check (which needs our next attack) did not run; say so rather than print 0.
+  const watchedOnly = results.every(r => r.spectate);
   const lines = [
-    `battles: ${n}   scripted player: ${[...new Set(results.map(r => r.player || 'strength'))].join(', ')}`,
-    `account: ${values('account')}   seed: ${values('seed')}   variety (%): ${values('variety')}   ` +
-      `computer brain: ${values('brain')}`,
+    watchedOnly ? `battles: ${n}`
+      : `battles: ${n}   scripted player: ${[...new Set(results.map(r => r.player || 'strength'))].join(', ')}`,
+    `account: ${values('account')}   seed: ${values('seed')}` +
+      (watchedOnly ? '' : `   variety (%): ${values('variety')}   computer brain: ${values('brain')}`),
     `computer won: ${computerWins}   player won: ${playerWins}   ` +
       `unfinished/unclear: ${n - decided}`,
     `computer win rate: ${decided ? (100 * computerWins / decided).toFixed(0) : '-'}% of decided battles`,
@@ -1060,7 +1087,8 @@ function summarise(results) {
       `seconds per turn: ${(avg(results, r => r.seconds) / (avg(results, r => r.turns) || 1)).toFixed(2)}   ` +
       `speed: ${[...new Set(results.map(r => r.speed || 1))].join(', ')}`,
     // Older result files have no suicide count; say so rather than print 0.
-    results.every(r => typeof r.computerSuicides === 'number')
+    watchedOnly ? 'computer suicides: not counted (no scripted player attacked)'
+    : results.every(r => typeof r.computerSuicides === 'number')
       ? `computer suicides (walked up, killed nothing, died to our next attack): ` +
         `${results.reduce((s, r) => s + r.computerSuicides, 0)} in all, ` +
         `${avg(results, r => r.computerSuicides).toFixed(2)} per battle`
@@ -1160,7 +1188,8 @@ async function main() {
   say(opts.spectate
     ? `seed ${opts.seed}, AI vs AI: ${opts.brains[0]} on the player's side, ${opts.brains[1]} on the computer's` +
       `${opts.swapSides ? ', swapped every other battle' : ''}, near-best margin ${opts.aiMargin}`
-    : `seed ${opts.seed}, variety ${opts.variety}%, computer brain ${opts.brain || "(the game's own setting)"}`);
+    : `seed ${opts.seed}, variety ${opts.variety}%, computer brain ${opts.brain || "(the game's own setting)"}` +
+      `${opts.aiMargin > 0 ? `, near-best margin ${opts.aiMargin}` : ''}`);
   const turnsPath = path.join(outDir, 'runner-turns.jsonl');
   const summaryPath = path.join(outDir, 'runner-summary.txt');
   say(`writing to ${outDir}`);

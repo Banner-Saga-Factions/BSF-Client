@@ -211,7 +211,7 @@ holds one per side, set with `set_ai_brain`'s `side` field ([`mod-bridge.md`](./
 Nothing else needed changing, because the planner already works out friends and enemies from the
 moving unit's own team (`AiModuleBase.as:116-123, 183`; `AiModuleSearch.as`'s reply).
 
-**Battles must differ.** Two fixed brains replay the same battle move for move, so for measuring runs
+**Battles must differ.** Two fixed brains often replay the same battle move for move, so for measuring runs
 each brain can pick at random among its different plans scoring within a margin of its best (the
 "near-best pick", `AiModuleDredge.pickNearBest`). The look-ahead brain applies it to its scores
 after the reply. The random numbers come from `ModAiBrain`'s own generator, seeded by the runner,

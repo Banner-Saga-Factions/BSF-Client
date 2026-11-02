@@ -15,8 +15,8 @@ package engine.mod
     * "player" (used only while ModAiSides has the computer play the player's side too, so
     * one brain can play the other head to head).
     *
-    * It also holds the "near-best" pick for measuring runs (Wave 4a): two fixed brains replay
-    * the same battle move for move, so with a margin above 0 each brain chooses at random
+    * It also holds the "near-best" pick for measuring runs (Wave 4a): two fixed brains often
+    * replay the same battle move for move, so with a margin above 0 each brain chooses at random
     * among its plans that score within that margin of its best. The random numbers come from
     * this class's own generator, made from a seed the match runner sends, never from the
     * game's dice, so battle rolls are untouched. Margin 0, the default, is the normal brain.
@@ -54,7 +54,7 @@ package engine.mod
       /**
        * How many points below its best plan a plan may score and still be picked at random.
        * 0 = always the best plan (normal play). Plan scores weigh a point of strength damage
-       * at 45 and a kill at 200 (AiPlan), so a small margin only varies near-ties.
+       * at 45 and a kill at 200 (AiPlan).
        */
       public static var margin:int = 0;
 
@@ -96,22 +96,19 @@ package engine.mod
          return lookaheadFor(param1) ? SEARCH : DREDGE;
       }
 
-      /** The computer's brain name (the setting before Wave 4a). */
-      public static function get brainName() : String
-      {
-         return brainNameFor(COMPUTER);
-      }
-
       /** Start the near-best pick's random numbers from this seed. */
       public static function seed(param1:int) : void
       {
          rng = new Rng(param1);
       }
 
-      /**
-       * A number from 0 to count - 1 for the near-best pick. 0 when no seed was ever sent, so
-       * a margin without a seed still plays the best plan.
-       */
+      /** True once a seed has been sent. Without one the near-best pick stays off. */
+      public static function get seeded() : Boolean
+      {
+         return rng != null;
+      }
+
+      /** A number from 0 to count - 1 for the near-best pick. */
       public static function pickIndex(param1:int) : int
       {
          if(param1 <= 1 || rng == null)

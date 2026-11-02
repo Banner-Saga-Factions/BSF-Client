@@ -200,14 +200,15 @@ anything changes, so a refusal changes nothing:
 - **`side`**: `"computer"` (the default, so older scripts behave as before) or `"player"`. The player's
   side has its own brain, used only while `set_ai_sides` has the computer play that side. Anything
   else answers `side must be "computer" or "player"`.
-- **`margin`**: the **near-best pick**, for measuring runs. Two fixed brains replay one battle move for
-  move, so with a margin above 0 each brain picks at random among its plans scoring within that many
+- **`margin`**: the **near-best pick**, for measuring runs. Two fixed brains often replay one battle move
+  for move, so with a margin above 0 and a seed each brain picks at random among its plans scoring within that many
   points of its best. Plan scores weigh a point of strength damage at 45 and a kill at 200. `0`, the
   default, is the normal brain. A whole number from 0 to 1000, or `margin must be a whole number from 0
   to 1000`. It applies to both sides.
-- **`seed`**: a number that starts the near-best pick's random numbers, so a run can be repeated. They
-  come from a generator of their own, never from the game's dice. With a margin but no seed ever sent,
-  the brain still plays its best plan.
+- **`seed`**: a number that starts the near-best pick's random numbers. They come from a generator of
+  their own, never from the game's dice, so a seed does not bring a battle back
+  ([`match-runner.md`](./match-runner.md) §3). With a margin but no seed ever sent, the brain plays its
+  best plan.
 
 The reply names the brain of the side asked about (`brain`), both sides' brains (`brains`) and the
 margin. A build from before Wave 4a ignores the new fields and sets the computer's brain, which is why
@@ -220,7 +221,7 @@ turn code instead of the mouse, using the player's side's brain from `set_ai_bra
 in an online battle**, where the player's side belongs to a person: the check is made at every turn
 (`BattleStateNextTurn`), not only when the switch is set. The deploy screen still needs
 `battle_deploy_ready` (measured 2026-10-23). It lasts until it is set again or the game restarts; the
-match runner sets it back after every watched battle. A value other than `true` or `false` answers
+match runner sets it back after every watched battle, but a runner killed mid-battle leaves it on. A value other than `true` or `false` answers
 `player must be true or false`.
 
 It is not the older `spectate` flag of `start_ai_battle`. That flag is stored when a battle loads but
@@ -234,7 +235,7 @@ author registers their own commands the same way, via `registerCommand`.
 All eight battle commands live in `ModBattleControl.as`, kept apart from the bridge itself so `GameFsm`
 stays a plain registration site.
 
-**They add no behaviour the game did not already have.** Reading touches getters only, and each of the
+**Apart from `set_game_speed`, `set_ai_brain` and `set_ai_sides`, they add no behaviour the game did not already have.** Reading touches getters only, and each of the
 four that change something goes through a path the game already drives from code rather than from the
 mouse: readying the deployment calls the same public `autoDeployLocal()` the Ready button calls; ending a
 turn calls the same public `skip()` the on-screen countdown ring calls when a turn runs out; moving does

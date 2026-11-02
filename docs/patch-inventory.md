@@ -137,7 +137,7 @@ All four are **no-behavior-change** repairs of decompiler damage.
 4 (board/landscape) + 4 (fonts) + 1 (audio) + 1 (saga) + 2 (view). Of these, **~11 are pure
 decompiler-artifact repairs** with no behavior change (`ResourceTree`, the four
 board/landscape repairs, the four font repairs, `NullSoundDriver`, and `TutorialTooltip`) — the honest "real
-fork behavior" surface is closer to **~30 files**.
+fork behavior" surface is closer to **~32 files**.
 
 `†` marks files that are also on the **12-stale-file list** (where the 2013 mirror is stale and the
 decompile is authoritative — see [`reference-codebases.md`](./reference-codebases.md)): `BattleBoard`,

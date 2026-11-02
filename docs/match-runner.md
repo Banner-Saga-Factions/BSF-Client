@@ -41,7 +41,8 @@ node scripts\mod-host\runner.js --summary-only _build\runner\try-1\runner-result
 
 Every run prints its **seed**, the number its random choices start from (§3). Pass it back with `--seed`
 to start the same random choices again (§3 says what that does not yet repeat). The seed, the account,
-the variety and the computer's brain are on every results line and in the summary.
+the variety and the computer's brain are on every results line and in the summary (a `--spectate`
+summary leaves those last two out).
 
 A battle takes about 3½ minutes at normal speed, so 10 battles is about 35 minutes. With `--speed 4` it
 takes about 1½ minutes (§4). Close other programs first: one long run was stopped by the PC running low
@@ -154,8 +155,9 @@ failed and fell back to the normal choice.
 battle. "Distinct battle traces" then compares each battle's **final board** (who is alive, where, with
 what strength and armor) and its length, not a turn-by-turn trace: the runner reads a watched battle by
 polling, which can miss a turn at ×4 and would make two identical battles look different. A battle
-whose turn number does not move for two minutes is recorded as a **stall** and, if the game still answers, the run goes on. From
-the game's log it also counts **each brain's chosen plans, ability by ability**, specials apart from
+whose turn number does not move for two minutes is recorded as a **stall** and the run goes on. If the
+game has stopped answering altogether, the run stops with that error and the battle is left out of the
+results. From the game's log it also counts **each brain's chosen plans, ability by ability**, specials apart from
 basic attacks (`CHOSE PLAN [brain] … abl=…` lines), the near-best picks other than the top plan, and the
 player's-side turns the computer played. Those counts cover the whole run, not one battle.
 

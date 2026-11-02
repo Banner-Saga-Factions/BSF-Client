@@ -123,9 +123,9 @@ const MAX_SPEED = 8;
 // leaves the game's own setting and writes down which one it was.
 const BRAINS = ['dredge', 'search'];
 
-// The near-best margin, in plan-score points, when spectating without --ai-margin.
-// Plan scores weigh a point of strength damage at 45 and a kill at 200
-// (owner's choice, 2026-10-23).
+// The near-best margin, in plan-score points, when spectating without --ai-margin
+// (owner's choice, 2026-10-23). Plan scores weigh a point of strength damage at 45
+// and a kill at 200.
 const DEFAULT_SPECTATE_MARGIN = 25;
 const MAX_MARGIN = 1000;
 
@@ -916,7 +916,7 @@ async function watchBattle(session, index, opts, record, atDeploy) {
 /**
  * One reading of the battle, or null if the game was too slow to answer. A slow
  * answer is not a failure (session.until treats it the same way): the game is
- * single-threaded, so one long pause must not end a run. Anything else goes up.
+ * single-threaded, so one long pause must not end the watch. Anything else goes up.
  */
 async function readBattle(session) {
   try {

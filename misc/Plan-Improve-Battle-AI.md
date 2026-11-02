@@ -140,16 +140,17 @@ that the look-ahead breaks nothing and costs about a quarter of a second per com
 4 on each side. On `443456` it lost 6 of 8: it won only on the player's side (2 of 4), and the
 player's side won 6 of the 8 whichever brain held it. That suggests a side advantage, but 8 battles
 are too few to tell: two equal sides split 6 to 2 or wider about 29% of the time. **Near-best changes
-far more turns than the look-ahead does:** it replaced the top plan on 106 of 320 turns on `test2` and
-211 of 601 on `443456` (about a third), while the look-ahead changed `search`'s choice on 10 of 164
-(6%) and 8 of 289 (3%). The game log confirms each brain played the side it was meant to in every
-battle. Two likely causes, neither measured: the look-ahead's reply ignores damage resistance, and
+far more turns than the look-ahead does:** it replaced the plan a brain would have played on 106 of
+320 turns on `test2` and 211 of 601 on `443456` (about a third), while the look-ahead changed `search`'s
+choice on 10 of 164 (6%) and 8 of 289 (3%). The game log confirms each brain played the side it was
+meant to in every battle. Two likely causes of `search`'s losses on `443456`, neither measured: the
+look-ahead's reply ignores damage resistance, and
 that party has a Shieldmaster (Wave 4b's point 6); and the two sides deploy differently, the
 player's side by the Ready command and the computer's by its own deployment code. Against the
 scripted player the earlier gap on `443456` was small (3.75 against 3.25 units kept), so this does not
 contradict Wave 4. It is the first time the yardstick has said something the scripted player could
-not. Wave 4b plays this build's `search`; this row is context for that, not its pairing. Specials chosen across both runs:
-`search` Sundering Impact 17, Bloody Flail 4, Bring the Pain 3, Bird of Prey 2; `dredge` Bird of Prey
+not. Wave 4b plays this build's `search`; this row is context for that, not its pairing. Specials
+chosen across both runs: `search` Sundering Impact 17, Bloody Flail 4, Bring the Pain 3, Bird of Prey 2; `dredge` Bird of Prey
 10, Bloody Flail 11, Sundering Impact 5, Bring the Pain 2. No `#1009`, no faking errors, no failed
 look-ahead, no stalls.
 

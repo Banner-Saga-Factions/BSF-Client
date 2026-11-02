@@ -201,8 +201,8 @@ anything changes, so a refusal changes nothing:
   side has its own brain, used only while `set_ai_sides` has the computer play that side. Anything
   else answers `side must be "computer" or "player"`.
 - **`margin`**: the **near-best pick**, for measuring runs. Two fixed brains often replay one battle move
-  for move, so with a margin above 0 and a seed each brain picks at random among its plans scoring within that many
-  points of its best. Plan scores weigh a point of strength damage at 45 and a kill at 200. `0`, the
+  for move, so with a margin above 0 and a seed each brain picks at random among its plans scoring
+  within that many points of its best. Plan scores weigh a point of strength damage at 45 and a kill at 200. `0`, the
   default, is the normal brain. A whole number from 0 to 1000, or `margin must be a whole number from 0
   to 1000`. It applies to both sides.
 - **`seed`**: a number that starts the near-best pick's random numbers. They come from a generator of
@@ -221,8 +221,8 @@ turn code instead of the mouse, using the player's side's brain from `set_ai_bra
 in an online battle**, where the player's side belongs to a person: the check is made at every turn
 (`BattleStateNextTurn`), not only when the switch is set. The deploy screen still needs
 `battle_deploy_ready` (measured 2026-10-23). It lasts until it is set again or the game restarts; the
-match runner sets it back after every watched battle, but a runner killed mid-battle leaves it on. A value other than `true` or `false` answers
-`player must be true or false`.
+match runner sets it back after every watched battle, but a runner killed mid-battle leaves it on. A
+value other than `true` or `false` answers `player must be true or false`.
 
 It is not the older `spectate` flag of `start_ai_battle`. That flag is stored when a battle loads but
 nothing acts on it yet ([`offline-ai.md`](./offline-ai.md) §7).
@@ -235,8 +235,8 @@ author registers their own commands the same way, via `registerCommand`.
 All eight battle commands live in `ModBattleControl.as`, kept apart from the bridge itself so `GameFsm`
 stays a plain registration site.
 
-**Apart from `set_game_speed`, `set_ai_brain` and `set_ai_sides`, they add no behaviour the game did not already have.** Reading touches getters only, and each of the
-four that change something goes through a path the game already drives from code rather than from the
+**Apart from `set_game_speed`, `set_ai_brain` and `set_ai_sides`, they add no behaviour the game did not
+already have.** Reading touches getters only, and each of the four that change something goes through a path the game already drives from code rather than from the
 mouse: readying the deployment calls the same public `autoDeployLocal()` the Ready button calls; ending a
 turn calls the same public `skip()` the on-screen countdown ring calls when a turn runs out; moving does
 what two clicks on a tile do; attacking does what the execute button does. What they add is
@@ -258,7 +258,7 @@ the server logged only its keep-alive poll, and not one battle route.
 > cheating. The safety property belongs to the offline battle, not to these commands.
 
 **No battle command ever throws at the host.** A fault comes back as a described refusal rather than an
-`ERROR` line. The reply shapes differ, though: the six commands that *do* something answer
+`ERROR` line. The reply shapes differ, though: the seven commands that *do* something answer
 `{"ok":true,…}` or `{"ok":false,"reason":"…"}`, while `battle_state` answers a description with no `ok`
 field at all.
 

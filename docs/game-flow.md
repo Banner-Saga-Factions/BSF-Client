@@ -62,7 +62,7 @@ patched or added — see [`patch-inventory.md`](./patch-inventory.md).)
 |---|---|
 | `StartState` | First state after boot; engine/config bring-up. |
 | `FlashState` | Early splash / transition frame. `[Inference]` |
-| `PreAuthState` ★ | Gets a Steam auth ticket — **or**, if `overrideSteamId` is set, substitutes the crossplay bypass token (`PreAuthState.as:31–33`). The crossplay patch point; see [`wire-protocol.md`](./wire-protocol.md). |
+| `PreAuthState` ★ | Gets a Steam auth ticket — **or**, if `overrideSteamId` is set (the `--steam_id` test route), substitutes `"override-authticket"`. Our build starts the Discord sign-in when Steam gives nothing usable; see [`wire-protocol.md`](./wire-protocol.md). |
 | `LoginQueueState` | Waits in the server's login queue. |
 | `AuthState` | Performs the login transaction and holds credentials. |
 | `AuthFailedState` | Login failed — surfaces the error. |

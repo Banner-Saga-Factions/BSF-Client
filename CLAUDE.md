@@ -8,22 +8,22 @@ The full ~1,272-file AS3 source lives in `_decompiled/` (gitignored, generated b
 | Path | Purpose |
 |------|---------|
 | `src/` | Only files being patched or added — applied over `_decompiled/` before compile |
-| `META-INF/AIR/application.xml` | AIR descriptor — **planned** to add the `bsf://` URL scheme for the Discord OAuth callback (not yet in the committed descriptor) |
+| `META-INF/AIR/application.xml` | AIR descriptor. The Discord sign-in needs no `bsf://` URL scheme in it: the game opens the browser and asks the server until the player is done |
 | `scripts/decompile.ps1` | Runs JPEXS to export the full AS3 source into `_decompiled/` |
 | `scripts/apply-patches.ps1` | Copies `src/` onto `_decompiled/` |
 | `scripts/build.ps1` | Compiles with `amxmlc`, packages with `adt` |
 | `tests/` | Tests that drive the **real running game** over the mod bridge — no framework to install, run with `node --test` from this folder. See [`docs/driving-the-client.md`](./docs/driving-the-client.md) → "The first automated test" |
 
-Key patch files (a representative subset — the full 34-file inventory is [`docs/patch-inventory.md`](./docs/patch-inventory.md)):
+Key patch files (a representative subset — the full 46-file inventory is [`docs/patch-inventory.md`](./docs/patch-inventory.md)):
 
 | File | Change |
 |------|--------|
-| `src/game/session/states/PreAuthState.as` | Replace Steam ticket fetch with Discord OAuth token |
-| `src/engine/steamworks/DiscordSteamworks.as` | **Planned — not yet created.** Intended `ISteamworks` stub feeding Discord credentials through the existing Steam auth path; crossplay currently lives entirely in `PreAuthState.as` |
+| `src/game/session/states/PreAuthState.as` | Steam proof first, as stock; when Steam gives nothing usable (not running, no proof, proof refused), starts the Discord sign-in |
+| `src/game/session/states/DiscordSignIn.as` | New — the Discord sign-in (BSF-Client #2): code on screen, browser opened, "done yet?" every two seconds, then the ordinary sign-in with `password = "discord:<key>"`. `StartState.as` and `AuthState.as` route Steam failures to it. Flow and routes: [`docs/wire-protocol.md`](./docs/wire-protocol.md) → "Discord sign-in" |
 | `src/engine/mod/ModBridge.as` | New — NativeProcess event bus to an external mod host (`mods/host.json` names it, or `mods/host.exe`); newline-delimited JSON over stdin/stdout, command registry, restart/shutdown lifecycle, secret-field redaction |
 | `src/engine/mod/ModBattleControl.as` | New — the `battle_state` / `battle_deploy_ready` / `battle_end_turn` / `battle_move` / `battle_attack` bridge commands; enough to play a whole battle without a mouse, and the control channel for testing the client ([`docs/driving-the-client.md`](./docs/driving-the-client.md) → "Two channels") |
 | `src/engine/core/http/HttpAction.as` | Patched decompile — taps every outbound request (`doSend`) and raw response (`onResponseReceived`) into `ModBridge`; lazy-starts the host on first txn |
-| `META-INF/AIR/application.xml` | **Planned — not yet applied.** Add the `bsf://` URL scheme and remove the Steamworks ANE for mobile targets |
+| `META-INF/AIR/application.xml` | **Planned — not yet applied.** Remove the Steamworks ANE for mobile targets |
 
 ## Reference codebases
 
@@ -105,7 +105,7 @@ Agent({ subagent_type: "general-purpose", description: "Code review",
   prompt: "Review the changes in <files> for correctness, AS3 typing, and edge cases..." })
 ```
 
-Look for: missing `override` keywords and type mismatches left behind by the decompiler, calls to functions not defined in the same class, listeners added without a matching removal, patched files that drifted from their `_decompiled/` original in ways the change did not intend, and request fields that no longer match what `../bsf-server` expects.
+Look for: missing `override` keywords and type mismatches left behind by the decompiler, calls to functions not defined in the same class, listeners added without a matching removal, patched files that drifted from the shipped original in ways the change did not intend (compare with `%USERPROFILE%\Code\bsf-refs\client-decompiled-as3\`, not `_decompiled/`, which the build overwrites with `src/`), and request fields that no longer match what `../bsf-server` expects.
 
 The second reviewer, briefed to *disprove*:
 

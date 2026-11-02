@@ -21,6 +21,7 @@ works only offline, and normal play is unchanged. In the first runs the look-ahe
 
 *Technical:* new `ModAiSides.as`, overlay `BattleStateNextTurn.as`; per-side `ModAiBrain.as`; bridge
 `set_ai_sides`; runner `--spectate`. Issue #31, Wave 4a.
+[#90](https://github.com/Banner-Saga-Factions/BSF-Client/pull/90).
 
 ### Players without a working Steam can sign in through Discord
 

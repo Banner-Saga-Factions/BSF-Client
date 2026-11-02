@@ -1,6 +1,7 @@
 package engine.battle.fsm.state
 {
    import com.greensock.TweenMax;
+   import engine.battle.board.model.BattlePartyType;
    import engine.battle.fsm.BattleFsm;
    import engine.battle.fsm.BattleMoveEvent;
    import engine.battle.fsm.aimodule.AiModuleBase;
@@ -22,7 +23,10 @@ package engine.battle.fsm.state
          super(param1,param2,param3,true);
          // [Inference] BSF-Client #31: the look-ahead brain when the switch is on
          // (ModAiBrain, set over the mod bridge); otherwise the original planner.
-         aiModule = ModAiBrain.lookahead ? new AiModuleSearch(this) : new AiModuleDredge(this);
+         // Wave 4a: one switch per side. The player's units only reach this state while
+         // the computer plays the player's side too (ModAiSides, BattleStateNextTurn).
+         var side:String = battleFsm.turn.entity.party.type == BattlePartyType.LOCAL ? ModAiBrain.PLAYER : ModAiBrain.COMPUTER;
+         aiModule = ModAiBrain.lookaheadFor(side) ? new AiModuleSearch(this) : new AiModuleDredge(this);
       }
       
       override protected function handleEnteredState() : void

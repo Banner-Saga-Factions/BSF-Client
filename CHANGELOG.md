@@ -11,6 +11,18 @@ been removed. The current download is on the
 
 ## [Unreleased]
 
+### The computer can now play both sides of a practice battle
+
+For testing, the computer can now play the player's side of an offline practice battle too, so one
+way of thinking can play another head to head. The old measuring stick, a simple scripted player,
+was losing every battle, so it could no longer tell a better opponent from a worse one. The switch
+works only offline, and normal play is unchanged. In the first runs the look-ahead opponent won all
+8 battles on one test account and lost 6 of 8 on the other.
+
+*Technical:* new `ModAiSides.as`, overlay `BattleStateNextTurn.as`; per-side `ModAiBrain.as`; bridge
+`set_ai_sides`; runner `--spectate`. Issue #31, Wave 4a.
+[#90](https://github.com/Banner-Saga-Factions/BSF-Client/pull/90).
+
 ### Players without a working Steam can sign in through Discord
 
 The game used to need Steam to sign in: without it, it sat on "Authenticating…" for ever, or

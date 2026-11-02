@@ -197,6 +197,37 @@ The match runner counts them ([`match-runner.md`](./match-runner.md) §2). Each 
 so about a quarter of a second per computer turn (measured 2026-10-17). How it compares with `dredge`
 is in [`../misc/Plan-Improve-Battle-AI.md`](../misc/Plan-Improve-Battle-AI.md) → *Measurements*.
 
+### The computer against itself (issue #31, Wave 4a)
+
+Once the computer beat the match runner's scripted player every time, that player could no longer
+tell a better brain from a worse one. Offline battles are mirror matches, so the computer can play
+**both** sides instead, one brain against the other.
+
+**How it works.** As each turn starts, the game looks at whose unit is up (`BattleStateNextTurn`). A
+player's unit normally goes to the mouse. With the `ModAiSides` switch on (bridge command
+`set_ai_sides`), and **only in an offline battle**, it goes to the same turn code the computer's units
+use (`BattleStateTurnAi`). That code then picks the brain for the side whose unit it is: `ModAiBrain`
+holds one per side, set with `set_ai_brain`'s `side` field ([`mod-bridge.md`](./mod-bridge.md) §5).
+Nothing else needed changing, because the planner already works out friends and enemies from the
+moving unit's own team (`AiModuleBase.as:116-123, 183`; `AiModuleSearch.as`'s reply).
+
+**Battles must differ.** Two fixed brains often replay the same battle move for move, so for measuring runs
+each brain can pick at random among its different plans scoring within a margin of its best (the
+"near-best pick", `AiModuleDredge.pickNearBest`). The look-ahead brain applies it to its scores
+after the reply. The random numbers come from `ModAiBrain`'s own generator, seeded by the runner,
+never from the game's dice. With margin 0, the default, both brains play exactly as before.
+
+**Watching one.** Start it from the match runner, which clicks Ready on the deploy screen and then
+only watches: `node scripts\mod-host\runner.js --spectate --brains search,dredge --battles 1 --speed 1`
+([`match-runner.md`](./match-runner.md) §1, "The computer against itself"). The first brain plays your
+side of the board (the party you would normally command), the second the computer's. What a click on
+the board does while the computer plays your side has not been tested, so leave the mouse alone.
+
+**The log lines.** Each player's-side turn it plays writes
+`BSF #31 AI vs AI: the computer plays <unit> on the player's side, turn <n>`. Each chosen plan's line
+now names its brain, `♕♔♘♞♛♜ CHOSE PLAN [search] …`, so the runner can count each brain's choices
+ability by ability. A near-best pick other than the top plan writes `BSF #31 near-best: …`.
+
 ---
 
 ## 5. What it can't do, and the "imagined move" trick
@@ -216,6 +247,28 @@ is in [`../misc/Plan-Improve-Battle-AI.md`](../misc/Plan-Improve-Battle-AI.md) �
   counts for nothing.
 - **It scores only the main target.** Sundering Impact also hurts enemies next to the target; the
   planner does not count them. [Inference]
+- **Pretend mode cannot value the specials it skips** (read from the code and the game's ability
+  files on 2026-10-23, not run). The imagined attack (below) passes no tile, sets one target and
+  reads only that target's loss. So a tile special fails its checks, Tempest counts only its first
+  target, Run Through and Battering Ram are tagged "never imagine" (`NO_FAKING`) and change nothing,
+  and a buff comes out as a loss. Worse, two would act for real while imagined: **Forge Ahead really
+  reorders the turn order** (`BattleTurnOrder.bumpToNext` has no pretend check), and tile traps are
+  really added to the board (`BattleBoardTiles.addTrigger`). Issue
+  [#86](https://github.com/Banner-Saga-Factions/BSF-Client/issues/86) scores those specials by
+  arithmetic instead and never imagines them. What each one does:
+
+  | Ability | Aims at | What it does |
+  | --- | --- | --- |
+  | Stonewall | itself | +3/+5/+7 to armor and strength resist until its next turn. Each point cancels a point of each hit. |
+  | Tempest | 2/3/4 neighbouring units, **either side**, swept clockwise | A strength hit that cannot miss (strength minus armor, at least 1) on each. |
+  | Slag and Burn | any tile 2–5 away, plus-shaped | The centre loses 1 strength and 1/2/3 armor; the 4 neighbours lose 1 strength. Then 2/3/4 random empty tiles get coals (1 strength when stepped on, and each turn), cleared at the caster's next turn. |
+  | Rain of Arrows | one empty tile 0–5 away | A trap: the first enemy to step on it stops and takes 1/2/3 arrows. At the caster's next turn it hits whoever stands there, friends included. |
+  | Run Through | an enemy in a straight line, with a free tile behind it | The caster charges through. Every unit it passes loses 2 armor, then the target takes a normal strength attack. |
+  | Battering Ram | a neighbouring unit in line, either side | The target loses 1/3/5 armor and is shoved back up to 4 tiles, losing 1 more armor per unit it tumbles through. |
+  | Forge Ahead | another friend, 0–1 / 0–4 / any distance | No stat change: that friend acts next in its side's turn order. |
+  | Malice | an enemy 0–1/2/3 away | At its next turn the target walks to the caster, attacks it, and loses the rest of that turn. |
+
+  All cost 1/2/3 willpower by rank (decoded from the shipped `abl_*.json.z` files).
 - **It never walks closer just to bring an enemy into a special's reach.** The special passes keep
   only plans that use the special, so the longer reach of Bird of Prey matters only for a shot it can
   take this turn. [Inference]
@@ -318,9 +371,10 @@ The full player-vs-AI public-release picture (all the crash fixes and open items
   [`../misc/Plan-Improve-Battle-AI.md`](../misc/Plan-Improve-Battle-AI.md).
 - **Portraits.** A known display issue with unit portraits in the offline flow — tracked in the
   public-release plan above.
-- **Spectator (watch two AIs) is not finished.** The `SPECTATE` / `ModBridge.spectatorMode` flag is
+- **The old spectator flag still does nothing.** The `SPECTATE` / `ModBridge.spectatorMode` flag is
   read and latched (§2), but the "turn side 0 into a second AI and hide the player's controls" wiring
-  is only partly built — planned, not shipped.
+  is only partly built. Watching the computer play both sides works another way, through `set_ai_sides`
+  (§4, "The computer against itself"), which does not hide the player's controls.
 - **Ranked and Tournament stay online-only.** They need matchmaking and the server, by design.
 - **Try it yourself.** In a battle-capable build, press `Ctrl+Shift+A` to drop into an offline practice
   fight against a mirror of your party. You do **not** need to be in a battle already — measured

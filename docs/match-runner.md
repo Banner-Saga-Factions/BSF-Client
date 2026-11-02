@@ -41,7 +41,8 @@ node scripts\mod-host\runner.js --summary-only _build\runner\try-1\runner-result
 
 Every run prints its **seed**, the number its random choices start from (§3). Pass it back with `--seed`
 to start the same random choices again (§3 says what that does not yet repeat). The seed, the account,
-the variety and the computer's brain are on every results line and in the summary.
+the variety and the computer's brain are on every results line and in the summary (a `--spectate`
+summary leaves those last two out).
 
 A battle takes about 3½ minutes at normal speed, so 10 battles is about 35 minutes. With `--speed 4` it
 takes about 1½ minutes (§4). Close other programs first: one long run was stopped by the PC running low
@@ -76,6 +77,38 @@ node scripts\mod-host\runner.js --battles 4 --brain search --speed 4 --steam-id 
 The third line is one battle at normal speed, to watch. To compare two brains fairly, keep everything
 else the same: account, `--player`, `--seed`, `--speed` and the build.
 
+### The computer against itself
+
+Once the computer beats the scripted player every time, that player stops telling a better brain from
+a worse one. `--spectate` has the computer play **both** sides instead (issue #31, Wave 4a;
+[`offline-ai.md`](./offline-ai.md) §4, "The computer against itself"). The runner plays nothing: it
+sets the brains, starts the battle, clicks Ready on the deploy screen, and watches until the end.
+
+- **`--brains a,b`** (needed with `--spectate`): brain `a` plays the player's side, `b` the computer's.
+- **`--swap-sides`**: swaps them in every even-numbered battle, so 8 battles give each brain 4 on each
+  side, and neither keeps the same side all run.
+- **`--ai-margin N`**: the near-best pick. Two fixed brains often replay one battle move for move, so each
+  picks at random among its plans scoring within N points of its best, seeded from the battle's seed.
+  25 by default with `--spectate` (a point of strength damage scores 45, a kill 200); `0` turns it off.
+  Given without `--spectate`, it applies to the computer against the scripted player too.
+
+```powershell
+node scripts\mod-host\runner.js --spectate --brains search,dredge --swap-sides --battles 8 --speed 4 --out _build\runner\h2h-test2
+node scripts\mod-host\runner.js --spectate --brains search,dredge --swap-sides --battles 8 --speed 4 --steam-id 443456 --out _build\runner\h2h-443456
+node scripts\mod-host\runner.js --spectate --brains search,dredge --battles 1 --speed 1 --out _build\runner\watch-h2h
+```
+
+The last line is one battle at normal speed, to watch. **From Wave 4a on, a new brain is judged head to
+head** against the one before it, 8 battles per account. It passes when it wins at least half of all
+its battles (8 of 16 on two accounts, 12 of 24 on three) and at least 2 of 8 on each account, its new
+specials are actually chosen, and no new errors or stalls appear. Just short of that (6 or 7 of 16, 9
+to 11 of 24) is too close to call, not a fail: play 8 more per account and judge the total at half.
+
+Eight battles per account are few, so this is a rule of thumb, and the odds are why it has this shape.
+A brain as good as the last passes about 69% of the time, one that wins 60% of its battles about 94%,
+and one that wins 35% about 17% (worked out for two accounts). The earlier rule, 4 of 8 on every
+account, passed those three about 41%, 68% and 9% of the time.
+
 ### Playing it yourself against a chosen brain
 
 The runner plays the player's side itself. To play that side **by hand** against a chosen brain and
@@ -106,8 +139,8 @@ Into the output folder (default `_build\runner\<date-time>\`):
 
 | File | One line per | Holds |
 | ---- | ------------ | ----- |
-| `runner-results.jsonl` (`.jsonl`: one JSON record per line, JSON being plain text for structured data) | battle | winner, turns, survivors per side, party, battle id, seconds, speed, the computer's brain, account, seed and variety, the computer's suicides, a fingerprint of how the battle went |
-| `runner-turns.jsonl` | player turn | what it did, how many commands it sent, how many the game refused and why, how long it took |
+| `runner-results.jsonl` (`.jsonl`: one JSON record per line, JSON being plain text for structured data) | battle | winner, turns, survivors per side, party, battle id, seconds, speed, the computer's brain, account, seed and variety, the computer's suicides, a fingerprint of how the battle went; with `--spectate`, also which brain played which side (`brains`), which won (`winnerBrain`), the margin, and any stall |
+| `runner-turns.jsonl` | player turn | what it did, how many commands it sent, how many the game refused and why, how long it took (not written with `--spectate`) |
 | `runner-summary.txt` | run | the totals below, also printed at the end |
 | `deploy-<n>.json` | battle | the whole board on the deploy screen |
 
@@ -124,6 +157,16 @@ stepping back counts too. Result files written before the count existed say "not
 wrong while faking" lines in the game's own log, and the look-ahead brain's lines: how many computer
 turns used it, how many plans it looked at, how often it changed the normal choice, and how often it
 failed and fell back to the normal choice.
+
+**With `--spectate`** the summary adds a line per brain: battles won, on each side, and units kept per
+battle. "Distinct battle traces" then compares each battle's **final board** (who is alive, where, with
+what strength and armor) and its length, not a turn-by-turn trace: the runner reads a watched battle by
+polling, which can miss a turn at ×4 and would make two identical battles look different. A battle
+whose turn number does not move for two minutes is recorded as a **stall** and the run goes on. If the
+game has stopped answering altogether, the run stops with that error and the battle is left out of the
+results. From the game's log it also counts **each brain's chosen plans, ability by ability**, specials apart from
+basic attacks (`CHOSE PLAN [brain] … abl=…` lines), the near-best picks other than the top plan, and the
+player's-side turns the computer played. Those counts cover the whole run, not one battle.
 
 **That count comes from the game's own log, `A-<n>.log.txt`, and only after the game has closed.** The
 log is locked while the game runs and renumbered at every start

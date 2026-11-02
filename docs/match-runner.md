@@ -99,8 +99,15 @@ node scripts\mod-host\runner.js --spectate --brains search,dredge --battles 1 --
 ```
 
 The last line is one battle at normal speed, to watch. **From Wave 4a on, a new brain is judged head to
-head** against the one before it: it passes when it wins at least 4 of 8 on every account, its new
-specials are actually chosen, and no new errors or stalls appear.
+head** against the one before it, 8 battles per account. It passes when it wins at least half of all
+its battles (8 of 16 on two accounts, 12 of 24 on three) and at least 2 of 8 on each account, its new
+specials are actually chosen, and no new errors or stalls appear. Just short of that (6 or 7 of 16, 9
+to 11 of 24) is too close to call, not a fail: play 8 more per account and judge the total at half.
+
+Eight battles per account are few, so this is a rule of thumb, and the odds are why it has this shape.
+A brain as good as the last passes about 69% of the time, one that wins 60% of its battles about 94%,
+and one that wins 35% about 17% (worked out for two accounts). The earlier rule, 4 of 8 on every
+account, passed those three about 41%, 68% and 9% of the time.
 
 ### Playing it yourself against a chosen brain
 

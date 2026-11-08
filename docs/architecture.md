@@ -199,10 +199,10 @@ Important consequence: **the same SWF can talk to dev, QA, live, or a community-
 
 ### Settings the game remembers between launches
 
-The player's own settings (music, full screen, our saved sign-in choice `signin_route`) live in `config.globalPrefs`, a `PrefBag` kept in the AIR local store as `global_0.sol`. Two traps, both read from `engine/core/pref/PrefBag.as` and `Pref.as` in the shipped decompile:
+The player's own settings (music, full screen, our saved sign-in choice `signin_route`) live in `config.globalPrefs`, a `PrefBag` (the game's settings store), saved in a small file AIR keeps for the game: `global_0.sol`, or `global_1.sol` for a second window on the same PC. Two traps, both read from `engine/core/pref/PrefBag.as` and `Pref.as` in the shipped decompile:
 
 - **A setting can't be removed.** `setPref(key, null)` drops it from memory only; the file keeps the old value, and the next launch reads it back. Write a value that means "off" instead.
-- **Saving waits a second.** A change is written to the file by a one-second timer, and nothing else in the game calls `savePrefs()`. Quitting (`terminateError`, `exitGame`) closes the game half a second later (`GameMainAir.exitingHandler`), before that timer fires. Call `savePrefs()` yourself before quitting. `DiscordSignIn.saveRoute` does both.
+- **Saving waits a second.** A change is written to the file by a one-second timer, and nothing else in the game calls `savePrefs()`. Quitting (`terminateError`, `exitGame`) closes the game half a second later (`GameMainAir.exitingHandler`), before that timer fires. Whether AIR writes the change anyway as the game closes has not been measured, so call `savePrefs()` yourself before quitting. `DiscordSignIn.saveRoute` does both.
 
 ## Package roots
 

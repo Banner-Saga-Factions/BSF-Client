@@ -192,14 +192,14 @@ When Steam cannot be used — it will not start, gives no proof, or the server r
 
 ### Which way the game signs in
 
-Steam and Discord are **separate accounts** on the server, so the game never moves a player to Discord without asking (#96). Each time it reaches the sign-in step (`PreAuthState.as`):
+Steam and Discord are **separate accounts** on the server, so the game signs a player in through Discord only when they chose it, at this launch or an earlier one, or when it was started with `--steam false` (#96). Each time it reaches the sign-in step (`PreAuthState.as`):
 
 1. **Straight to Discord, no question,** when Discord is already this run's way in (after "Login Failed" or "Disconnected From Server"), when the game was started with `--steam false`, or when Discord is the **saved choice** — the `signin_route` setting in the game's own settings file, `"discord"` or anything else for Steam.
 2. **Otherwise Steam, as stock.** A player whose Steam works sees nothing new.
 3. **When Steam gives nothing usable,** the game shows "Couldn't sign in with Steam" with the reason — Steam isn't running or installed; Steam didn't confirm the account; the server didn't accept it (`401`/`400`); the server couldn't check it just now (`409`, BSF-Custom-Server #391) — and [Sign in with Discord] [Quit]. Choosing Discord saves it as the choice for later launches, except after a `409`, which is a passing fault.
-4. **The way back:** Cancel on the Discord sign-in while Discord is the saved choice offers [Try Discord again] [Use Steam next time]. The second saves Steam and closes the game, because a running game can't switch to Steam once it has set Steam aside.
+4. **The way back:** Cancel on the Discord sign-in while Discord is the saved choice offers [Try Discord again] [Use Steam next time]. The second saves Steam and closes the game. With `--steam false` or `--steam_id`, Cancel goes to "Login Failed" instead.
 
-The `--steam_id` test route and kiosk mode skip all of this and ignore the saved choice. A `409` used to be swallowed when the game was started from the shortcut: the player reached the main menu signed out and saw nothing until they pressed Combat. It now brings up the question at launch.
+Kiosk mode skips all of this and ignores the saved choice. The `--steam_id` test route never reads or writes the saved choice, but when the server refuses its test number or can't check it, the question appears, and choosing Discord there is not saved. A `409` used to be swallowed when the game was started from the shortcut: the player reached the main menu signed out and saw nothing until they pressed Combat. It now brings up the question at launch.
 
 The flow lives in `game/session/states/DiscordSignIn.as`, started from `PreAuthState.as`; `StartState.as` no longer stops the game when Steam fails, and `AuthState.as` sends a refused or unchecked Steam sign-in back to the question. Two things the patch does on purpose:
 

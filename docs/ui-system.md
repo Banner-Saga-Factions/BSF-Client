@@ -93,6 +93,8 @@ roster panel, chat, and icons. They are a deliberate mix of roots:
 | Chat | `game/gui/GuiChat.as:14` | `GuiBase` |
 | Icon (portrait / ability art) | `game/gui/GuiIcon.as:12` | `Sprite` (lightweight, code-built) |
 
+**Why dialog text is small, and how to make one bigger.** Each time a `GuiDialog` opens, it scales itself to fit the window against a design 1536 pixels tall, and its font and text box are fixed in the art, which this build can't change. In a normal window its text is therefore small. A larger font alone would overflow the fixed text box, pushing the last line out of sight. Instead, scale the whole dialog right after it opens: the dialog layer centres it, so it grows evenly. `DiscordSignIn.enlarge` does this for the sign-in dialogs (#96); every other dialog is still stock size.
+
 The pervasive **`IGui*` interface indirection** (`IGuiContext`, `IGuiDialog`, `IGuiGreatHall`, …) is what makes
 this survivable: app code holds an *interface*, and the concrete class satisfying it can be the copy baked into
 a resource SWF. A stale SWF class still fits the app's type checks, which is why the client boots at all with a

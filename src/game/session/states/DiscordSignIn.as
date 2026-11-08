@@ -4,6 +4,7 @@ package game.session.states
    import engine.core.http.HttpCommunicator;
    import engine.core.logging.ILogger;
    import engine.session.Credentials;
+   import flash.display.DisplayObject;
    import flash.events.TimerEvent;
    import flash.net.URLRequest;
    import flash.net.navigateToURL;
@@ -76,6 +77,9 @@ package game.session.states
 
       private static const USE_STEAM:String = "Use Steam next time";
 
+      /** How much larger than stock the sign-in dialogs are drawn (see enlarge). */
+      private static const DIALOG_SCALE:Number = 1.5;
+
       private var config:GameConfig;
 
       private var credentials:Credentials;
@@ -123,7 +127,7 @@ package game.session.states
       }
 
       /** Saves the way to sign in at the next launch: ROUTE_DISCORD or ROUTE_STEAM. */
-      public static function saveRoute(config:GameConfig, route:String) : void
+      public static function saveRoute(config:GameConfig, route:String, logger:ILogger) : void
       {
          if(!config.globalPrefs)
          {
@@ -136,7 +140,30 @@ package game.session.states
          // Written to the file now, not by the store's own one-second timer: the game may be
          // closing straight after, and quitting closes it after half a second
          // (GameMainAir.exitingHandler), before that timer fires.
-         config.globalPrefs.savePrefs();
+         try
+         {
+            config.globalPrefs.savePrefs();
+         }
+         catch(e:Error)
+         {
+            // A file that can't be written must not stop the button's own action (signing in,
+            // or closing the game); the choice is just not kept.
+            logger.error("DiscordSignIn could not save the way to sign in: " + e.message);
+         }
+      }
+
+      /** Draws a sign-in dialog half as large again as stock. The game shrinks every dialog to
+       *  fit the window (GuiDialog, in an art file this build can't change), so its text is
+       *  small, and these are the first thing a new player reads. Call after opening: opening
+       *  sets the size afresh. The dialog is centred, so it grows evenly. */
+      public static function enlarge(dialog:IGuiDialog) : void
+      {
+         var clip:DisplayObject = dialog as DisplayObject;
+         if(clip)
+         {
+            clip.scaleX *= DIALOG_SCALE;
+            clip.scaleY *= DIALOG_SCALE;
+         }
       }
 
       public function start() : void
@@ -302,6 +329,7 @@ package game.session.states
          // Kept short: in the stock dialog a longer body rides up into the title and loses its
          // last line.
          dialog.openTwoBtnDialog("Sign in with Discord","Your code: <font color=\'#ffdd00\'>" + code + "</font>\n" + "In your browser (it may be behind the game), check the code, then press Continue and Authorize. " + "Retry opens the page again.",RETRY,CANCEL,dialogHandler);
+         enlarge(dialog);
       }
 
       private function closeDialog() : void
@@ -327,8 +355,9 @@ package game.session.states
          {
             // PATCH begin (#96): when Discord is the saved choice, this is the way back to
             // Steam: without it, a player who chose Discord once would get it at every launch.
-            // Not after --steam false, which asked for Discord whatever is saved.
-            if(savedRouteIsDiscord(config) && !steamTurnedOff)
+            // Not after --steam false, which asked for Discord whatever is saved, nor on the
+            // --steam_id test route, which never reads or writes the saved choice.
+            if(!steamTurnedOff && !config.options.overrideSteamId && savedRouteIsDiscord(config))
             {
                stop();
                showSavedChoiceDialog();
@@ -350,6 +379,7 @@ package game.session.states
          dialog = config.gameGuiContext.createDialog();
          // Kept short, like the code dialog above.
          dialog.openTwoBtnDialog("Discord sign-in cancelled","Discord is your saved way to sign in. Steam and Discord are separate accounts. " + "\"" + USE_STEAM + "\" closes the game; start Steam, then the game.",TRY_AGAIN,USE_STEAM,savedChoiceDialogHandler);
+         enlarge(dialog);
       }
 
       private function savedChoiceDialogHandler(button:String) : void
@@ -363,7 +393,7 @@ package game.session.states
          if(button == USE_STEAM)
          {
             logger.info("DiscordSignIn saving Steam for the next launch, then closing the game");
-            saveRoute(config,ROUTE_STEAM);
+            saveRoute(config,ROUTE_STEAM,logger);
             // The same way out as the "Login Failed" dialog's Disconnect button (LoginPage).
             config.context.appInfo.terminateError("Discord sign-in cancelled; Steam saved for next launch");
             return;

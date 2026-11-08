@@ -97,8 +97,9 @@ own additions, not Stoic's. Where each of our patches lives and why is the one d
 
 Four extensions, all catalogued in [`patch-inventory.md`](./patch-inventory.md):
 
-1. **Signing in without Steam** — Steam first; when Steam will not start or its proof is refused, sign
-   in through Discord in the player's browser (`PreAuthState.as`, `DiscordSignIn.as`). See
+1. **Signing in without Steam** — Steam first; when Steam will not start or its proof is refused, the
+   player can choose to sign in through Discord in their browser, and the choice is remembered
+   (`PreAuthState.as`, `DiscordSignIn.as`). See
    [`wire-protocol.md`](./wire-protocol.md) → "Discord sign-in".
 2. **Offline player-vs-AI** — a self-contained battle against the game's dormant AI. The battle engine
    makes **zero** server calls; the session layer around it still polls and still reports which screen

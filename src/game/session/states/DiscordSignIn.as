@@ -14,8 +14,10 @@ package game.session.states
    import game.session.actions.DiscordPollTxn;
 
    /**
-    * BSF patch (#2): signing in through Discord when Steam cannot be used. One hand-off from
-    * start to finish:
+    * BSF patch (#2, #96): signing in through Discord, when the player chose it — in the
+    * "Couldn't sign in with Steam" question, at an earlier launch (the saved choice), or with
+    * --steam false. PreAuthState decides; the game never picks Discord by itself. One hand-off
+    * from start to finish:
     *
     *   1. ask the server for a hand-off (a short code to show, a secret key to keep);
     *   2. open the server's page in the browser and show the code, with Retry / Cancel;
@@ -24,7 +26,8 @@ package game.session.states
     *
     * Anything that ends the hand-off without signing in goes to the game's own "Login Failed"
     * dialog (AuthFailedState), whose Retry starts a new hand-off. This class never starts one by
-    * itself, which would open the browser again unasked.
+    * itself, which would open the browser again unasked. One exception asks first: Cancel when
+    * Discord is the saved choice offers [Try Discord again] [Use Steam next time] instead.
     *
     * What the server expects: bsf-server/docs/client-contract.md, "Signing in through Discord".
     * The key is never written to the log.
@@ -33,8 +36,28 @@ package game.session.states
    {
 
       /** Set by AuthState when the server refuses a Steam sign-in, so the next PreAuthState
-       *  goes straight to Discord instead of sending the refused Steam proof again. */
+       *  asks the player instead of sending the refused Steam proof again. */
       public static var steamRefused:Boolean = false;
+
+      /** Set by AuthState when the server could not check a Steam sign-in just now (409,
+       *  BSF-Custom-Server #391). Like steamRefused, but a passing fault: choosing Discord after
+       *  it is not remembered. */
+      public static var steamUnchecked:Boolean = false;
+
+      /** Set by StartState when the game was started with --steam false. */
+      public static var steamTurnedOff:Boolean = false;
+
+      /** True once Discord is this run's way in, so every later sign-in in the run (Login
+       *  Failed's Retry, a dropped connection) goes to Discord without asking again. */
+      public static var discordThisRun:Boolean = false;
+
+      /** The saved way to sign in (#96), in the game's own settings file: ROUTE_DISCORD skips
+       *  Steam at launch; anything else, or nothing, tries Steam first. */
+      public static const PREF_SIGNIN_ROUTE:String = "signin_route";
+
+      public static const ROUTE_DISCORD:String = "discord";
+
+      public static const ROUTE_STEAM:String = "steam";
 
       /** A sign-in password starting with this carries a hand-off key (server: auth.ts). */
       public static const PASSWORD_PREFIX:String = "discord:";
@@ -47,6 +70,11 @@ package game.session.states
       private static const RETRY:String = "Retry";
 
       private static const CANCEL:String = "Cancel";
+
+      /** The two buttons offered when Discord is the saved choice and its sign-in is cancelled. */
+      private static const TRY_AGAIN:String = "Try Discord again";
+
+      private static const USE_STEAM:String = "Use Steam next time";
 
       private var config:GameConfig;
 
@@ -87,6 +115,28 @@ package game.session.states
       public static function isDiscordPassword(password:String) : Boolean
       {
          return password != null && password.indexOf(PASSWORD_PREFIX) == 0;
+      }
+
+      public static function savedRouteIsDiscord(config:GameConfig) : Boolean
+      {
+         return config.globalPrefs != null && config.globalPrefs.getPref(PREF_SIGNIN_ROUTE) == ROUTE_DISCORD;
+      }
+
+      /** Saves the way to sign in at the next launch: ROUTE_DISCORD or ROUTE_STEAM. */
+      public static function saveRoute(config:GameConfig, route:String) : void
+      {
+         if(!config.globalPrefs)
+         {
+            return;
+         }
+         // Steam is saved as a word, not by removing the setting: the game's settings store
+         // forgets a removed setting only until the next launch, then reads it back from the
+         // file (PrefBag.setPref with null drops it from memory and leaves the file alone).
+         config.globalPrefs.setPref(PREF_SIGNIN_ROUTE,route);
+         // Written to the file now, not by the store's own one-second timer: the game may be
+         // closing straight after, and quitting closes it after half a second
+         // (GameMainAir.exitingHandler), before that timer fires.
+         config.globalPrefs.savePrefs();
       }
 
       public function start() : void
@@ -275,12 +325,54 @@ package game.session.states
          dialog = null;
          if(button == CANCEL)
          {
-            fail("Discord sign-in was cancelled. Have the game on Steam? Start Steam, then the game.");
+            // PATCH begin (#96): when Discord is the saved choice, this is the way back to
+            // Steam: without it, a player who chose Discord once would get it at every launch.
+            // Not after --steam false, which asked for Discord whatever is saved.
+            if(savedRouteIsDiscord(config) && !steamTurnedOff)
+            {
+               stop();
+               showSavedChoiceDialog();
+               return;
+            }
+            fail("Discord sign-in was cancelled. Retry starts it again; to use Steam, press Disconnect, start Steam, then the game.");
+            // PATCH end
             return;
          }
          logger.info("DiscordSignIn Retry: opening the page again");
          openBrowser();
          showDialog();
       }
+
+      // PATCH begin (#96)
+      private function showSavedChoiceDialog() : void
+      {
+         logger.info("DiscordSignIn cancelled with Discord saved; offering the way back to Steam");
+         dialog = config.gameGuiContext.createDialog();
+         // Kept short, like the code dialog above.
+         dialog.openTwoBtnDialog("Discord sign-in cancelled","Discord is your saved way to sign in. Steam and Discord are separate accounts. " + "\"" + USE_STEAM + "\" closes the game; start Steam, then the game.",TRY_AGAIN,USE_STEAM,savedChoiceDialogHandler);
+      }
+
+      private function savedChoiceDialogHandler(button:String) : void
+      {
+         // No button: closed by stop(), when PreAuthState is left.
+         if(!button || !dialog)
+         {
+            return;
+         }
+         dialog = null;
+         if(button == USE_STEAM)
+         {
+            logger.info("DiscordSignIn saving Steam for the next launch, then closing the game");
+            saveRoute(config,ROUTE_STEAM);
+            // The same way out as the "Login Failed" dialog's Disconnect button (LoginPage).
+            config.context.appInfo.terminateError("Discord sign-in cancelled; Steam saved for next launch");
+            return;
+         }
+         // The player asked for it, so a new hand-off may open the browser again.
+         logger.info("DiscordSignIn trying again with a new hand-off");
+         stopped = false;
+         start();
+      }
+      // PATCH end
    }
 }

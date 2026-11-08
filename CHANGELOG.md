@@ -11,6 +11,19 @@ been removed. The current download is on the
 
 ## [Unreleased]
 
+### The game asks before signing in with Discord, and remembers the answer
+
+When Steam couldn't be used, the game used to switch to Discord by itself, so a Steam owner who had
+forgotten to start Steam landed in a new, empty account. Now it says why Steam failed and offers
+**Sign in with Discord** or **Quit**. Choosing Discord is remembered, except when the server only
+couldn't check Steam just now. While Discord is remembered, cancelling its sign-in offers **Try
+Discord again** or **Use Steam next time**. A player whose Steam works sees nothing new, and a
+server that can't check Steam is reported at launch instead of when the player presses Combat.
+
+*Technical:* overlays `PreAuthState.as`, `AuthState.as` (`409`), `StartState.as`; `DiscordSignIn.as`
+holds the `signin_route` setting. `--steam false`, `--steam_id` and kiosk mode skip the question.
+Issue #96, Wave 1.
+
 ### The computer can now play both sides of a practice battle
 
 For testing, the computer can now play the player's side of an offline practice battle too, so one

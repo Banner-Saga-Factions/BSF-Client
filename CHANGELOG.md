@@ -40,7 +40,7 @@ works only offline, and normal play is unchanged. In the first runs the look-ahe
 
 The game used to need Steam to sign in: without it, it sat on "Authenticating…" for ever, or
 showed "Steam Error" and closed. It still tries Steam first. When Steam will not start, gives no
-proof, or the server refuses that proof, it now signs in through Discord: it shows a short code and
+proof, or the server refuses that proof, it can now sign in through Discord: it shows a short code and
 opens the server's page in the browser; the player checks the code, presses Continue, then
 Authorize, and the game carries on by itself. Retry opens the page again. Cancel, or a sign-in that
 runs out of time or fails, shows the game's "Login Failed" box with the reason, and its Retry starts

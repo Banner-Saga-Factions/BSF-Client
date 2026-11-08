@@ -28,7 +28,8 @@ package game.session.states
     * Anything that ends the hand-off without signing in goes to the game's own "Login Failed"
     * dialog (AuthFailedState), whose Retry starts a new hand-off. This class never starts one by
     * itself, which would open the browser again unasked. One exception asks first: Cancel when
-    * Discord is the saved choice offers [Try Discord again] [Use Steam next time] instead.
+    * Discord is the saved choice (not with --steam false or --steam_id) offers [Try Discord
+    * again] [Use Steam next time] instead.
     *
     * What the server expects: bsf-server/docs/client-contract.md, "Signing in through Discord".
     * The key is never written to the log.
@@ -49,7 +50,9 @@ package game.session.states
       public static var steamTurnedOff:Boolean = false;
 
       /** True once Discord is this run's way in, so every later sign-in in the run (Login
-       *  Failed's Retry, a dropped connection) goes to Discord without asking again. */
+       *  Failed's Retry, a dropped connection) goes to Discord without asking again. Two games
+       *  run side by side in one window (--username a,b) share it, as they share steamRefused
+       *  and steamUnchecked. */
       public static var discordThisRun:Boolean = false;
 
       /** The saved way to sign in (#96), in the game's own settings file: ROUTE_DISCORD skips
@@ -147,7 +150,7 @@ package game.session.states
          catch(e:Error)
          {
             // A file that can't be written must not stop the button's own action (signing in,
-            // or closing the game); the choice is just not kept.
+            // or closing the game).
             logger.error("DiscordSignIn could not save the way to sign in: " + e.message);
          }
       }

@@ -78,7 +78,7 @@ package game.session.states
       private static const USE_STEAM:String = "Use Steam next time";
 
       /** How much larger than stock the sign-in dialogs are drawn (see enlarge). */
-      private static const DIALOG_SCALE:Number = 1.5;
+      private static const DIALOG_SCALE:Number = 1.75;
 
       private var config:GameConfig;
 
@@ -152,7 +152,7 @@ package game.session.states
          }
       }
 
-      /** Draws a sign-in dialog half as large again as stock. The game shrinks every dialog to
+      /** Draws a sign-in dialog 1.75 times stock size. The game shrinks every dialog to
        *  fit the window (GuiDialog, in an art file this build can't change), so its text is
        *  small, and these are the first thing a new player reads. Call after opening: opening
        *  sets the size afresh. The dialog is centred, so it grows evenly. */

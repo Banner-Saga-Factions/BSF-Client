@@ -17,7 +17,7 @@ When Steam couldn't be used, the game switched to Discord by itself, so a Steam 
 start Steam landed in a new, empty account. Now it says why and offers **Sign in with Discord** or
 **Quit**. Discord is remembered, except when the server only couldn't check Steam just now.
 Cancelling a remembered Discord sign-in offers **Try Discord again** or **Use Steam next time**.
-These messages are drawn half as large again. A player whose Steam works sees nothing new.
+These messages are drawn larger than stock. A player whose Steam works sees nothing new.
 
 *Technical:* overlays `PreAuthState.as`, `AuthState.as` (a `409` from the shortcut now shows at
 launch), `StartState.as`; `DiscordSignIn.as` holds `signin_route`. `--steam false` and kiosk mode

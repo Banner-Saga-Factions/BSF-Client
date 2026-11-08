@@ -152,10 +152,10 @@ package game.session.states
          }
       }
 
-      /** Draws a sign-in dialog 1.75 times stock size. The game shrinks every dialog to
-       *  fit the window (GuiDialog, in an art file this build can't change), so its text is
-       *  small, and these are the first thing a new player reads. Call after opening: opening
-       *  sets the size afresh. The dialog is centred, so it grows evenly. */
+      /** Draws a sign-in dialog 1.75 times stock size, the size the owner chose after seeing
+       *  it in the game (#96). Call after opening: opening sets the size afresh from the window
+       *  (GuiDialog, in an art file this build can't change). The dialog is centred, so it
+       *  grows evenly. */
       public static function enlarge(dialog:IGuiDialog) : void
       {
          var clip:DisplayObject = dialog as DisplayObject;

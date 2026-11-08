@@ -752,6 +752,13 @@ sent anything, so the test session waits out its ninety seconds and closes the g
 that, start the game with `scripts/run-adl.ps1` and use the skill's `window.ps1`, `screenshot.ps1` and
 `input.ps1` directly. Measured 2026-11-08.
 
+**A dialog keeps the size it had when it opened, so one that appears at launch is photographed small.**
+The debug launcher opens the game at about 518×422, and enlarging the window afterwards with
+`window.ps1` does not resize a dialog already on screen. A player whose game starts full screen (the
+shipped `application.xml` asks for it) sees the size of a dialog opened after the resize; a game that
+starts in a small window has not been checked. Compare sizes only between dialogs opened after the resize: on 2026-11-08 one dialog at the same setting measured about 380 pixels wide when opened
+before the resize and about 730 after (#96).
+
 ### Wait for the game to say it is ready; do not count seconds
 
 A fixed wait before `start_ai_battle` is what the example script does, and it is a guess. The game says

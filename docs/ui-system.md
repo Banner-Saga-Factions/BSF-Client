@@ -178,7 +178,7 @@ ships *inside* that SWF. Registrations are all in `GamePageManagerAdapter.as:90â
 | Login | `PreAuthState` | `LoginPage` | *(built by its own loader â€” no single page clip)* |
 | Start / title | `StartState` | `StartPage` | `start.swf/assets.start` (`StartPage.as:34`) |
 | Main menu | `MainMenuState` | `MainMenuPage` | `main_menu.swf/assets.main_menu` (`MainMenuPage.as:19`) |
-| Town | `TownState` | `TownPage` | `strand_options.swf/gui.strand.options` (`TownPage.as:73`) |
+| Town | `TownState` | `TownPage` | `strand_options.swf/gui.strand.options` (`TownPage.as:73`). Our patched `TownPage` adds a fifth button, "Sign in", to this panel (see [`patch-inventory.md`](./patch-inventory.md)). |
 | Great Hall | `GreatHallState` | `GreatHallPage` | `great_hall.swf/assets.greathall` (`GreatHallPage.as:33`) |
 | Mead House | `MeadHouseState` | `MeadHousePage` | `mead_house.swf/assets.mead_house` (`MeadHousePage.as:32`) |
 | Hall of Valor | `HallOfValorState` | `HallOfValorPage` | `hall_of_valor.swf/assets.hall_of_valor` (`HallOfValorPage.as:44`) |

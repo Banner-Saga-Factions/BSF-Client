@@ -11,6 +11,17 @@ been removed. The current download is on the
 
 ## [Unreleased]
 
+### A town button switches between signing in with Steam and with Discord
+
+The options panel in town (the hammer icon, or Esc) has a new button, **Sign in: Steam** or **Sign in:
+Discord**, showing how the game will sign in next time. Clicking it switches to the other one, and
+the change applies from the next launch. Steam and Discord stay separate accounts. To make room, the
+panel's five text buttons are drawn a little smaller.
+
+*Technical:* overlays `TownPage.as`, which builds a new copy of the panel's own button design
+(`gui.battle.option.button` in `strand_options.swf`) and flips `signin_route` through
+`DiscordSignIn.saveRoute`. Not shown in kiosk mode. Issue #96, Wave 2.
+
 ### The game asks before signing in with Discord, and remembers the answer
 
 When Steam couldn't be used, the game switched to Discord by itself, so a Steam owner who forgot to

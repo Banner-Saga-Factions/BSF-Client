@@ -12,11 +12,11 @@ buried in a plan.
 
 | What | Count | Notes |
 |---|---|---|
-| Patched/added `.as` overlays | **48** | The behavior + repair surface below. |
+| Patched/added `.as` overlays | **49** | The behavior + repair surface below. |
 | Embedded font glyph data | 3 `.cff` | `src/_assets/*.cff` — the outlines the three font wrappers re-embed. |
 | AIR descriptor | 1 | `META-INF/AIR/application.xml` — **outside `src/`**; declares the `extendedDesktop` profile (needed by the mod bridge's NativeProcess) and lists the platform ANEs (Adobe Native Extensions — bundled native-code plugins, e.g. Steamworks and FMOD). No `bsf://` link is needed: the Discord sign-in opens the browser and asks the server until the player is done. |
 
-**Two kinds of patch.** About a quarter of the 48 overlays change **no behavior at all** — they are
+**Two kinds of patch.** About a quarter of the 49 overlays change **no behavior at all** — they are
 faithful repairs of code the JPEXS decompiler mangled (illegal class names, lost imports, raw
 bytecode opcodes). The rest are real fork changes: signing in without Steam, offline AI, the mod
 bridge, and gui compatibility. Each row below says which it is.
@@ -27,11 +27,12 @@ bridge, and gui compatibility. Each row below says which it is.
 
 ---
 
-## Sign-in & startup (7)
+## Sign-in & startup (8)
 
 The game tries Steam first. When Steam gives nothing usable it says why and asks whether to sign in
 through Discord or quit; it never moves to Discord by itself (BSF-Client issues #2 and #96). Choosing
-Discord there is remembered for later launches, in the game's settings file under `signin_route`. The
+Discord there is remembered for later launches, in the game's settings file under `signin_route`; a
+button in the town options panel switches it either way. The
 flow, and the routes it uses, are in [`wire-protocol.md`](./wire-protocol.md) → *Discord sign-in*.
 
 | File | What changed | Why |
@@ -41,6 +42,7 @@ flow, and the routes it uses, are in [`wire-protocol.md`](./wire-protocol.md) �
 | `src/game/session/states/PreAuthState.as` | Goes straight to Discord when Discord is already this run's way in, with `--steam false` (unless `--steam_id` is also given), or when Discord is the saved choice. Otherwise Steam proof first, as stock. Where the stock game would show "Authenticating…" and wait forever — no Steam id, or no proof — and after a proof the server refused or could not check, it shows "Couldn't sign in with Steam" with the reason and [Sign in with Discord] [Quit]. Choosing Discord saves it, except when the server could not check Steam (a passing fault) or on the `--steam_id` test route, which never reads or writes the saved choice. Kiosk mode keeps its stock ending. The question is drawn 1.75 times the size of a stock dialog. | The stock game has no username/password screen, so that wait never ended. Asking first keeps a Steam owner whose Steam is closed out of a new, empty Discord account (BSF-Custom-Server #391). |
 | `src/game/session/states/AuthState.as` | A Steam sign-in the server refuses (`401` or `400`), or could not check (`409`), goes back to PreAuthState's question at once, instead of being swallowed and sent again later — or, for a `409` in a game started from the shortcut, instead of reaching the main menu signed out with no message. Only the first of each in a run counts, and kiosk mode keeps the stock handling of a `409`. A Discord sign-in is never sent twice: when its connection fails, or on a `404` or a `5xx`, it goes to "Login Failed". | Covers "Steam is running but its proof is refused" and "the server cannot reach Steam right now". |
 | `src/game/session/states/DiscordSignIn.as` | **New file.** One hand-off: asks the server for a code, opens the page in the browser, shows the code with Retry / Cancel, asks "done yet?" every two seconds, then signs in with `password = "discord:<key>"`. Every way it ends without signing in lands on the stock "Login Failed" dialog, except Cancel while Discord is the saved choice (and the game wasn't started with `--steam false` or `--steam_id`): that offers [Try Discord again] [Use Steam next time], and the second saves Steam and closes the game. Its dialogs are drawn 1.75 times stock size (`enlarge`). It opens only an `http` or `https` address. Also holds the saved choice (`signin_route`, read and written through the game's own settings store, written to disk at once) and the per-run flags the sign-in states share. | The client half of the server's Discord hand-off, and the way back to Steam for a player who chose Discord. |
+| `src/game/gui/page/TownPage.as` | Adds a **Sign in: Steam / Discord** button to the town options panel (the hammer icon, or Esc), above Quit. It shows the saved choice; clicking it switches `signin_route` and says the change applies from the next launch. The panel is one fixed drawing with room for four text buttons, so all five are drawn at 85% size and spread over the same space. The button is a new copy of the panel's own button design, made from app code (see [`architecture.md`](./architecture.md) → *Resource SWFs*). Not shown in kiosk mode. A panel that doesn't look as expected gets no button, and the town carries on. | The panel's own code (`StrandOptions`) lives in `gui/strand_options.swf` and cannot be patched from `src/`, so the button is added by the page that loads the panel (BSF-Client #96, Wave 2). |
 | `src/game/session/actions/DiscordHandoffTxn.as` | **New file.** The "start a hand-off" request. Marks its reply as handled so the key never reaches the game's log. | — |
 | `src/game/session/actions/DiscordPollTxn.as` | **New file.** The "done yet?" request, with the key in a JSON body. | — |
 
@@ -142,11 +144,11 @@ All four are **no-behavior-change** repairs of decompiler damage.
 
 ## Count reconciliation
 
-48 `.as` overlays = 7 (sign-in/startup) + 6 (mod bridge) + 14 (offline AI) + 7 (gui) + 2 (resource) +
+49 `.as` overlays = 8 (sign-in/startup) + 6 (mod bridge) + 14 (offline AI) + 7 (gui) + 2 (resource) +
 4 (board/landscape) + 4 (fonts) + 1 (audio) + 1 (saga) + 2 (view). Of these, **~11 are pure
 decompiler-artifact repairs** with no behavior change (`ResourceTree`, the four
 board/landscape repairs, the four font repairs, `NullSoundDriver`, and `TutorialTooltip`) — the honest "real
-fork behavior" surface is closer to **~37 files**.
+fork behavior" surface is closer to **~38 files**.
 
 `†` marks files that are also on the **12-stale-file list** (where the 2013 mirror is stale and the
 decompile is authoritative — see [`reference-codebases.md`](./reference-codebases.md)): `BattleBoard`,

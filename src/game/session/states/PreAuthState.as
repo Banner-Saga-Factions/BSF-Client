@@ -6,10 +6,24 @@ package game.session.states
    import engine.core.logging.ILogger;
    import engine.steamworks.NullSteamworks;
    import flash.events.Event;
+   import game.gui.IGuiDialog;
    import game.session.GameState;
 
    public class PreAuthState extends GameState
    {
+
+      // PATCH begin (#96): the "Couldn't sign in with Steam" question and its two buttons.
+      private static const USE_DISCORD:String = "Sign in with Discord";
+
+      private static const QUIT:String = "Quit";
+
+      private var steamFailedDialog:IGuiDialog;
+
+      // Whether choosing Discord in the question is saved for later launches. Not when the server
+      // only could not check Steam just now, a passing fault: saving it would keep a Steam owner
+      // in Discord. Not on the --steam_id test route either, which never reads the saved choice.
+      private var steamFailedRemember:Boolean;
+      // PATCH end
 
       // PATCH (#2): the Discord sign-in in progress, when Steam could not be used.
       private var discord:DiscordSignIn;
@@ -30,8 +44,34 @@ package game.session.states
          }
          credentials.addEventListener("Credentials.EVENT_COMMITTED",credentialsChangeEvent);
          gameFsm.logout();
-         // PATCH (#2): skip Steam once the server has refused its proof (AuthState sets this).
-         if(credentials.steamId && !DiscordSignIn.steamRefused)
+         // PATCH begin (#96): Discord without trying Steam, in three cases: Discord is already
+         // this run's way in (Login Failed's Retry, a dropped connection), the game was started
+         // with --steam false, or the player chose Discord at an earlier launch. The first holds
+         // on every route; the --steam_id test route and kiosk mode skip the other two, and the
+         // test route never reads the saved choice.
+         if(DiscordSignIn.discordThisRun)
+         {
+            startDiscordSignIn();
+            return;
+         }
+         if(!config.options.overrideSteamId && !config.runMode.autologin)
+         {
+            if(DiscordSignIn.steamTurnedOff)
+            {
+               startDiscordSignIn();
+               return;
+            }
+            if(DiscordSignIn.savedRouteIsDiscord(config))
+            {
+               logger.info("PreAuthState Discord is the saved way to sign in; not trying Steam");
+               startDiscordSignIn();
+               return;
+            }
+         }
+         // PATCH end
+         // PATCH (#2, #96): skip Steam once the server has refused its proof, or could not check
+         // it (AuthState sets both), so the same proof is not sent again.
+         if(credentials.steamId && !DiscordSignIn.steamRefused && !DiscordSignIn.steamUnchecked)
          {
             credentials.steamAuthTicketHandle = 1;
             credentials.steamAuthTicket = null;
@@ -71,24 +111,112 @@ package game.session.states
             credentials.commit();
             return;
          }
-         // PATCH begin (#2): the stock game ended here with an "Authenticating..." dialog and
+         // PATCH begin (#2, #96): the stock game ended here with an "Authenticating..." dialog and
          // waited for a username and password that no screen asks for, so it hung. The test
          // route above has already committed and keeps its stock ending; every other way of
-         // getting here means Steam gave nothing usable — not running, no proof, or a proof
-         // the server refused — so sign in through Discord instead.
+         // getting here means Steam gave nothing usable, so the player is told why and asked.
+         // The game never moves to Discord by itself: a Steam owner whose Steam is closed would
+         // land in a new, empty Discord account (BSF-Custom-Server #391).
          if(overrideCommitted)
          {
             data.setValue(GameStateDataEnum.SHOW_LOGIN_SCREEN,true);
             return;
          }
-         startDiscordSignIn();
+         showSteamFailedDialog();
          // PATCH end
       }
+
+      // PATCH begin (#96)
+      private function showSteamFailedDialog() : void
+      {
+         var reason:String;
+         steamFailedRemember = !DiscordSignIn.steamUnchecked && !config.options.overrideSteamId;
+         if(DiscordSignIn.steamUnchecked)
+         {
+            reason = "The server couldn\'t check your Steam account just now.";
+         }
+         else if(DiscordSignIn.steamRefused)
+         {
+            reason = "The server didn\'t accept your Steam account.";
+         }
+         else if(!credentials.steamId)
+         {
+            reason = "Steam isn\'t running, or isn\'t installed.";
+         }
+         else
+         {
+            reason = "Steam didn\'t confirm your account.";
+         }
+         logger.info("PreAuthState Steam sign-in not possible (" + reason + "); asking the player");
+         // Kept short: in the stock dialog a longer body rides up into the title and loses its
+         // last line. "Start Steam" is no help when the server refused the account, so that
+         // case leaves it out.
+         var body:String = reason + "\nSteam and Discord are separate accounts. ";
+         if(DiscordSignIn.steamUnchecked)
+         {
+            body += "To use Steam, quit and try again later.";
+         }
+         else
+         {
+            if(steamFailedRemember)
+            {
+               body += "Choosing Discord is remembered.";
+            }
+            if(!DiscordSignIn.steamRefused)
+            {
+               body += (steamFailedRemember ? " " : "") + "To use Steam, quit and start Steam first.";
+            }
+         }
+         // The game shows one dialog at a time, so the stock "Authenticating... Please wait."
+         // dialog (LoginPage), which has no buttons, would take this one's place.
+         data.setValue(GameStateDataEnum.SHOW_LOGIN_SCREEN,false);
+         closeSteamFailedDialog();
+         steamFailedDialog = config.gameGuiContext.createDialog();
+         steamFailedDialog.openTwoBtnDialog("Couldn\'t sign in with Steam",body,USE_DISCORD,QUIT,steamFailedDialogHandler);
+         DiscordSignIn.enlarge(steamFailedDialog);
+      }
+
+      private function closeSteamFailedDialog() : void
+      {
+         if(steamFailedDialog)
+         {
+            // Cleared first: closing calls the handler with no button, which must be a no-op.
+            var closing:IGuiDialog = steamFailedDialog;
+            steamFailedDialog = null;
+            closing.closeDialog(null);
+         }
+      }
+
+      private function steamFailedDialogHandler(button:String) : void
+      {
+         if(!button || !steamFailedDialog)
+         {
+            return;
+         }
+         // A button press has already closed the dialog.
+         steamFailedDialog = null;
+         if(button == QUIT)
+         {
+            logger.info("PreAuthState player chose to quit instead of signing in with Discord");
+            // The same way out as the "Login Failed" dialog's Disconnect button (LoginPage).
+            config.context.appInfo.terminateError("Steam sign-in not possible; player quit");
+            return;
+         }
+         logger.info("PreAuthState player chose Discord" + (steamFailedRemember ? "; remembered for next launch" : "; not remembered"));
+         if(steamFailedRemember)
+         {
+            DiscordSignIn.saveRoute(config,DiscordSignIn.ROUTE_DISCORD,logger);
+         }
+         startDiscordSignIn();
+      }
+      // PATCH end
 
       // PATCH begin (#2)
       private function startDiscordSignIn() : void
       {
-         logger.info("PreAuthState no usable Steam sign-in; starting Discord sign-in");
+         logger.info("PreAuthState starting Discord sign-in");
+         // PATCH (#96): from here on, every sign-in in this run goes to Discord.
+         DiscordSignIn.discordThisRun = true;
          // The same stand-in --steam false uses, so nothing later calls into a Steam that
          // failed or whose proof was refused.
          if(config.steamworks.enabled)
@@ -103,9 +231,13 @@ package game.session.states
          {
             credentials.password = null;
          }
-         // Keeps the stock "Authenticating... Please wait." dialog (LoginPage) from opening
-         // underneath the Discord one, which has the buttons.
+         // The game shows one dialog at a time, so the stock "Authenticating... Please wait."
+         // dialog (LoginPage), which has no buttons, would take the Discord one's place.
          data.setValue(GameStateDataEnum.SHOW_LOGIN_SCREEN,false);
+         if(discord)
+         {
+            discord.stop();
+         }
          discord = new DiscordSignIn(config,credentials,communicator,data,logger);
          discord.start();
       }
@@ -114,7 +246,9 @@ package game.session.states
       override protected function handleCleanup() : void
       {
          credentials.removeEventListener("Credentials.EVENT_COMMITTED",credentialsChangeEvent);
-         // PATCH begin (#2): leaving this state, by any route, ends the hand-off.
+         // PATCH begin (#2, #96): leaving this state, by any route, ends the hand-off and
+         // closes the question.
+         closeSteamFailedDialog();
          if(discord)
          {
             discord.stop();

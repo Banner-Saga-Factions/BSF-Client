@@ -105,15 +105,30 @@ package game.session.states
          }
          else
          {
-            // PATCH begin (#2): the server refused the Steam proof (401), or the Steam id
-            // (400). Go straight to the Discord sign-in — before the stock code below, which
-            // would swallow the refusal now and ask with the same proof again later.
+            // PATCH begin (#2, #96): the server refused the Steam proof (401), or the Steam id
+            // (400). Back to PreAuthState, which tells the player and offers Discord — before
+            // the stock code below, which would swallow the refusal now and ask with the same
+            // proof again later.
             if(isRefusedSteamSignIn(param1))
             {
-               logger.info("AuthState Steam sign-in refused (" + param1.responseCode + "); switching to Discord sign-in");
+               logger.info("AuthState Steam sign-in refused (" + param1.responseCode + "); asking the player");
                this.action.abort();
                this.action = null;
                DiscordSignIn.steamRefused = true;
+               gameFsm.transitionTo(PreAuthState,data);
+               return;
+            }
+            // PATCH end
+            // PATCH begin (#96): the server could not check the Steam proof just now (409, server
+            // #391). The stock code below carries on silently when started from the shortcut,
+            // so the player reached the main menu signed out and heard nothing until they
+            // pressed Combat. Ask them now instead, the same way as a refusal.
+            if(isUncheckedSteamSignIn(param1))
+            {
+               logger.info("AuthState Steam sign-in could not be checked (409: " + param1.message + "); asking the player");
+               this.action.abort();
+               this.action = null;
+               DiscordSignIn.steamUnchecked = true;
                gameFsm.transitionTo(PreAuthState,data);
                return;
             }
@@ -144,6 +159,19 @@ package game.session.states
             return false;
          }
          return param1.responseCode == 401 || param1.responseCode == 400;
+      }
+      // PATCH end
+
+      // PATCH begin (#96): a Steam sign-in the server could not check (409). Kiosk mode keeps
+      // the stock handling: nobody is there to answer a question. Only the first in a run
+      // counts, for the same reason as a refusal above.
+      private function isUncheckedSteamSignIn(param1:AuthTxn) : Boolean
+      {
+         if(DiscordSignIn.steamUnchecked || config.runMode.autologin || !credentials.steamAuthTicket || DiscordSignIn.isDiscordPassword(credentials.password))
+         {
+            return false;
+         }
+         return param1.responseCode == 409;
       }
       // PATCH end
    }

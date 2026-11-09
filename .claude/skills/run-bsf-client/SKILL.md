@@ -44,8 +44,10 @@ If any of those live elsewhere, say so with `BSF_GAME_PATH`, `BSF_SERVER_URL`,
 To reach the Discord sign-in instead of the made-up Steam number, set `BSF_STEAM_ID=none` (no
 number at all). Add `BSF_WITH_STEAM=1` to have the game try to start Steam, which under the
 debug launcher always fails (a bundle carries the real Steam plugin) — what a player whose
-Steam will not start sees. Either way `ready` waits
-for someone to finish the Discord step in the browser, within its ninety seconds.
+Steam will not start sees. Without it, `ready` waits for someone to finish the Discord step in
+the browser, within its ninety seconds. With it, the game first asks whether to sign in with
+Discord, which this session can't answer, so it times out: see `docs/driving-the-client.md`
+→ "Getting a conversation with a game you started".
 
 **To drive the packaged bundle instead** (its own runtime, with sound), set `BSF_BUNDLE=1`
 and point `BSF_GAME_PATH` at the bundle's `win32` folder. The Setup step below does not apply: instead,

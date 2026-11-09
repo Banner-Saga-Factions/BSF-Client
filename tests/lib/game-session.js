@@ -416,7 +416,8 @@ class GameSession {
     }
     // BSF_WITH_STEAM=1: let the game try to start Steam, which under adl always
     // fails (run-adl.ps1 -WithSteam says why). With BSF_STEAM_ID=none, it is how
-    // to reach the Discord sign-in.
+    // to reach the "Couldn't sign in with Steam" question, unless Discord is the
+    // saved choice.
     if (process.env.BSF_WITH_STEAM === '1') {
       args.push('-WithSteam');
     }

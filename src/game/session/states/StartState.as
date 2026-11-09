@@ -20,13 +20,17 @@ package game.session.states
       {
          var _loc1_:int = 0;
          var _loc2_:BattleCreateData = null;
+         // PATCH (#96): --steam false turns Steam off on purpose, and PreAuthState then goes to
+         // Discord without asking. Noted here, while it can still be told apart from a Steam that
+         // did not start: below, that one gets the same switched-off stand-in.
+         DiscordSignIn.steamTurnedOff = !config.steamworks.enabled;
          if(config.steamworks.enabled && !config.steamworks.initialized)
          {
-            // PATCH begin (#2): the stock game showed "Steam Error" here and closed when Ok was
-            // pressed. Carry on without Steam instead, using the same stand-in --steam false
+            // PATCH begin (#2, #96): the stock game showed "Steam Error" here and closed when Ok
+            // was pressed. Carry on without Steam instead, using the same stand-in --steam false
             // uses (so nothing later calls into the Steam that failed); with no Steam id,
-            // PreAuthState signs in through Discord.
-            logger.info("StartState Steam did not start; carrying on without it, to sign in through Discord");
+            // PreAuthState says Steam isn't running and offers Discord.
+            logger.info("StartState Steam did not start; carrying on without it");
             config.steamworks = new NullSteamworks(false);
             // PATCH end
          }

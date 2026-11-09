@@ -93,6 +93,8 @@ roster panel, chat, and icons. They are a deliberate mix of roots:
 | Chat | `game/gui/GuiChat.as:14` | `GuiBase` |
 | Icon (portrait / ability art) | `game/gui/GuiIcon.as:12` | `Sprite` (lightweight, code-built) |
 
+**How big a dialog is drawn.** Each time a `GuiDialog` opens, it sizes itself to the window as it is at that moment (against a design 1536 pixels tall), and it keeps that size when the window changes later. Its font and text box are fixed in the art, which this build can't change. To draw one larger, scale the whole dialog right after it opens: the dialog layer centres it, so it grows evenly. `DiscordSignIn.enlarge` draws the sign-in dialogs at 1.75 times stock (#96); every other dialog is stock size. Why a dialog looks small in a test screenshot: [`driving-the-client.md`](./driving-the-client.md#getting-a-conversation-with-a-game-you-started) → "A dialog keeps the size it had when it opened".
+
 The pervasive **`IGui*` interface indirection** (`IGuiContext`, `IGuiDialog`, `IGuiGreatHall`, …) is what makes
 this survivable: app code holds an *interface*, and the concrete class satisfying it can be the copy baked into
 a resource SWF. A stale SWF class still fits the app's type checks, which is why the client boots at all with a

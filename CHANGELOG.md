@@ -11,6 +11,19 @@ been removed. The current download is on the
 
 ## [Unreleased]
 
+### The game asks before signing in with Discord, and remembers the answer
+
+When Steam couldn't be used, the game switched to Discord by itself, so a Steam owner who forgot to
+start Steam landed in a new, empty account. Now it says why and offers **Sign in with Discord** or
+**Quit**. Discord is remembered, except when the server only couldn't check Steam just now.
+Cancelling a remembered Discord sign-in offers **Try Discord again** or **Use Steam next time**.
+These messages are drawn larger than stock. A player whose Steam works sees nothing new.
+
+*Technical:* overlays `PreAuthState.as`, `AuthState.as` (a `409` from the shortcut now shows at
+launch), `StartState.as`; `DiscordSignIn.as` holds `signin_route`. `--steam false` and kiosk mode
+skip the question; `--steam_id` asks only after a refused or unchecked number and never touches the
+saved choice. Issue #96, Wave 1.
+
 ### The computer can now play both sides of a practice battle
 
 For testing, the computer can now play the player's side of an offline practice battle too, so one
@@ -27,7 +40,7 @@ works only offline, and normal play is unchanged. In the first runs the look-ahe
 
 The game used to need Steam to sign in: without it, it sat on "Authenticating…" for ever, or
 showed "Steam Error" and closed. It still tries Steam first. When Steam will not start, gives no
-proof, or the server refuses that proof, it now signs in through Discord: it shows a short code and
+proof, or the server refuses that proof, it can now sign in through Discord: it shows a short code and
 opens the server's page in the browser; the player checks the code, presses Continue, then
 Authorize, and the game carries on by itself. Retry opens the page again. Cancel, or a sign-in that
 runs out of time or fails, shows the game's "Login Failed" box with the reason, and its Retry starts

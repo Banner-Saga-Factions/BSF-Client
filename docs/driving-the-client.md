@@ -374,6 +374,11 @@ that is buried behind others, with no click and no change of focus. It worked on
 Terminal and on Visual Studio Code. This is what makes it possible to watch a live battle and a server
 console at the same time without disturbing either.
 
+**It does not work on the packaged bundle** (`_build\bundle\win32`). Measured 2026-11-08: the picture came
+back white, a copy of the screen with the game in front came back black, and clicks from `input.ps1`
+did not reach it. For a bundle run, the game's own log is the witness: read it after the game exits
+(section 5).
+
 ### Taking control, when you do need to
 
 Windows refuses to let a background program steal the foreground, so simply asking for it fails
@@ -740,6 +745,18 @@ line**: the message announcing the channel is open arrives the instant the helpe
 before the connection completes, and losing it would cost the test its clearest evidence that the right
 build is running. And it copies **raw bytes, never text** — unit names contain characters like ð and ö
 that take more than one byte, and a chunk can split one down the middle.
+
+**The helper starts with the game's first request to the server, so nothing before that request can be
+driven this way.** The "Couldn't sign in with Steam" question (#96) is on screen before the game has
+sent anything, so the test session waits out its ninety seconds and closes the game. For a screen like
+that, start the game with `scripts/run-adl.ps1` and use the skill's `window.ps1`, `screenshot.ps1` and
+`input.ps1` directly. Measured 2026-11-08.
+
+**A dialog keeps the size it had when it opened, so one that appears at launch is photographed small.**
+The debug launcher opens the game at about 518×422, and enlarging the window afterwards with
+`window.ps1` does not resize a dialog already on screen. Compare sizes only between dialogs opened
+after the resize: on 2026-11-08 one dialog at the same setting measured about 380 pixels wide when
+opened before the resize and about 730 after (#96).
 
 ### Wait for the game to say it is ready; do not count seconds
 

@@ -27,7 +27,8 @@ param(
     [string]$ServerUrl = "http://localhost:8082/",
     [string]$Username  = "test2",
     # "none" passes no Steam number at all, so the game has nothing to sign in with through Steam and
-    # goes to the Discord sign-in (BSF-Client #2). Single player only.
+    # goes to the Discord sign-in (BSF-Client #2). With -WithSteam it asks first, "Couldn't sign in
+    # with Steam", unless Discord is the saved choice (BSF-Client #96). Single player only.
     [string]$SteamId   = "123456",
     # LET THE GAME TRY TO START STEAM: leaves out --steam false. Under adl the Steam plugin is stripped
     # from the descriptor (below), so Steam always fails to start - which is the way to see what a player

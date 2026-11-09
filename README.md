@@ -5,7 +5,8 @@
 Patched ActionScript 3 source for The Banner Saga Factions game client, built on top of the
 original AIR/Flash client decompiled with JPEXS. Among other things it lets players without a
 working Steam sign in: the game tries Steam first, and when Steam will not start or its proof is
-refused, it signs in through Discord in the player's web browser instead.
+refused, it offers to sign in through Discord in the player's web browser instead, and remembers
+that choice.
 
 See [`docs/`](./docs/) for architecture, build workflow, wire-protocol reference,
 and the client-side bsf-refs guide. The original analysis at
@@ -69,9 +70,9 @@ is the canonical historical artifact and is cited throughout the new docs.
 
 | File                                         | Change                                                                                       |
 | -------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `src/game/session/states/PreAuthState.as`    | Steam first; when Steam gives nothing usable, starts the Discord sign-in |
+| `src/game/session/states/PreAuthState.as`    | Steam first; when Steam gives nothing usable, asks whether to sign in through Discord |
 | `src/game/session/states/DiscordSignIn.as`   | The Discord sign-in: a code on screen, the browser opened, then the ordinary sign-in          |
-| `src/game/session/states/StartState.as`, `AuthState.as` | Send a Steam that will not start, or a Steam proof the server refuses, to the Discord sign-in |
+| `src/game/session/states/StartState.as`, `AuthState.as` | Send a Steam that will not start, or a Steam proof the server refuses or cannot check, to that question |
 
 The full list is in [`docs/patch-inventory.md`](./docs/patch-inventory.md) → "Sign-in & startup"; the flow and its
 routes are in [`docs/wire-protocol.md`](./docs/wire-protocol.md) → "Discord sign-in".

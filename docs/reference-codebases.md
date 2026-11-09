@@ -118,7 +118,7 @@ If a newer SWF is ever adopted, bump the version here and re-run the pass-2 sign
 2013 mirror**.
 
 1. `game/session/GameFsm.as` — the top-level state machine; the spine of [`game-flow.md`](./game-flow.md).
-2. `game/session/states/PreAuthState.as` — where our build starts the Discord sign-in.
+2. `game/session/states/PreAuthState.as` — where our build chooses between Steam and the Discord sign-in.
 3. `engine/battle/fsm/BattleFsm.as` — the battle state machine ([`battle-engine.md`](./battle-engine.md)). (Its `*Config`/`*Init`/`*Deploy`/`*TurnOrder` siblings **are** on the 12-stale list — read `_decompiled/` for those.)
 4. `engine/battle/board/model/BattleBoard.as` † — entity-ID construction (`:456`) + per-battle RNG seed.
 5. `engine/battle/fsm/state/BattleStateNextTurn.as` — the per-turn DJB sync hash (`:130`).

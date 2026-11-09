@@ -197,6 +197,13 @@ When the client wants a configuration value at runtime, it checks these sources 
 
 Important consequence: **the same SWF can talk to dev, QA, live, or a community-hosted server** with no recompile. Just change the launch arg.
 
+### Settings the game remembers between launches
+
+The player's own settings (music, full screen, our saved sign-in choice `signin_route`) live in `config.globalPrefs`, a `PrefBag` (the game's settings store), saved in a small file AIR keeps for the game: `global_0.sol`, or `global_1.sol` for the second of two games run side by side in one window. Two traps, both read from `engine/core/pref/PrefBag.as` and `Pref.as` in the shipped decompile:
+
+- **A setting can't be removed.** `setPref(key, null)` drops it from memory only; the file keeps the old value, and the next launch reads it back. Write a value that means "off" instead.
+- **Saving waits a second.** A change is written to the file by a one-second timer, and nothing else in the game calls `savePrefs()`. Quitting (`terminateError`, `exitGame`) closes the game half a second later (`GameMainAir.exitingHandler`), before that timer fires. Whether AIR writes the change anyway as the game closes has not been measured, so call `savePrefs()` yourself before quitting. `DiscordSignIn.saveRoute` does both.
+
 ## Package roots
 
 | Root      | What lives here                                                                                                                |
@@ -215,9 +222,9 @@ Signing in without Steam lives in `bsf-client/src/` (the full 46-file `src/` ove
 
 | File                                         | Role                                                                                                                                  |
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/game/session/states/PreAuthState.as`    | Steam proof first; when Steam gives nothing usable, starts the Discord sign-in.   |
+| `src/game/session/states/PreAuthState.as`    | Steam proof first; when Steam gives nothing usable, asks whether to sign in through Discord. Skips Steam when Discord is the saved choice.   |
 | `src/game/session/states/DiscordSignIn.as`   | The Discord sign-in itself: a code on screen, the browser opened, "done yet?" every two seconds, then the ordinary sign-in.           |
-| `src/game/session/states/StartState.as`, `AuthState.as` | Send a Steam that will not start, or a Steam proof the server refuses, to the Discord sign-in. |
+| `src/game/session/states/StartState.as`, `AuthState.as` | Send a Steam that will not start, or a Steam proof the server refuses or cannot check, to that question. |
 | `META-INF/AIR/application.xml`               | **Planned** (not yet in the committed descriptor): for mobile targets, remove the Steamworks `<extensionID>`. No `bsf://` scheme is needed for the Discord sign-in. |
 
 ## What this client expects from the server

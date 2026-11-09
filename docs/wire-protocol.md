@@ -40,7 +40,7 @@ Final form: `<hostUrl>/services/<path><urlCred>[/<suffix>]`. The `<hostUrl>` is 
 1. **`PreAuthState.handleEnteredState`** (`game/session/states/PreAuthState.as`) fires when the client transitions to pre-auth. It either:
    - Reads a real Steam ticket (`SteamUser_GetAuthSessionTicketHandle()` + `SteamUser_GetAuthSessionTicket(handle)`), or
    - Uses the `overrideSteamId` bypass — sets `steamAuthTicket = "override-authticket"`, or
-   - in our build, when neither gives a usable proof, starts the Discord sign-in instead of waiting forever — see *Discord sign-in* below.
+   - in our build, when neither gives a usable proof, asks the player whether to sign in through Discord instead of waiting forever, and goes straight there when Discord is the saved choice — see *Discord sign-in* below.
 2. **`credentials.commit()`** dispatches `Credentials.EVENT_COMMITTED`. The state listens and on a valid `Credentials` transitions to `StatePhase.COMPLETED`.
 3. **`GameFsm`** advances to `LoginQueueState` → `AuthState`, which constructs an `AuthTxn` with the credentials.
 4. **`AuthTxn`** POSTs the body at lines 17–26 to `services/auth/login/11`. On 200, `handleJsonResponseProcessing` (lines 31–59) writes the response fields back into `credentials`.
@@ -181,7 +181,7 @@ All eight lobby routes are implemented on both sides — server side, `bsf-serve
 
 ## Discord sign-in (BSF-only, outside `/services`)
 
-When Steam cannot be used — it will not start, gives no proof, or the server refuses its proof — our build of the game signs in through Discord instead (BSF-Client issue #2). The game and the player's web browser each do half, joined by a **hand-off**: a waiting sign-in the server keeps for five minutes, with a short **code** both the game and the web page show, and a secret **key** only the game holds. No `bsf://` link is involved: the game opens the page in the browser and then keeps asking the server whether the player has finished.
+When Steam cannot be used — it will not start, gives no proof, or the server refuses its proof or cannot check it — our build of the game can sign in through Discord instead (BSF-Client issue #2), once the player has chosen it (issue #96; see *Which way the game signs in* below). The game and the player's web browser each do half, joined by a **hand-off**: a waiting sign-in the server keeps for five minutes, with a short **code** both the game and the web page show, and a secret **key** only the game holds. No `bsf://` link is involved: the game opens the page in the browser and then keeps asking the server whether the player has finished.
 
 | Route                                | Sent by                                       | Notes |
 | ------------------------------------ | --------------------------------------------- | ----- |
@@ -190,10 +190,21 @@ When Steam cannot be used — it will not start, gives no proof, or the server r
 | `GET /login/discord/?code=…` and onwards | The player's browser (`url` from the first reply) | The page shows the code, the player presses Continue and then Authorize at Discord. The game never sees these. |
 | `POST /services/auth/login/11`       | `AuthTxn.as` (unchanged)                      | The ordinary sign-in, with `password` set to `discord:<key>`. The key works once. A refusal is plain text, which the game's "Login Failed" dialog shows. |
 
-The flow lives in `game/session/states/DiscordSignIn.as`, started from `PreAuthState.as`; `StartState.as` no longer stops the game when Steam fails, and `AuthState.as` sends a refused Steam sign-in to the Discord step. Two things the patch does on purpose:
+### Which way the game signs in
+
+Steam and Discord are **separate accounts** on the server, so the game signs a player in through Discord only when they chose it, at this launch or an earlier one, or when it was started with `--steam false` (#96). Each time it reaches the sign-in step (`PreAuthState.as`):
+
+1. **Straight to Discord, no question,** when Discord is already this run's way in (after "Login Failed" or "Disconnected From Server"), when the game was started with `--steam false` (unless `--steam_id` is also given), or when Discord is the **saved choice** — the `signin_route` setting in the game's own settings file, `"discord"` or anything else for Steam.
+2. **Otherwise Steam, as stock.** A player whose Steam works sees nothing new.
+3. **When Steam gives nothing usable,** the game shows "Couldn't sign in with Steam" with the reason — Steam isn't running or installed; Steam didn't confirm the account; the server didn't accept it (`401`/`400`); the server couldn't check it just now (`409`, BSF-Custom-Server #391) — and [Sign in with Discord] [Quit]. Choosing Discord saves it as the choice for later launches, except after a `409`, which is a passing fault.
+4. **The way back:** Cancel on the Discord sign-in while Discord is the saved choice offers [Try Discord again] [Use Steam next time]. The second saves Steam and closes the game. With `--steam false` or `--steam_id`, Cancel goes to "Login Failed" instead.
+
+Kiosk mode skips all of this and ignores the saved choice. The `--steam_id` test route never reads or writes the saved choice, but when the server refuses its test number or can't check it, the question appears, and choosing Discord there is not saved. A `409` used to be swallowed when the game was started from the shortcut: the player reached the main menu signed out and saw nothing until they pressed Combat. It now brings up the question at launch.
+
+The flow lives in `game/session/states/DiscordSignIn.as`, started from `PreAuthState.as`; `StartState.as` no longer stops the game when Steam fails, and `AuthState.as` sends a refused or unchecked Steam sign-in back to the question. Two things the patch does on purpose:
 
 - **The Discord sign-in is marked "must succeed" before it is sent** (`AUTH_REQUIRE`), so a refusal goes straight to "Login Failed" with the server's own words. The stock game otherwise swallows the first refusal and asks again later — by which time the key is used up, and the second answer would say "expired" instead of the real reason. For the same reason a Discord sign-in whose connection fails, or that gets a `404` or a `5xx`, is never sent again: it goes to "Login Failed" too.
-- **Nothing starts a second hand-off by itself.** Every way the hand-off ends without signing in — Cancel, expired, refused — lands on the stock "Login Failed" dialog, whose Retry starts a new one. So does OK on "Disconnected From Server", which a server restart brings up: a Discord player then goes through the browser again.
+- **Nothing starts a second hand-off by itself.** Every way the hand-off ends without signing in — Cancel, expired, refused — lands on the stock "Login Failed" dialog, whose Retry starts a new one. (Cancel while Discord is the saved choice asks instead, as in step 4 above.) So does OK on "Disconnected From Server", which a server restart brings up: a Discord player then goes through the browser again.
 
 The key is kept out of the game's log (both requests mark their replies as handled, so `GameFsm` does not write them out) and out of the mod bridge (`ModBridge.as` hides any field named `key`). What the server expects, step by step: `bsf-server/docs/client-contract.md` ([local](../../bsf-server/docs/client-contract.md#signing-in-through-discord--what-the-patched-game-must-do-251) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/client-contract.md#signing-in-through-discord--what-the-patched-game-must-do-251)) → *Signing in through Discord*; every route and reply: `bsf-server/docs/serverEndpoints.md` ([local](../../bsf-server/docs/serverEndpoints.md#discord-sign-in-hand-off-endpoints) | [GitHub](https://github.com/Banner-Saga-Factions/BSF-Custom-Server/blob/main/bsf-server/docs/serverEndpoints.md#discord-sign-in-hand-off-endpoints)) → *Discord sign-in (hand-off) Endpoints*.
 

@@ -16,7 +16,7 @@ package game.gui.page
    import game.gui.IGuiStrandOptionsListener;
    import game.session.states.DiscordSignIn;
 
-   // BSF patch (BSF-Client #96, Wave 2): adds a "Sign in: Steam / Discord" button to the town
+   // BSF patch (BSF-Client #96, Wave 2): adds a "Signin: Steam / Discord" button to the town
    // options panel (the hammer icon, or Esc). Clicking it switches the saved way to sign in, which
    // the game uses from the next launch. The panel's own code lives in the game-art file
    // gui/strand_options.swf, which our patches cannot change, so the button is added from here
@@ -147,7 +147,7 @@ package game.gui.page
          }
       }
 
-      /** Adds the "Sign in" button above Quit, as a new copy of the panel's own button art. */
+      /** Adds the "Signin" button above Quit, as a new copy of the panel's own button art. */
       private function addSignInButton() : void
       {
          // Kiosk mode always signs in with its own fixed account and ignores the saved choice.
@@ -219,7 +219,7 @@ package game.gui.page
       {
          if(signInButton)
          {
-            signInButton.buttonText = DiscordSignIn.savedRouteIsDiscord(config) ? "Sign in: Discord" : "Sign in: Steam";
+            signInButton.buttonText = DiscordSignIn.savedRouteIsDiscord(config) ? "Signin: Discord" : "Signin: Steam";
          }
       }
 

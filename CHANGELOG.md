@@ -13,7 +13,7 @@ been removed. The current download is on the
 
 ### A town button switches between signing in with Steam and with Discord
 
-The options panel in town (the hammer icon, or Esc) has a new button, **Sign in: Steam** or **Sign in:
+The options panel in town (the hammer icon, or Esc) has a new button, **Signin: Steam** or **Signin:
 Discord**, showing how the game will sign in next time. Clicking it switches to the other one, and
 the change applies from the next launch. Steam and Discord stay separate accounts. To make room, the
 panel's five text buttons are drawn a little smaller.

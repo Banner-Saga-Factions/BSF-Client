@@ -366,7 +366,7 @@ package game.session.states
                showSavedChoiceDialog();
                return;
             }
-            fail("Discord sign-in was cancelled. Retry starts it again; to use Steam, press Disconnect, start Steam, then the game.");
+            fail("Discord sign-in was cancelled. Retry starts it again. If you have Factions on Steam, press Disconnect, start Steam, then the game.");
             // PATCH end
             return;
          }

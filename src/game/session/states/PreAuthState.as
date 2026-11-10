@@ -133,7 +133,7 @@ package game.session.states
          steamFailedRemember = !DiscordSignIn.steamUnchecked && !config.options.overrideSteamId;
          if(DiscordSignIn.steamUnchecked)
          {
-            reason = "The server couldn\'t check your Steam account just now.";
+            reason = "The server couldn\'t check your Steam account just now. This usually passes.";
          }
          else if(DiscordSignIn.steamRefused)
          {
@@ -141,31 +141,39 @@ package game.session.states
          }
          else if(!credentials.steamId)
          {
-            reason = "Steam isn\'t running, or isn\'t installed.";
+            // #97: a Steam account that doesn't own Factions fails Steam's start-up exactly like
+            // a closed Steam (StartState), so both causes are named, each with its own action.
+            reason = "Steam isn\'t running, or this Steam account doesn\'t have Factions.";
          }
          else
          {
             reason = "Steam didn\'t confirm your account.";
          }
          logger.info("PreAuthState Steam sign-in not possible (" + reason + "); asking the player");
-         // Kept short: in the stock dialog a longer body rides up into the title and loses its
-         // last line. "Start Steam" is no help when the server refused the account, so that
-         // case leaves it out.
-         var body:String = reason + "\nSteam and Discord are separate accounts. ";
+         // Kept short: the stock dialog centres its body in a fixed box, so a longer body rides up
+         // into the title and loses its last line (GuiDialog in the decompile). "Start Steam" is
+         // no help when the server refused the account, so that case leaves it out.
+         var remembered:String = steamFailedRemember ? " The game remembers it." : "";
+         var body:String = reason + "\n";
          if(DiscordSignIn.steamUnchecked)
          {
-            body += "To use Steam, quit and try again later.";
+            body += "To use Steam, quit and try again in a few minutes. Choosing Discord now isn\'t remembered.";
          }
          else
          {
-            if(steamFailedRemember)
+            if(DiscordSignIn.steamRefused)
             {
-               body += "Choosing Discord is remembered.";
+               body += "Sign in with Discord instead." + remembered;
             }
-            if(!DiscordSignIn.steamRefused)
+            else if(!credentials.steamId)
             {
-               body += (steamFailedRemember ? " " : "") + "To use Steam, quit and start Steam first.";
+               body += "No Factions on Steam? Sign in with Discord." + remembered + "\nHave it on Steam? Quit, start Steam, then the game.";
             }
+            else
+            {
+               body += "Quit, restart Steam, then the game. Or sign in with Discord" + (steamFailedRemember ? ", which the game remembers." : ".");
+            }
+            body += "\nSteam and Discord are separate accounts.";
          }
          // The game shows one dialog at a time, so the stock "Authenticating... Please wait."
          // dialog (LoginPage), which has no buttons, would take this one's place.

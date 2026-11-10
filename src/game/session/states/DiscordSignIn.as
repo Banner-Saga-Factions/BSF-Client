@@ -381,7 +381,7 @@ package game.session.states
          logger.info("DiscordSignIn cancelled with Discord saved; offering the way back to Steam");
          dialog = config.gameGuiContext.createDialog();
          // Kept short, like the code dialog above.
-         dialog.openTwoBtnDialog("Discord sign-in cancelled","Discord is your saved way to sign in. Steam and Discord are separate accounts. " + "\"" + USE_STEAM + "\" closes the game; start Steam, then the game.",TRY_AGAIN,USE_STEAM,savedChoiceDialogHandler);
+         dialog.openTwoBtnDialog("Discord sign-in cancelled","Discord is your saved way to sign in. Steam and Discord are separate accounts. " + "\"" + USE_STEAM + "\" closes the game; start Steam, then restart the game.",TRY_AGAIN,USE_STEAM,savedChoiceDialogHandler);
          enlarge(dialog);
       }
 

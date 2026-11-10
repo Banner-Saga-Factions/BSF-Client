@@ -166,7 +166,7 @@ package game.session.states
             }
             else if(!credentials.steamId)
             {
-               body += "No Factions on Steam? Sign in with Discord.\nHave it on Steam? Quit, start Steam, then the game.";
+               body += "No Factions on Steam? Sign in with Discord.\nHave it on Steam? Quit, start Steam, then restart the game.";
             }
             else
             {

@@ -76,6 +76,10 @@ The resource gui SWFs are an **older generation** than the app SWF: Stoic kept e
 
 For the full reasoning, the worked diagnosis, and the public-release backlog, see [`../misc/Plan-Issue-12-Player-vs-AI-Public-Release.md`](../misc/Plan-Issue-12-Player-vs-AI-Public-Release.md). To prove whether a given drift is Stoic's (pre-existing) or introduced by our rebuild, see [`reference-codebases.md`](./reference-codebases.md) → "Verifying provenance". For the mechanical how-to of the **JPEXS bytecode patch** row — and `scripts/patch-gui-swf.ps1`, the ready-but-shelved Ranked `#1006` patch built from it — see [`build-workflow.md`](./build-workflow.md) → "Patching a resource gui SWF".
 
+### Adding to a resource SWF's panel without editing it
+
+App code can still add to a symbol-linked panel after it loads, because the panel's art is reachable. Each exported symbol is a class, and building a new instance of one gives a new copy of that art. Our `TownPage` uses this to put a fifth button into the town options panel. There, Resume, News, Fullscreen and Quit are all one exported button design (`gui.battle.option.button` in `strand_options.swf`), so `new (Object(news).constructor)()` makes a matching button (BSF-Client #96, Wave 2). Two traps: a panel may take a hidden part off its own display list, so read it through the panel's public field rather than by name; and button art can be drawn away from the button's anchor point, so lay out scaled buttons by their drawn edges (`getBounds`), not by `x`/`y`. JPEXS (`ffdec -export symbolClass,script`) lists which symbols are exported and what class each has.
+
 ## Boot sequence — `GameMainAir.as`
 
 The entry point is `GameMainAir.extends Sprite`. Important phases, in order:
@@ -218,7 +222,7 @@ Class-level pointers per package: [`subsystem-index.md`](./subsystem-index.md).
 
 ## Sign-in patch points
 
-Signing in without Steam lives in `bsf-client/src/` (the full 46-file `src/` overlay is catalogued in [`patch-inventory.md`](./patch-inventory.md) → "Sign-in & startup"; the flow and its routes are in [`wire-protocol.md`](./wire-protocol.md) → "Discord sign-in"):
+Signing in without Steam lives in `bsf-client/src/` (the full `src/` overlay is catalogued in [`patch-inventory.md`](./patch-inventory.md) → "Sign-in & startup"; the flow and its routes are in [`wire-protocol.md`](./wire-protocol.md) → "Discord sign-in"):
 
 | File                                         | Role                                                                                                                                  |
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |

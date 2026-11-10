@@ -51,6 +51,12 @@ The game layer then subclasses `State` twice:
 So the inheritance spine is: `Fsm` → `GameFsm`; and `State` → `GameState` → `SceneState`/`SceneLoadState`
 → concrete states.
 
+**A move to the state you are already in does nothing.** `transitionTo` with the current state's
+class only logs "Already in state" (`Fsm.setCurrentState`), so the state is not entered again. A
+state that has to redo its own work, such as "Try Steam again" in `PreAuthState` (BSF-Client #97),
+must call that work directly. Moving from another state into this one does enter it afresh, which is
+how "Login Failed → Retry" works.
+
 ## The state families
 
 The ~48 states group into families by what part of the game they drive. (`★` = a state our fork

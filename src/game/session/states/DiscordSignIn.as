@@ -43,7 +43,7 @@ package game.session.states
 
       /** Set by AuthState when the server could not check a Steam sign-in just now (409,
        *  BSF-Custom-Server #391). Like steamRefused, but a passing fault: choosing Discord after
-       *  it is not remembered. */
+       *  it is not remembered, and the question's "Try Steam again" clears it (#97). */
       public static var steamUnchecked:Boolean = false;
 
       /** Set by StartState when the game was started with --steam false. */

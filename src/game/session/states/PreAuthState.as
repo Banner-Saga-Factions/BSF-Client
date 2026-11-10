@@ -169,7 +169,7 @@ package game.session.states
          var body:String = reason + "\n";
          if(DiscordSignIn.steamUnchecked)
          {
-            body += "Steam and Discord are separate accounts. Choosing Discord now isn\'t remembered.";
+            body += "Steam and Discord are separate accounts.";
          }
          else
          {

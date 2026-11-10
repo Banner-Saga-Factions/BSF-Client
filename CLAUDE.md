@@ -14,7 +14,7 @@ The full ~1,272-file AS3 source lives in `_decompiled/` (gitignored, generated b
 | `scripts/build.ps1` | Compiles with `amxmlc`, packages with `adt` |
 | `tests/` | Tests that drive the **real running game** over the mod bridge — no framework to install, run with `node --test` from this folder. See [`docs/driving-the-client.md`](./docs/driving-the-client.md) → "The first automated test" |
 
-Key patch files (a representative subset — the full 46-file inventory is [`docs/patch-inventory.md`](./docs/patch-inventory.md)):
+Key patch files (a representative subset — the full inventory is [`docs/patch-inventory.md`](./docs/patch-inventory.md)):
 
 | File | Change |
 |------|--------|

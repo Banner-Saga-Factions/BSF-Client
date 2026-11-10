@@ -1,6 +1,5 @@
 package game.gui.page
 {
-   import engine.core.RunMode;
    import engine.core.cmd.Cmd;
    import engine.core.cmd.CmdExec;
    import engine.core.locale.LocaleCategory;
@@ -20,12 +19,12 @@ package game.gui.page
    // options panel (the hammer icon, or Esc). Clicking it switches the saved way to sign in, which
    // the game uses from the next launch. The panel's own code lives in the game-art file
    // gui/strand_options.swf, which our patches cannot change, so the button is added from here
-   // (docs/architecture.md, "Resource SWFs"). Everything else is the shipped original.
+   // (docs/architecture.md, "Adding to a resource SWF's panel without editing it"). Everything else is the shipped original.
    public class TownPage extends ScenePage implements IGuiStrandOptionsListener
    {
 
       /** The five text buttons are drawn at this size, so that they fit the space the four stock
-       *  buttons use (the panel's frame and divider are one fixed drawing and cannot grow). */
+       *  buttons use (the panel's frame and divider are one fixed drawing). */
       private static const SIGNIN_LAYOUT_SCALE:Number = 0.85;
 
       private var signInButton:ButtonWithIndex;
@@ -150,8 +149,9 @@ package game.gui.page
       /** Adds the "Signin" button above Quit, as a new copy of the panel's own button art. */
       private function addSignInButton() : void
       {
-         // Kiosk mode always signs in with its own fixed account and ignores the saved choice.
-         if(config.runMode == RunMode.KIOSK)
+         // Sign-in ignores the saved choice in kiosk mode and on a --steam_id or --steam false
+         // launch (PreAuthState), so there the button would promise a change that never happens.
+         if(config.runMode.autologin || config.options.overrideSteamId || DiscordSignIn.steamTurnedOff)
          {
             return;
          }

@@ -20,7 +20,7 @@ panel's five text buttons are drawn a little smaller.
 
 *Technical:* overlays `TownPage.as`, which builds a new copy of the panel's own button design
 (`gui.battle.option.button` in `strand_options.swf`) and flips `signin_route` through
-`DiscordSignIn.saveRoute`. Not shown in kiosk mode. Issue #96, Wave 2.
+`DiscordSignIn.saveRoute`. Not shown in kiosk mode or on `--steam_id` / `--steam false` launches. Issue #96, Wave 2.
 
 ### The game asks before signing in with Discord, and remembers the answer
 

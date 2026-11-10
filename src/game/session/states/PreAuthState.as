@@ -153,7 +153,6 @@ package game.session.states
          // Kept short: the stock dialog centres its body in a fixed box, so a longer body rides up
          // into the title and loses its last line (GuiDialog in the decompile). "Start Steam" is
          // no help when the server refused the account, so that case leaves it out.
-         var remembered:String = steamFailedRemember ? " The game remembers it." : "";
          var body:String = reason + "\n";
          if(DiscordSignIn.steamUnchecked)
          {
@@ -163,15 +162,15 @@ package game.session.states
          {
             if(DiscordSignIn.steamRefused)
             {
-               body += "Sign in with Discord instead." + remembered;
+               body += "Sign in with Discord instead.";
             }
             else if(!credentials.steamId)
             {
-               body += "No Factions on Steam? Sign in with Discord." + remembered + "\nHave it on Steam? Quit, start Steam, then the game.";
+               body += "No Factions on Steam? Sign in with Discord.\nHave it on Steam? Quit, start Steam, then the game.";
             }
             else
             {
-               body += "Quit, restart Steam, then the game. Or sign in with Discord" + (steamFailedRemember ? ", which the game remembers." : ".");
+               body += "Quit, restart Steam, then the game. Or sign in with Discord.";
             }
             body += "\nSteam and Discord are separate accounts.";
          }

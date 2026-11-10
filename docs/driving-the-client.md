@@ -758,6 +758,18 @@ The debug launcher opens the game at about 518×422, and enlarging the window af
 after the resize: on 2026-11-08 one dialog at the same setting measured about 380 pixels wide when
 opened before the resize and about 730 after (#96).
 
+**A dialog's text has a fixed box, and only a picture shows whether a text fits.** The stock dialog
+centres its text in a box of fixed height, so a text too tall for the box moves up over the title and
+loses its last line (`GuiDialog.setOpenDialog` in the decompile). The box's size is kept in a resource
+file, not in code. Measured 2026-11-10 (#97): four short lines that wrap to six on screen just fit.
+
+**Two of the four "Couldn't sign in with Steam" reasons can be reached under `run-adl.ps1`.** *Steam
+didn't start*: `-WithSteam -SteamId none`, with no server needed. *The server refused*: `-SteamId
+99999999999999999999`, a number above every Steam number, which the server answers with `400`; on a
+`--steam_id` launch the choice is never remembered. *Steam didn't confirm* and *couldn't check*
+(`409`) need a real Steam sign-in proof, so they need the packaged bundle with Steam running. Not
+tried yet: `409` should also need a server from `main` with a made-up `STEAM_WEB_API_KEY`.
+
 ### Wait for the game to say it is ready; do not count seconds
 
 A fixed wait before `start_ai_battle` is what the example script does, and it is a guess. The game says

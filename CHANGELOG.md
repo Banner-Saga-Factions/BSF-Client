@@ -16,11 +16,12 @@ been removed. The current download is on the
 A Steam account that doesn't own Factions fails at the same point as a closed Steam, and the game
 can't tell the two apart. The message used to say "Steam isn't running" and "start Steam
 first", which is the wrong advice for someone who doesn't own the game on Steam. It now names both
-causes, with one action for each: no Factions on Steam, sign in with Discord; have it on Steam, quit
-and start Steam. The other reasons are reworded the same way, and a cancelled Discord sign-in says
-that Disconnect-then-Steam is for players who have Factions on Steam.
+causes, with one action for each: no Factions on Steam, sign in with Discord; have it on Steam, quit,
+start Steam, then restart the game. The other reasons are reworded the same way, and a cancelled
+Discord sign-in says that Retry signs in with Discord again, and that Disconnect-then-Steam is for
+players who have Factions on Steam.
 
-*Technical:* text only in `PreAuthState.showSteamFailedDialog` and the cancel message in
+*Technical:* text only in `PreAuthState.showSteamFailedDialog` and the two cancel messages in
 `DiscordSignIn.as`. The four reasons, and when Discord is remembered, are unchanged. Issue #97, Wave 1.
 
 ### A town button switches between signing in with Steam and with Discord

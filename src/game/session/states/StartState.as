@@ -29,7 +29,8 @@ package game.session.states
             // PATCH begin (#2, #96): the stock game showed "Steam Error" here and closed when Ok
             // was pressed. Carry on without Steam instead, using the same stand-in --steam false
             // uses (so nothing later calls into the Steam that failed); with no Steam id,
-            // PreAuthState says Steam isn't running and offers Discord.
+            // PreAuthState says Steam isn't running or the account doesn't have Factions (a
+            // Steam account that doesn't own the game fails here too, #97), and offers Discord.
             logger.info("StartState Steam did not start; carrying on without it");
             config.steamworks = new NullSteamworks(false);
             // PATCH end

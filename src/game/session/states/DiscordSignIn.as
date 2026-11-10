@@ -366,7 +366,7 @@ package game.session.states
                showSavedChoiceDialog();
                return;
             }
-            fail("Discord sign-in was cancelled. Retry starts it again; to use Steam, press Disconnect, start Steam, then the game.");
+            fail("Discord sign-in was cancelled. Retry to sign in with Discord again. If you have Factions on Steam, press Disconnect, start Steam, then restart the game.");
             // PATCH end
             return;
          }
@@ -381,7 +381,7 @@ package game.session.states
          logger.info("DiscordSignIn cancelled with Discord saved; offering the way back to Steam");
          dialog = config.gameGuiContext.createDialog();
          // Kept short, like the code dialog above.
-         dialog.openTwoBtnDialog("Discord sign-in cancelled","Discord is your saved way to sign in. Steam and Discord are separate accounts. " + "\"" + USE_STEAM + "\" closes the game; start Steam, then the game.",TRY_AGAIN,USE_STEAM,savedChoiceDialogHandler);
+         dialog.openTwoBtnDialog("Discord sign-in cancelled","Discord is your saved way to sign in. Steam and Discord are separate accounts. " + "\"" + USE_STEAM + "\" closes the game; start Steam, then restart the game.",TRY_AGAIN,USE_STEAM,savedChoiceDialogHandler);
          enlarge(dialog);
       }
 

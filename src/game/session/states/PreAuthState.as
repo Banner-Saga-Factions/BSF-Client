@@ -149,7 +149,7 @@ package game.session.states
          steamFailedRemember = !DiscordSignIn.steamUnchecked && !config.options.overrideSteamId;
          if(DiscordSignIn.steamUnchecked)
          {
-            reason = "The server couldn\'t check your Steam account just now. This usually passes in a moment.";
+            reason = "The server couldn\'t check your Steam account just now. Wait a few seconds, then try Steam again.";
          }
          else if(DiscordSignIn.steamRefused)
          {

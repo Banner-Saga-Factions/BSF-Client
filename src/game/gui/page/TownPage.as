@@ -150,7 +150,7 @@ package game.gui.page
       private function addSignInButton() : void
       {
          // Sign-in ignores the saved choice in kiosk mode and on a --steam_id or --steam false
-         // launch (PreAuthState), so there the button would promise a change that never happens.
+         // launch (PreAuthState).
          if(config.runMode.autologin || config.options.overrideSteamId || DiscordSignIn.steamTurnedOff)
          {
             return;

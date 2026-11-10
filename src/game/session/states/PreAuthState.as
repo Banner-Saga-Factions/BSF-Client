@@ -12,10 +12,14 @@ package game.session.states
    public class PreAuthState extends GameState
    {
 
-      // PATCH begin (#96): the "Couldn't sign in with Steam" question and its two buttons.
+      // PATCH begin (#96, #97): the "Couldn't sign in with Steam" question and its two buttons,
+      // [Sign in with Discord] [Quit]. When the server only couldn't check Steam just now, a
+      // passing fault, they are [Try Steam again] [Sign in with Discord] instead (#97).
       private static const USE_DISCORD:String = "Sign in with Discord";
 
       private static const QUIT:String = "Quit";
+
+      private static const TRY_STEAM:String = "Try Steam again";
 
       private var steamFailedDialog:IGuiDialog;
 
@@ -35,8 +39,6 @@ package game.session.states
 
       override protected function handleEnteredState() : void
       {
-         // PATCH (#2): true once the --steam_id test route has committed its made-up proof.
-         var overrideCommitted:Boolean = false;
          if(gameFsm.config.options.alwaysOffline)
          {
             phase = StatePhase.COMPLETED;
@@ -44,6 +46,16 @@ package game.session.states
          }
          credentials.addEventListener("Credentials.EVENT_COMMITTED",credentialsChangeEvent);
          gameFsm.logout();
+         chooseSignIn();
+      }
+
+      // PATCH (#97): the rest of entering this state, on its own so that "Try Steam again" can
+      // run it a second time. The retry cannot simply enter this state again: the state machine
+      // ignores a move to the state it is already in (Fsm.setCurrentState in the decompile).
+      private function chooseSignIn() : void
+      {
+         // PATCH (#2): true once the --steam_id test route has committed its made-up proof.
+         var overrideCommitted:Boolean = false;
          // PATCH begin (#96): Discord without trying Steam, in three cases: Discord is already
          // this run's way in (Login Failed's Retry, a dropped connection), the game was started
          // with --steam false, or the player chose Discord at an earlier launch. The first holds
@@ -69,8 +81,9 @@ package game.session.states
             }
          }
          // PATCH end
-         // PATCH (#2, #96): skip Steam once the server has refused its proof, or could not check
-         // it (AuthState sets both), so the same proof is not sent again.
+         // PATCH (#2, #96, #97): skip Steam once the server has refused its proof, or could not
+         // check it (AuthState sets both), so the same proof is not sent again. "Try Steam again"
+         // clears the second, after telling Steam the old proof is no longer needed.
          if(credentials.steamId && !DiscordSignIn.steamRefused && !DiscordSignIn.steamUnchecked)
          {
             credentials.steamAuthTicketHandle = 1;
@@ -133,7 +146,7 @@ package game.session.states
          steamFailedRemember = !DiscordSignIn.steamUnchecked && !config.options.overrideSteamId;
          if(DiscordSignIn.steamUnchecked)
          {
-            reason = "The server couldn\'t check your Steam account just now. This usually passes.";
+            reason = "The server couldn\'t check your Steam account just now. This usually passes in a moment.";
          }
          else if(DiscordSignIn.steamRefused)
          {
@@ -156,7 +169,7 @@ package game.session.states
          var body:String = reason + "\n";
          if(DiscordSignIn.steamUnchecked)
          {
-            body += "To use Steam, quit and try again in a few minutes. Choosing Discord now isn\'t remembered.";
+            body += "Steam and Discord are separate accounts. Choosing Discord now isn\'t remembered.";
          }
          else
          {
@@ -177,9 +190,18 @@ package game.session.states
          // The game shows one dialog at a time, so the stock "Authenticating... Please wait."
          // dialog (LoginPage), which has no buttons, would take this one's place.
          data.setValue(GameStateDataEnum.SHOW_LOGIN_SCREEN,false);
+         // PATCH (#97): after a passing fault, a second try at Steam takes Quit's place. Closing
+         // the window still quits.
+         var firstButton:String = USE_DISCORD;
+         var secondButton:String = QUIT;
+         if(DiscordSignIn.steamUnchecked)
+         {
+            firstButton = TRY_STEAM;
+            secondButton = USE_DISCORD;
+         }
          closeSteamFailedDialog();
          steamFailedDialog = config.gameGuiContext.createDialog();
-         steamFailedDialog.openTwoBtnDialog("Couldn\'t sign in with Steam",body,USE_DISCORD,QUIT,steamFailedDialogHandler);
+         steamFailedDialog.openTwoBtnDialog("Couldn\'t sign in with Steam",body,firstButton,secondButton,steamFailedDialogHandler);
          DiscordSignIn.enlarge(steamFailedDialog);
       }
 
@@ -202,6 +224,12 @@ package game.session.states
          }
          // A button press has already closed the dialog.
          steamFailedDialog = null;
+         if(button == TRY_STEAM)
+         {
+            logger.info("PreAuthState player chose to try Steam again");
+            trySteamAgain();
+            return;
+         }
          if(button == QUIT)
          {
             logger.info("PreAuthState player chose to quit instead of signing in with Discord");
@@ -215,6 +243,41 @@ package game.session.states
             DiscordSignIn.saveRoute(config,DiscordSignIn.ROUTE_DISCORD,logger);
          }
          startDiscordSignIn();
+      }
+      // PATCH end
+
+      // PATCH begin (#97): "Try Steam again", after the server couldn't check Steam just now. It
+      // asks Steam for a new proof rather than sending the one the server couldn't check, and
+      // runs only when the player presses the button: the game never tries again by itself. If
+      // the server can't check the new proof either, AuthState brings the question back.
+      private function trySteamAgain() : void
+      {
+         cancelSteamProof();
+         DiscordSignIn.steamUnchecked = false;
+         chooseSignIn();
+      }
+
+      // Tells Steam the old proof is no longer needed, which Steam asks of every proof it hands
+      // out; the stock game never did. Logs the proof's number only, never the proof itself.
+      private function cancelSteamProof() : void
+      {
+         var handle:int = credentials.steamAuthTicketHandle;
+         credentials.steamAuthTicket = null;
+         credentials.steamAuthTicketHandle = 0;
+         // Nothing to cancel: Steam handed out no proof, or the --steam_id test route made one up.
+         if(!handle || config.options.overrideSteamId || !config.steamworks.enabled)
+         {
+            return;
+         }
+         logger.info("PreAuthState cancelling Steam proof " + handle);
+         try
+         {
+            config.steamworks.SteamUser_CancelAuthTicket(handle);
+         }
+         catch(e:Error)
+         {
+            logger.info("PreAuthState could not cancel Steam proof " + handle + ": " + e.message);
+         }
       }
       // PATCH end
 

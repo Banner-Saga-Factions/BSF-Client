@@ -162,12 +162,13 @@ package game.session.states
       }
       // PATCH end
 
-      // PATCH begin (#96): a Steam sign-in the server could not check (409). Kiosk mode keeps
-      // the stock handling: nobody is there to answer a question. Only the first in a run
-      // counts, for the same reason as a refusal above.
+      // PATCH begin (#96, #97): a Steam sign-in the server could not check (409). Kiosk mode
+      // keeps the stock handling: nobody is there to answer a question. Every one counts, not
+      // only the first in a run (#97): the question's "Try Steam again" is the only thing that
+      // sends a Steam sign-in again, so asking each time cannot go round in a loop.
       private function isUncheckedSteamSignIn(param1:AuthTxn) : Boolean
       {
-         if(DiscordSignIn.steamUnchecked || config.runMode.autologin || !credentials.steamAuthTicket || DiscordSignIn.isDiscordPassword(credentials.password))
+         if(config.runMode.autologin || !credentials.steamAuthTicket || DiscordSignIn.isDiscordPassword(credentials.password))
          {
             return false;
          }

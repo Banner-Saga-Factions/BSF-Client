@@ -11,6 +11,21 @@ been removed. The current download is on the
 
 ## [Unreleased]
 
+### After "the server couldn't check your Steam account", the game offers to try Steam again
+
+When the server couldn't check a Steam account just now, a fault that usually passes, the "Couldn't
+sign in with Steam" question offered only **Sign in with Discord** or **Quit**. Trying Steam again
+meant closing the game and starting it again. The question now offers **Try Steam again** and **Sign
+in with Discord**, and closing the window still quits. Trying again asks Steam for a fresh proof
+that you own the account, and if the server still can't check it, the question comes back. The game
+never tries again by itself, and choosing Discord after this fault is still not remembered.
+
+*Technical:* `PreAuthState.as` moves the sign-in choice out of `handleEnteredState` into
+`chooseSignIn()`, which the retry runs again, because the state machine ignores a move to the state
+it is already in. Before taking a new proof, it cancels the old one (`SteamUser_CancelAuthTicket`).
+`AuthState.isUncheckedSteamSignIn` now catches every `409` on a Steam sign-in, not only the first in
+a run. Issue #97, Wave 2.
+
 ### "Couldn't sign in with Steam" says what to do when Factions isn't in your Steam library
 
 A Steam account that doesn't own Factions fails at the same point as a closed Steam, and the game

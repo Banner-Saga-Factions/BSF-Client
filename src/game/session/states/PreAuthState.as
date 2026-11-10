@@ -100,7 +100,10 @@ package game.session.states
                if(credentials.steamAuthTicketHandle)
                {
                   credentials.steamAuthTicket = config.steamworks.SteamUser_GetAuthSessionTicket(credentials.steamAuthTicketHandle);
-                  logger.info("PreAuthState.handleEnteredState STEAM TICKET=" + credentials.steamAuthTicketHandle + "/" + credentials.steamAuthTicket);
+                  // PATCH (#97): the stock line printed the whole proof into a log players share; the
+                  // server never logs one (BSF-Custom-Server steamTicket.ts). Its number and length
+                  // are enough to follow it.
+                  logger.info("PreAuthState.chooseSignIn STEAM TICKET=" + credentials.steamAuthTicketHandle + ", " + (credentials.steamAuthTicket ? credentials.steamAuthTicket.length : 0) + " characters");
                   if(credentials.steamAuthTicket)
                   {
                      credentials.commit();
@@ -190,8 +193,8 @@ package game.session.states
          // The game shows one dialog at a time, so the stock "Authenticating... Please wait."
          // dialog (LoginPage), which has no buttons, would take this one's place.
          data.setValue(GameStateDataEnum.SHOW_LOGIN_SCREEN,false);
-         // PATCH (#97): after a passing fault, a second try at Steam takes Quit's place. Closing
-         // the window still quits.
+         // PATCH (#97): after a passing fault, the buttons are a second try at Steam, then Discord;
+         // there is no Quit. Closing the window still quits.
          var firstButton:String = USE_DISCORD;
          var secondButton:String = QUIT;
          if(DiscordSignIn.steamUnchecked)
@@ -258,7 +261,7 @@ package game.session.states
       }
 
       // Tells Steam the old proof is no longer needed, which Steam asks of every proof it hands
-      // out; the stock game never did. Logs the proof's number only, never the proof itself.
+      // out; the stock game never did.
       private function cancelSteamProof() : void
       {
          var handle:int = credentials.steamAuthTicketHandle;

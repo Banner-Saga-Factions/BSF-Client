@@ -770,8 +770,10 @@ didn't start*: `-WithSteam -SteamId none`, with no server needed. *The server re
 (`409`) need the packaged bundle with Steam running. For `409`, start a server that includes
 BSF-Custom-Server PR #398, with a made-up `STEAM_WEB_API_KEY` set in its window: Steam turns the key
 away, and the server answers `409` at once (measured 2026-11-10, #97). The server takes 5 sign-ins
-a minute from one address, so pressing **Try Steam again** quickly gets a `429` within a few presses
-and the stock "Login Failed" box instead.
+a minute from one address, so pressing **Try Steam again** quickly gets a `429` within a few presses.
+On the launch measured (`--steam true --server …`, no `--factions`), that `429` drops the game to the
+main menu signed out, with no message; "Login Failed" appears only once Combat is pressed
+(2026-11-10, #97).
 
 ### Wait for the game to say it is ready; do not count seconds
 

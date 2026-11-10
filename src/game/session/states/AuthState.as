@@ -164,8 +164,9 @@ package game.session.states
 
       // PATCH begin (#96, #97): a Steam sign-in the server could not check (409). Kiosk mode
       // keeps the stock handling: nobody is there to answer a question. Every one counts, not
-      // only the first in a run (#97): the question's "Try Steam again" is the only thing that
-      // sends a Steam sign-in again, so asking each time cannot go round in a loop.
+      // only the first in a run (#97). Asking each time cannot go round in a loop: once this
+      // flag is set, PreAuthState skips Steam until the question's "Try Steam again" clears it,
+      // so nothing sends Steam again without a button press.
       private function isUncheckedSteamSignIn(param1:AuthTxn) : Boolean
       {
          if(config.runMode.autologin || !credentials.steamAuthTicket || DiscordSignIn.isDiscordPassword(credentials.password))

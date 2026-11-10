@@ -14,7 +14,7 @@ been removed. The current download is on the
 ### "Couldn't sign in with Steam" says what to do when Factions isn't in your Steam library
 
 A Steam account that doesn't own Factions fails at the same point as a closed Steam, and the game
-can't tell the two apart. The message used to say only "Steam isn't running" and "start Steam
+can't tell the two apart. The message used to say "Steam isn't running" and "start Steam
 first", which is the wrong advice for someone who doesn't own the game on Steam. It now names both
 causes, with one action for each: no Factions on Steam, sign in with Discord; have it on Steam, quit
 and start Steam. The other reasons are reworded the same way, and a cancelled Discord sign-in says

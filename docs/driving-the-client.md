@@ -767,7 +767,7 @@ file, not in code. Measured 2026-11-10 (#97): four short lines that wrap to six 
 didn't start*: `-WithSteam -SteamId none`, with no server needed. *The server refused*: `-SteamId
 99999999999999999999`, a number above every Steam number, which the server answers with `400`; on a
 `--steam_id` launch the choice is never remembered. *Steam didn't confirm* and *couldn't check*
-(`409`) need a real Steam sign-in proof, so they need the packaged bundle with Steam running. Not
+(`409`) need the packaged bundle with Steam running. Not
 tried yet: `409` should also need a server from `main` with a made-up `STEAM_WEB_API_KEY`.
 
 ### Wait for the game to say it is ready; do not count seconds
